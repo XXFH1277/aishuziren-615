@@ -7,6 +7,7 @@ const moduleBreadcrumbs = [
   { prefix: '/avatar/', link: '/avatar/list', label: '数字人管理' },
   { prefix: '/studio/', link: '/studio/background', label: '直播间搭建' },
   { prefix: '/interaction/', link: '/interaction/comments', label: '实时互动' },
+  { prefix: '/delay-control/', link: '/delay-control/current', label: '延迟播控台' },
 ];
 
 export default function Breadcrumb() {
