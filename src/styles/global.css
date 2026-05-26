@@ -1429,6 +1429,62 @@ body {
   border-radius: 8px;
 }
 
+.settings-alert {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.settings-inner-alert {
+  margin-top: 12px;
+  border-radius: 8px;
+}
+
+.settings-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.settings-stat-grid .data-card-value {
+  font-size: 24px;
+  word-break: break-word;
+}
+
+.settings-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-switch-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.settings-modal-form {
+  padding-top: 4px;
+}
+
+.settings-permission-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.75fr) minmax(300px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.settings-permission-layout .ant-card:nth-child(2) {
+  grid-row: span 3;
+}
+
+.settings-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
 .executor-checklist-card .ant-progress {
   margin-bottom: 12px;
 }
@@ -1603,6 +1659,10 @@ body {
   .delay-upcoming-grid,
   .delay-stat-grid,
   .settings-switch-grid,
+  .settings-stat-grid,
+  .settings-two-column,
+  .settings-permission-layout,
+  .settings-checkbox-grid,
   .executor-stat-grid,
   .executor-obs-grid,
   .executor-binding-panel,
@@ -1629,5 +1689,9 @@ body {
 
   .control-room-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-permission-layout .ant-card:nth-child(2) {
+    grid-row: auto;
   }
 }

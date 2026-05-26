@@ -11,6 +11,7 @@ const moduleBreadcrumbs = [
   { prefix: '/ai-center/', link: '/ai-center/assistant', label: 'AI能力中心' },
   { prefix: '/executors/', link: '/executors/list', label: '执行端管理' },
   { prefix: '/help/', link: '/help/faq', label: '帮助中心' },
+  { prefix: '/settings/', link: '/settings/users', label: '系统设置' },
 ];
 
 export default function Breadcrumb() {

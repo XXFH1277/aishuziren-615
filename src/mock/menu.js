@@ -97,7 +97,10 @@ export const menuItems = [
     icon: 'settings',
     children: [
       { key: '/settings/users', label: '用户管理' },
+      { key: '/settings/roles', label: '角色权限' },
       { key: '/settings/basic', label: '基础设置' },
+      { key: '/settings/notifications', label: '通知设置' },
+      { key: '/settings/logs', label: '操作日志' },
     ],
   },
 ];

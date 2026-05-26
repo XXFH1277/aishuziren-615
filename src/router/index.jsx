@@ -37,6 +37,9 @@ import ProductAICopy from '../pages/products/ProductAICopy';
 import ProductGroups from '../pages/products/ProductGroups';
 import ProductList from '../pages/products/ProductList';
 import BasicSettings from '../pages/settings/BasicSettings';
+import NotificationSettings from '../pages/settings/NotificationSettings';
+import OperationLogs from '../pages/settings/OperationLogs';
+import RolePermissions from '../pages/settings/RolePermissions';
 import UserManagement from '../pages/settings/UserManagement';
 import StudioBackground from '../pages/studio/StudioBackground';
 import StudioLayout from '../pages/studio/StudioLayout';
@@ -91,7 +94,10 @@ const router = createBrowserRouter([
       { path: 'help/status', element: <SystemStatus />, handle: { label: '系统状态' } },
       { path: 'help/changelog', element: <Changelog />, handle: { label: '更新日志' } },
       { path: 'settings/users', element: <UserManagement />, handle: { label: '用户管理' } },
+      { path: 'settings/roles', element: <RolePermissions />, handle: { label: '角色权限' } },
       { path: 'settings/basic', element: <BasicSettings />, handle: { label: '基础设置' } },
+      { path: 'settings/notifications', element: <NotificationSettings />, handle: { label: '通知设置' } },
+      { path: 'settings/logs', element: <OperationLogs />, handle: { label: '操作日志' } },
       { path: '*', element: <Navigate to="/dashboard" replace /> },
     ],
   },
