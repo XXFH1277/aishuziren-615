@@ -10,6 +10,7 @@ const moduleBreadcrumbs = [
   { prefix: '/delay-control/', link: '/interaction/comments', label: '互动播控' },
   { prefix: '/ai-center/', link: '/ai-center/assistant', label: 'AI能力中心' },
   { prefix: '/executors/', link: '/executors/list', label: '执行端管理' },
+  { prefix: '/help/', link: '/help/faq', label: '帮助中心' },
 ];
 
 export default function Breadcrumb() {

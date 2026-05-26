@@ -17,9 +17,12 @@ import SubtitlePreview from '../pages/delay-control/SubtitlePreview';
 import ExecutorList from '../pages/executors/ExecutorList';
 import HeartbeatLogs from '../pages/executors/HeartbeatLogs';
 import ObsStatus from '../pages/executors/ObsStatus';
+import Changelog from '../pages/help/Changelog';
 import Faq from '../pages/help/Faq';
+import SystemStatus from '../pages/help/SystemStatus';
 import Tickets from '../pages/help/Tickets';
 import Troubleshooting from '../pages/help/Troubleshooting';
+import Tutorials from '../pages/help/Tutorials';
 import CommentCapture from '../pages/interaction/CommentCapture';
 import ManualTakeover from '../pages/interaction/ManualTakeover';
 import QuestionQueue from '../pages/interaction/QuestionQueue';
@@ -84,6 +87,9 @@ const router = createBrowserRouter([
       { path: 'help/faq', element: <Faq />, handle: { label: '常见问题' } },
       { path: 'help/troubleshooting', element: <Troubleshooting />, handle: { label: '快速排查' } },
       { path: 'help/tickets', element: <Tickets />, handle: { label: '技术工单' } },
+      { path: 'help/tutorials', element: <Tutorials />, handle: { label: '操作教程' } },
+      { path: 'help/status', element: <SystemStatus />, handle: { label: '系统状态' } },
+      { path: 'help/changelog', element: <Changelog />, handle: { label: '更新日志' } },
       { path: 'settings/users', element: <UserManagement />, handle: { label: '用户管理' } },
       { path: 'settings/basic', element: <BasicSettings />, handle: { label: '基础设置' } },
       { path: '*', element: <Navigate to="/dashboard" replace /> },

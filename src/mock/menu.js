@@ -86,6 +86,9 @@ export const menuItems = [
       { key: '/help/faq', label: '常见问题' },
       { key: '/help/troubleshooting', label: '快速排查' },
       { key: '/help/tickets', label: '技术工单' },
+      { key: '/help/tutorials', label: '操作教程' },
+      { key: '/help/status', label: '系统状态' },
+      { key: '/help/changelog', label: '更新日志' },
     ],
   },
   {

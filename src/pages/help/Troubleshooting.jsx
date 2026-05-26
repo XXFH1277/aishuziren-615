@@ -1,5 +1,101 @@
-import PlaceholderPage from '../../components/PlaceholderPage';
+import { Alert, Button, Card, Empty, List, Space, Steps, Tag, Typography, message } from 'antd';
+import { useMemo, useState } from 'react';
+import PageHeader from '../../components/PageHeader';
+import StatusTag from '../../components/StatusTag';
+import { getTroubleshootingList } from '../../services/helpService';
+
+const troubleshootingList = getTroubleshootingList();
+
+const stepStatusMap = {
+  正常: 'finish',
+  异常: 'error',
+  待检查: 'process',
+};
 
 export default function Troubleshooting() {
-  return <PlaceholderPage pageKey="troubleshooting" />;
+  const [selectedId, setSelectedId] = useState(troubleshootingList[0]?.id);
+  const selectedItem = useMemo(
+    () => troubleshootingList.find((item) => item.id === selectedId) || troubleshootingList[0],
+    [selectedId],
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="快速排查"
+        description="通过步骤清单排查常见直播故障。当前所有检查结果和建议操作均为 Mock，不连接真实服务。"
+        extra={
+          <Button type="primary" onClick={() => message.success('提交技术工单为 Mock 入口，请到技术工单页继续填写')}>
+            提交技术工单 Mock
+          </Button>
+        }
+      />
+
+      <Alert
+        className="help-alert"
+        type="warning"
+        showIcon
+        message="排查结果仅用于前端原型演示"
+        description="当前不读取真实日志、不连接 OBS、不访问直播平台，也不会向任何工单系统发送信息。"
+      />
+
+      <div className="help-troubleshooting-grid">
+        <Card title="问题类型" className="panel-card">
+          <List
+            dataSource={troubleshootingList}
+            renderItem={(item) => (
+              <List.Item
+                className={item.id === selectedItem?.id ? 'help-list-item-active' : ''}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space wrap>
+                      <span>{item.title}</span>
+                      <Tag color="blue">{item.category}</Tag>
+                    </Space>
+                  }
+                  description={item.description}
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+
+        <Card
+          title={selectedItem?.title || '排查步骤'}
+          className="panel-card"
+          extra={selectedItem ? <Tag color="blue">{selectedItem.category}</Tag> : null}
+        >
+          {selectedItem ? (
+            <>
+              <Typography.Paragraph type="secondary">{selectedItem.description}</Typography.Paragraph>
+              <Steps
+                direction="vertical"
+                current={Math.max(selectedItem.steps.findIndex((item) => item.status !== '正常'), 0)}
+                items={selectedItem.steps.map((step) => ({
+                  title: (
+                    <Space wrap>
+                      <span>{step.title}</span>
+                      <StatusTag status={step.status} />
+                    </Space>
+                  ),
+                  description: step.status === '异常' ? <Typography.Text type="danger">{step.suggestion}</Typography.Text> : step.suggestion,
+                  status: stepStatusMap[step.status],
+                }))}
+              />
+              <Space className="help-panel-actions">
+                <Button onClick={() => message.info('重新检测为 Mock 操作')}>重新检测 Mock</Button>
+                <Button type="primary" onClick={() => message.success('已生成技术工单草稿 Mock')}>
+                  提交技术工单
+                </Button>
+              </Space>
+            </>
+          ) : (
+            <Empty description="请选择问题类型" />
+          )}
+        </Card>
+      </div>
+    </>
+  );
 }
