@@ -7,3 +7,8 @@ dist
 .env.local
 .env.*.local
 模型api.txt
+
+server/data/*.sqlite
+server/data/*.db
+server/data/*.sqlite-*
+server/data/*.db-*
