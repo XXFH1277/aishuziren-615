@@ -24,6 +24,7 @@ import CreateLiveRoom from '../pages/live/CreateLiveRoom';
 import LiveRooms from '../pages/live/LiveRooms';
 import LiveTasks from '../pages/live/LiveTasks';
 import CreateProduct from '../pages/products/CreateProduct';
+import ProductAICopy from '../pages/products/ProductAICopy';
 import ProductGroups from '../pages/products/ProductGroups';
 import ProductList from '../pages/products/ProductList';
 import BasicSettings from '../pages/settings/BasicSettings';
@@ -46,6 +47,7 @@ const router = createBrowserRouter([
       { path: 'products/list', element: <ProductList />, handle: { label: '商品列表' } },
       { path: 'products/create', element: <CreateProduct />, handle: { label: '创建商品' } },
       { path: 'products/groups', element: <ProductGroups />, handle: { label: '商品组' } },
+      { path: 'products/ai-copy', element: <ProductAICopy />, handle: { label: 'AI商品文案' } },
       { path: 'avatar/list', element: <AvatarList />, handle: { label: '数字人列表' } },
       { path: 'avatar/create', element: <CreateAvatar />, handle: { label: '创建数字人' } },
       { path: 'avatar/actions', element: <ActionLibrary />, handle: { label: '动作库' } },

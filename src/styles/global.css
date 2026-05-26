@@ -225,6 +225,135 @@ body {
   line-height: 1.8;
 }
 
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.table-subtext {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.product-thumb {
+  display: grid;
+  width: 64px;
+  height: 48px;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.product-thumb-seafood-box,
+.product-thumb-fish-snack {
+  background: linear-gradient(135deg, #0f766e, #38bdf8);
+}
+
+.product-thumb-coffee-kit,
+.product-thumb-desk-storage,
+.product-thumb-thermo-cup {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+}
+
+.product-thumb-meal-box {
+  background: linear-gradient(135deg, #16a34a, #f59e0b);
+}
+
+.product-thumb-desk-lamp,
+.product-thumb-neck-massager {
+  background: linear-gradient(135deg, #475569, #f97316);
+}
+
+.form-grid,
+.ai-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+
+.product-form-tabs .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.product-group-card {
+  height: 100%;
+  border-radius: 8px;
+}
+
+.product-group-card .ant-card-actions {
+  border-radius: 0 0 8px 8px;
+}
+
+.group-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  color: #64748b;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.group-meta:last-child {
+  border-bottom: 0;
+}
+
+.group-meta strong {
+  color: #111827;
+  font-weight: 650;
+  text-align: right;
+}
+
+.ai-copy-selector {
+  margin-bottom: 16px;
+}
+
+.copy-scene-card {
+  height: 100%;
+  border-radius: 8px;
+}
+
+.copy-scene-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #111827;
+  font-weight: 700;
+}
+
+.copy-scene-card p {
+  margin: 0 0 12px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.copy-scene-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -247,5 +376,14 @@ body {
 
   .page-header h1 {
     font-size: 21px;
+  }
+
+  .form-grid,
+  .ai-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sticky-actions {
+    justify-content: flex-start;
   }
 }

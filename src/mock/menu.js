@@ -22,6 +22,7 @@ export const menuItems = [
       { key: '/products/list', label: '商品列表' },
       { key: '/products/create', label: '创建商品' },
       { key: '/products/groups', label: '商品组' },
+      { key: '/products/ai-copy', label: 'AI商品文案' },
     ],
   },
   {
