@@ -1,12 +1,11 @@
 import { CopyOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Card, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getProductCategories, getProductStatuses, getProducts } from '../../services/productService';
+import { getProductCategories, getProductStatuses, getProducts, updateProductStatus } from '../../services/productService';
 
-const products = getProducts();
 const productCategories = getProductCategories();
 const productStatuses = getProductStatuses();
 
@@ -19,23 +18,63 @@ const statusActionText = {
 
 export default function ProductList() {
   const navigate = useNavigate();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState();
   const [status, setStatus] = useState();
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 8, total: 0 });
 
-  const filteredProducts = useMemo(
-    () =>
-      products.filter((product) => {
-        const matchKeyword =
-          !keyword ||
-          product.name.toLowerCase().includes(keyword.toLowerCase()) ||
-          product.brand.toLowerCase().includes(keyword.toLowerCase());
-        const matchCategory = !category || product.category === category;
-        const matchStatus = !status || product.status === status;
-        return matchKeyword && matchCategory && matchStatus;
-      }),
-    [category, keyword, status],
-  );
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getProducts({
+        keyword,
+        category,
+        status,
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+      });
+
+      setProducts(data.list || []);
+      setPagination((current) => ({
+        ...current,
+        current: data.page || current.current,
+        pageSize: data.pageSize || current.pageSize,
+        total: data.total || 0,
+      }));
+    } catch (requestError) {
+      const messageText = requestError.message || '商品列表加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, keyword, pagination.current, pagination.pageSize, status]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const resetToFirstPage = (updater) => {
+    updater();
+    setPagination((current) => ({ ...current, current: 1 }));
+  };
+
+  const handleStatusAction = async (record) => {
+    const nextStatus = record.status === '已上架' ? '已下架' : '已上架';
+
+    try {
+      await updateProductStatus(record.id, nextStatus);
+      message.success(`已${statusActionText[record.status]}「${record.name}」`);
+      fetchProducts();
+    } catch (requestError) {
+      message.error(requestError.message || '商品状态更新失败');
+    }
+  };
 
   const columns = [
     {
@@ -114,7 +153,7 @@ export default function ProductList() {
           >
             复制
           </Button>
-          <Button type="link" size="small" danger={record.status === '已上架'} onClick={() => message.info('仅演示状态动作')}>
+          <Button type="link" size="small" danger={record.status === '已上架'} onClick={() => handleStatusAction(record)}>
             {statusActionText[record.status]}
           </Button>
         </Space>
@@ -126,7 +165,7 @@ export default function ProductList() {
     <>
       <PageHeader
         title="商品列表"
-        description="管理直播带货商品资料、上架状态和商品组绑定情况，当前全部使用本地 Mock 数据。"
+        description="管理直播带货商品资料、上架状态和商品组绑定情况，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/products/create')}>
@@ -136,19 +175,20 @@ export default function ProductList() {
         }
       />
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
             placeholder="搜索商品名称或品牌"
-            onSearch={setKeyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => resetToFirstPage(() => setKeyword(value))}
+            onChange={(event) => resetToFirstPage(() => setKeyword(event.target.value))}
             style={{ maxWidth: 300 }}
           />
           <Select
             allowClear
             placeholder="分类筛选"
             value={category}
-            onChange={setCategory}
+            onChange={(value) => resetToFirstPage(() => setCategory(value))}
             options={productCategories.map((item) => ({ label: item, value: item }))}
             style={{ width: 160 }}
           />
@@ -156,7 +196,7 @@ export default function ProductList() {
             allowClear
             placeholder="状态筛选"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => resetToFirstPage(() => setStatus(value))}
             options={productStatuses.map((item) => ({ label: item, value: item }))}
             style={{ width: 160 }}
           />
@@ -164,8 +204,22 @@ export default function ProductList() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredProducts}
-          pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 个商品` }}
+          dataSource={products}
+          loading={loading}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无商品数据'} /> }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showTotal: (total) => `共 ${total} 个商品`,
+          }}
+          onChange={(nextPagination) =>
+            setPagination((current) => ({
+              ...current,
+              current: nextPagination.current,
+              pageSize: nextPagination.pageSize,
+            }))
+          }
           scroll={{ x: 1320 }}
         />
       </Card>

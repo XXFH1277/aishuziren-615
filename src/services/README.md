@@ -41,3 +41,19 @@ service -> fetch(`${API_BASE_URL}/api/xxx`)
 - 前端环境变量只能存放公开地址，不允许存放 API Key。
 - 页面组件尽量继续调用 service 函数，不直接感知 mock 或 API 来源。
 - Phase 12 先跑通本地后端 MVP，不强制全量切换前端 service。
+
+## Phase 12.5 商品 Service API 试点
+
+当前已切换：
+
+```text
+productService -> fetch(`${API_BASE_URL}/api/products`)
+productService -> fetch(`${API_BASE_URL}/api/product-groups`)
+```
+
+说明：
+
+- 商品列表、商品详情、创建商品、编辑商品、商品组读取本地 Express + SQLite。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+- `getProductCategories()`、`getProductStatuses()`、`getProductGroupTypes()` 仍使用前端静态选项。
+- 非商品模块暂不切 API；直播间页面如需商品组下拉，仍显式使用 Mock helper，避免扩大试点范围。

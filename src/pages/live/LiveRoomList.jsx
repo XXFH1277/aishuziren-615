@@ -6,13 +6,13 @@ import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getAvatars } from '../../services/avatarService';
 import { getLivePlatforms, getLiveRoomStatuses, getLiveRooms } from '../../services/liveService';
-import { getProductGroups } from '../../services/productService';
+import { getMockProductGroups } from '../../services/productService';
 
 const liveRooms = getLiveRooms();
 const livePlatforms = getLivePlatforms();
 const liveRoomStatuses = getLiveRoomStatuses();
 const avatars = getAvatars();
-const productGroups = getProductGroups();
+const productGroups = getMockProductGroups();
 
 function enabledText(enabled) {
   return enabled ? <Tag color="green">开启</Tag> : <Tag>关闭</Tag>;

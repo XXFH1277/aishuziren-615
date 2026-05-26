@@ -1,12 +1,10 @@
 import { PlusOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Tag, message } from 'antd';
-import { useState } from 'react';
+import { Alert, Button, Card, Col, Empty, Form, Input, Modal, Row, Select, Space, Spin, Tag, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
-import { getProductGroupTypes, getProductGroups, getProducts } from '../../services/productService';
+import { createProductGroup, getProductGroupTypes, getProductGroups, getProducts } from '../../services/productService';
 
-const productGroups = getProductGroups();
 const productGroupTypes = getProductGroupTypes();
-const products = getProducts();
 
 const typeColors = {
   福利品: 'gold',
@@ -18,67 +16,110 @@ const typeColors = {
 
 export default function ProductGroups() {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [productGroups, setProductGroups] = useState([]);
+  const [products, setProducts] = useState([]);
   const [form] = Form.useForm();
 
+  const fetchProductGroups = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [groupData, productData] = await Promise.all([getProductGroups({ pageSize: 100 }), getProducts({ pageSize: 100 })]);
+      setProductGroups(groupData.list || []);
+      setProducts(productData.list || []);
+    } catch (requestError) {
+      const messageText = requestError.message || '商品组加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProductGroups();
+  }, [fetchProductGroups]);
+
   const handleCreate = async () => {
-    await form.validateFields();
-    message.success('商品组已创建，当前仅为前端 Mock 提示');
-    form.resetFields();
-    setOpen(false);
+    try {
+      const values = await form.validateFields();
+      await createProductGroup(values);
+      message.success('商品组已创建并写入本地 SQLite');
+      form.resetFields();
+      setOpen(false);
+      fetchProductGroups();
+    } catch (requestError) {
+      if (requestError.errorFields) {
+        return;
+      }
+      message.error(requestError.message || '商品组创建失败');
+    }
   };
 
   return (
     <>
       <PageHeader
         title="商品组"
-        description="按直播场景管理福利品、主推品、利润品、引流品和返场品组合，当前使用 Mock 数据。"
+        description="按直播场景管理福利品、主推品、利润品、引流品和返场品组合，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
             新建商品组
           </Button>
         }
       />
-      <Row gutter={[16, 16]}>
-        {productGroups.map((group) => (
-          <Col xs={24} md={12} xl={8} key={group.id}>
-            <Card
-              className="product-group-card"
-              title={group.name}
-              extra={<Tag color={typeColors[group.type]}>{group.type}</Tag>}
-              actions={[
-                <Button type="link" key="view" onClick={() => message.info(`查看 ${group.name}`)}>
-                  查看
-                </Button>,
-                <Button type="link" key="edit" onClick={() => message.info(`编辑 ${group.name}`)}>
-                  编辑
-                </Button>,
-                <Button type="link" key="copy" onClick={() => message.success(`已复制 ${group.name}`)}>
-                  复制
-                </Button>,
-              ]}
-            >
-              <div className="group-meta">
-                <span>商品数量</span>
-                <strong>{group.productCount}</strong>
-              </div>
-              <div className="group-meta">
-                <span>主推商品</span>
-                <strong>{group.mainProduct}</strong>
-              </div>
-              <div className="group-meta">
-                <span>适用直播间</span>
-                <strong>{group.liveRoom}</strong>
-              </div>
-              <div className="group-meta">
-                <span>更新时间</span>
-                <strong>{group.updatedAt}</strong>
-              </div>
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+      <Spin spinning={loading}>
+        {productGroups.length ? (
+          <Row gutter={[16, 16]}>
+            {productGroups.map((group) => (
+              <Col xs={24} md={12} xl={8} key={group.id}>
+                <Card
+                  className="product-group-card"
+                  title={group.name}
+                  extra={<Tag color={typeColors[group.type]}>{group.type}</Tag>}
+                  actions={[
+                    <Button type="link" key="view" onClick={() => message.info(`查看 ${group.name}`)}>
+                      查看
+                    </Button>,
+                    <Button type="link" key="edit" onClick={() => message.info(`编辑 ${group.name}`)}>
+                      编辑
+                    </Button>,
+                    <Button type="link" key="copy" onClick={() => message.success(`已复制 ${group.name}`)}>
+                      复制
+                    </Button>,
+                  ]}
+                >
+                  <div className="group-meta">
+                    <span>商品数量</span>
+                    <strong>{group.productCount}</strong>
+                  </div>
+                  <div className="group-meta">
+                    <span>主推商品</span>
+                    <strong>{group.mainProduct}</strong>
+                  </div>
+                  <div className="group-meta">
+                    <span>适用直播间</span>
+                    <strong>{group.liveRoom}</strong>
+                  </div>
+                  <div className="group-meta">
+                    <span>更新时间</span>
+                    <strong>{group.updatedAt}</strong>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <Card className="panel-card">
+            <Empty description={error ? '本地 API 暂无可展示数据' : '暂无商品组数据'} />
+          </Card>
+        )}
+      </Spin>
       <Modal
-        title="新建商品组（Mock）"
+        title="新建商品组"
         open={open}
         onCancel={() => setOpen(false)}
         onOk={handleCreate}
@@ -104,8 +145,8 @@ export default function ProductGroups() {
           </Form.Item>
           <Form.Item label="说明">
             <Space direction="vertical" size={0}>
-              <span>本弹窗只做前端表单演示。</span>
-              <span>不会写入后端、数据库或真实电商接口。</span>
+              <span>本弹窗会写入本地 SQLite 开发库。</span>
+              <span>不会接真实电商接口或外部服务。</span>
             </Space>
           </Form.Item>
         </Form>

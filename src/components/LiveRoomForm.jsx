@@ -4,12 +4,12 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAvatarById, getAvatars } from '../services/avatarService';
 import { getLivePlatforms } from '../services/liveService';
-import { getProductGroups } from '../services/productService';
+import { getMockProductGroups } from '../services/productService';
 
 const { TextArea } = Input;
 const avatars = getAvatars();
 const livePlatforms = getLivePlatforms();
-const productGroups = getProductGroups();
+const productGroups = getMockProductGroups();
 
 const liveTypes = ['常规直播', '福利专场', '新品首播', '测试直播', '返场直播'];
 const platformAccounts = ['舟山鲜选官方号', '职场好物研究所', '新人福利测试号', '明眸光电旗舰店', '轻盈计划官方号', '内部测试账号'];

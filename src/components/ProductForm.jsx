@@ -1,7 +1,7 @@
 import { InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Checkbox, Form, Input, Select, Space, Tabs, Upload, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getProductCategories } from '../services/productService';
+import { createProduct, getProductCategories, updateProduct } from '../services/productService';
 import AiGenerateButton from './AiGenerateButton';
 
 const { TextArea } = Input;
@@ -82,19 +82,77 @@ export function mapProductToFormValues(product) {
   };
 }
 
-export default function ProductForm({ mode = 'create', initialValues, productName }) {
+function splitLines(value) {
+  if (!value) {
+    return [];
+  }
+
+  return String(value)
+    .split('\n')
+    .map((item) => item.replace(/^-\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function buildProductPayload(values, status) {
+  return {
+    name: values.name,
+    category: values.category,
+    brand: values.brand,
+    image: values.mainImage?.[0]?.name || 'api-product',
+    description: values.description,
+    price: Number(values.spec?.price || 0),
+    stock: Number(values.spec?.stock || 0),
+    status,
+    sellingPoints: splitLines(values.selling?.core),
+    faq: splitLines(values.faq?.questions),
+    scripts: values.script || {},
+    forbiddenExpressions: values.compliance?.forbidden || forbiddenOptions,
+  };
+}
+
+export default function ProductForm({ mode = 'create', productId, initialValues, productName }) {
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
 
-  const handleSaveDraft = () => {
-    message.success(isEdit ? '商品修改草稿已保存到前端 Mock 状态' : '商品草稿已保存到前端 Mock 状态');
+  const saveProduct = async ({ returnToList = false, status = '草稿' } = {}) => {
+    if (returnToList) {
+      await form.validateFields();
+    } else {
+      await form.validateFields(['name']);
+    }
+
+    const values = form.getFieldsValue(true);
+    const payload = buildProductPayload(values, status);
+
+    if (isEdit) {
+      await updateProduct(productId, payload);
+    } else {
+      await createProduct(payload);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      await saveProduct({ status: '草稿' });
+      message.success(isEdit ? '商品修改草稿已保存到本地 SQLite' : '商品草稿已保存到本地 SQLite');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '保存草稿失败');
+      }
+    }
   };
 
   const handleSaveAndReturn = async () => {
-    await form.validateFields();
-    message.success(isEdit ? '商品编辑已保存，当前仅为前端 Mock 成功提示' : '商品已保存，当前仅为前端 Mock 成功提示');
-    navigate('/products/list');
+    try {
+      await saveProduct({ returnToList: true, status: isEdit ? undefined : '草稿' });
+      message.success(isEdit ? '商品编辑已保存到本地 SQLite' : '商品已保存到本地 SQLite');
+      navigate('/products/list');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '商品保存失败');
+      }
+    }
   };
 
   const tabItems = [

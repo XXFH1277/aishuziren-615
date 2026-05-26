@@ -1,4 +1,5 @@
-import { Result } from 'antd';
+import { Result, Spin, message } from 'antd';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import ProductForm, { mapProductToFormValues } from '../../components/ProductForm';
@@ -6,19 +7,57 @@ import { getProductById } from '../../services/productService';
 
 export default function EditProduct() {
   const { id } = useParams();
-  const product = getProductById(id);
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (!product) {
-    return <Result status="404" title="未找到商品" subTitle="当前编辑页只读取本地 Mock 商品数据。" />;
+  useEffect(() => {
+    let active = true;
+
+    async function fetchProduct() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getProductById(id);
+        if (active) {
+          setProduct(data);
+        }
+      } catch (requestError) {
+        const messageText = requestError.message || '商品详情加载失败';
+        if (active) {
+          setError(messageText);
+        }
+        message.error(messageText);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchProduct();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return <Spin tip="正在加载商品详情..." />;
+  }
+
+  if (error || !product) {
+    return <Result status="404" title="未找到商品" subTitle={error || '本地 API 中未找到对应商品。'} />;
   }
 
   return (
     <>
       <PageHeader
         title="编辑商品"
-        description="编辑单个商品的完整资料。AI 文案能力嵌入在各个标签页字段旁边，当前只生成 Mock 文案。"
+        description="编辑单个商品的完整资料，当前详情读取自本地 API / SQLite。AI 文案能力仍为 Mock。"
       />
-      <ProductForm mode="edit" initialValues={mapProductToFormValues(product)} productName={product.name} />
+      <ProductForm mode="edit" productId={product.id} initialValues={mapProductToFormValues(product)} productName={product.name} />
     </>
   );
 }

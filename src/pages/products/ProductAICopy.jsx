@@ -1,10 +1,9 @@
 import { FileTextOutlined, SafetyCertificateOutlined, SoundOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import { Alert, Card, Col, Input, Row, Select, Space, Tabs, Tag } from 'antd';
+import { Alert, Card, Col, Input, Row, Select, Space, Tabs, Tag, message } from 'antd';
+import { useEffect, useState } from 'react';
 import AiGenerateButton from '../../components/AiGenerateButton';
 import PageHeader from '../../components/PageHeader';
 import { getProducts } from '../../services/productService';
-
-const products = getProducts();
 
 const copyScenes = [
   {
@@ -58,6 +57,21 @@ function SceneCard({ scene }) {
 }
 
 export default function ProductAICopy() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const data = await getProducts({ pageSize: 100 });
+        setProducts(data.list || []);
+      } catch (error) {
+        message.error(error.message || '商品数据加载失败');
+      }
+    }
+
+    fetchProducts();
+  }, []);
+
   const tabItems = [
     {
       key: 'single',
