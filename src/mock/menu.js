@@ -43,24 +43,17 @@ export const menuItems = [
     ],
   },
   {
-    key: '/interaction',
-    label: '实时互动',
+    key: '/interaction-control',
+    label: '互动播控',
     icon: 'interaction',
     children: [
       { key: '/interaction/comments', label: '弹幕捕获' },
       { key: '/interaction/questions', label: '问题队列' },
-      { key: '/interaction/takeover', label: '人工接管台' },
-    ],
-  },
-  {
-    key: '/delay-control',
-    label: '延迟播控台',
-    icon: 'delay',
-    children: [
+      { key: '/interaction/takeover', label: '人工接管' },
       { key: '/delay-control/current', label: '当前播报' },
       { key: '/delay-control/queue', label: '待播队列' },
       { key: '/delay-control/subtitles', label: '字幕预览' },
-      { key: '/delay-control/settings', label: '延迟设置' },
+      { key: '/delay-control/settings', label: '播控设置' },
     ],
   },
   {
