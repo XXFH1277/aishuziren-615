@@ -1,51 +1,30 @@
 import { Breadcrumb as AntBreadcrumb } from 'antd';
 import { Link, useLocation, useMatches } from 'react-router-dom';
 
+const moduleBreadcrumbs = [
+  { prefix: '/products/', link: '/products/list', label: '商品管理' },
+  { prefix: '/live/', link: '/live/rooms', label: '直播管理' },
+  { prefix: '/avatar/', link: '/avatar/list', label: '数字人管理' },
+  { prefix: '/studio/', link: '/studio/background', label: '直播间搭建' },
+];
+
 export default function Breadcrumb() {
   const { pathname } = useLocation();
   const matches = useMatches()
     .filter((match) => match.handle?.label)
     .map((match) => ({
-      title: match.pathname === '/dashboard' ? (
-        <Link to="/dashboard">{match.handle.label}</Link>
-      ) : (
-        match.handle.label
-      ),
+      title: match.pathname === '/dashboard' ? <Link to="/dashboard">{match.handle.label}</Link> : match.handle.label,
     }));
 
-  if (pathname.startsWith('/products/')) {
-    const currentLabel = matches[matches.length - 1]?.title || '商品管理';
-    return (
-      <AntBreadcrumb
-        items={[
-          { title: '后台' },
-          { title: <Link to="/products/list">商品管理</Link> },
-          { title: currentLabel },
-        ]}
-      />
-    );
-  }
+  const moduleBreadcrumb = moduleBreadcrumbs.find((item) => pathname.startsWith(item.prefix));
 
-  if (pathname.startsWith('/live/')) {
-    const currentLabel = matches[matches.length - 1]?.title || '直播管理';
+  if (moduleBreadcrumb) {
+    const currentLabel = matches[matches.length - 1]?.title || moduleBreadcrumb.label;
     return (
       <AntBreadcrumb
         items={[
           { title: '后台' },
-          { title: <Link to="/live/rooms">直播管理</Link> },
-          { title: currentLabel },
-        ]}
-      />
-    );
-  }
-
-  if (pathname.startsWith('/avatar/')) {
-    const currentLabel = matches[matches.length - 1]?.title || '数字人管理';
-    return (
-      <AntBreadcrumb
-        items={[
-          { title: '后台' },
-          { title: <Link to="/avatar/list">数字人管理</Link> },
+          { title: <Link to={moduleBreadcrumb.link}>{moduleBreadcrumb.label}</Link> },
           { title: currentLabel },
         ]}
       />

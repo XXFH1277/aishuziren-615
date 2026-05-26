@@ -32,9 +32,9 @@ import ProductGroups from '../pages/products/ProductGroups';
 import ProductList from '../pages/products/ProductList';
 import BasicSettings from '../pages/settings/BasicSettings';
 import UserManagement from '../pages/settings/UserManagement';
-import AiBackground from '../pages/studio/AiBackground';
-import ObsOutput from '../pages/studio/ObsOutput';
-import ScreenLayout from '../pages/studio/ScreenLayout';
+import StudioBackground from '../pages/studio/StudioBackground';
+import StudioLayout from '../pages/studio/StudioLayout';
+import StudioOutput from '../pages/studio/StudioOutput';
 
 const router = createBrowserRouter([
   {
@@ -57,9 +57,9 @@ const router = createBrowserRouter([
       { path: 'avatar/create', element: <CreateAvatar />, handle: { label: '创建数字人' } },
       { path: 'avatar/:id/edit', element: <EditAvatar />, handle: { label: '编辑数字人' } },
       { path: 'avatar/actions', element: <ActionLibrary />, handle: { label: '动作库' } },
-      { path: 'studio/background', element: <AiBackground />, handle: { label: 'AI生成背景' } },
-      { path: 'studio/layout', element: <ScreenLayout />, handle: { label: '画面布局' } },
-      { path: 'studio/obs-output', element: <ObsOutput />, handle: { label: 'OBS输出预留' } },
+      { path: 'studio/background', element: <StudioBackground />, handle: { label: 'AI生成背景' } },
+      { path: 'studio/layout', element: <StudioLayout />, handle: { label: '画面布局' } },
+      { path: 'studio/output', element: <StudioOutput />, handle: { label: 'OBS输出预留' } },
       { path: 'interaction/danmu', element: <DanmuCapture />, handle: { label: '弹幕捕获' } },
       { path: 'interaction/questions', element: <QuestionQueue />, handle: { label: '问题队列' } },
       { path: 'interaction/manual', element: <ManualTakeover />, handle: { label: '人工接管台' } },

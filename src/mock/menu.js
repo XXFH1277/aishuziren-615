@@ -38,7 +38,7 @@ export const menuItems = [
     children: [
       { key: '/studio/background', label: 'AI生成背景' },
       { key: '/studio/layout', label: '画面布局' },
-      { key: '/studio/obs-output', label: 'OBS输出预留' },
+      { key: '/studio/output', label: 'OBS输出预留' },
     ],
   },
   {
