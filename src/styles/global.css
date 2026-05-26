@@ -455,6 +455,33 @@ body {
   line-height: 1.7;
 }
 
+.live-preview-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(260px, 1fr);
+  gap: 18px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.live-preview-stage {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  color: #334155;
+  font-weight: 700;
+  background:
+    linear-gradient(90deg, rgb(37 99 235 / 10%) 1px, transparent 1px),
+    linear-gradient(rgb(20 184 166 / 10%) 1px, transparent 1px),
+    #ffffff;
+  background-size: 24px 24px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -489,6 +516,10 @@ body {
   }
 
   .avatar-preview-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .live-preview-panel {
     grid-template-columns: 1fr;
   }
 }

@@ -10,7 +10,6 @@ export const menuItems = [
     icon: 'live',
     children: [
       { key: '/live/rooms', label: '直播间列表' },
-      { key: '/live/create', label: '创建直播间' },
       { key: '/live/tasks', label: '直播任务' },
     ],
   },

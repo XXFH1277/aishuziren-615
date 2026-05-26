@@ -22,7 +22,8 @@ import DanmuCapture from '../pages/interaction/DanmuCapture';
 import ManualTakeover from '../pages/interaction/ManualTakeover';
 import QuestionQueue from '../pages/interaction/QuestionQueue';
 import CreateLiveRoom from '../pages/live/CreateLiveRoom';
-import LiveRooms from '../pages/live/LiveRooms';
+import EditLiveRoom from '../pages/live/EditLiveRoom';
+import LiveRoomList from '../pages/live/LiveRoomList';
 import LiveTasks from '../pages/live/LiveTasks';
 import CreateProduct from '../pages/products/CreateProduct';
 import EditProduct from '../pages/products/EditProduct';
@@ -43,8 +44,9 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard />, handle: { label: '首页工作台' } },
-      { path: 'live/rooms', element: <LiveRooms />, handle: { label: '直播间列表' } },
-      { path: 'live/create', element: <CreateLiveRoom />, handle: { label: '创建直播间' } },
+      { path: 'live/rooms', element: <LiveRoomList />, handle: { label: '直播间列表' } },
+      { path: 'live/rooms/create', element: <CreateLiveRoom />, handle: { label: '创建直播间' } },
+      { path: 'live/rooms/:id/edit', element: <EditLiveRoom />, handle: { label: '编辑直播间' } },
       { path: 'live/tasks', element: <LiveTasks />, handle: { label: '直播任务' } },
       { path: 'products/list', element: <ProductList />, handle: { label: '商品列表' } },
       { path: 'products/create', element: <CreateProduct />, handle: { label: '创建商品' } },
