@@ -33,7 +33,7 @@ export default function ManualTakeover() {
     <>
       <PageHeader
         title="人工接管台"
-        description="运营人员可手动输入一句话，选择语气和动作后模拟数字人播报流程。当前不调用真实数字人或执行端。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于单独模拟人工接管输入、语气动作和播报方式。"
         extra={<Badge status="processing" text="人工接管 Mock 已就绪" />}
       />
 

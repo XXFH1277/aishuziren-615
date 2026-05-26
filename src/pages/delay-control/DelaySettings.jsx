@@ -20,7 +20,7 @@ export default function DelaySettings() {
     <>
       <PageHeader
         title="延迟设置"
-        description="配置数字人播报的延迟策略、人工审核策略、队列策略和风险词策略。当前只做前端 Mock。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于配置播控延迟、人工审核、队列和风险词策略。"
       />
 
       <Form

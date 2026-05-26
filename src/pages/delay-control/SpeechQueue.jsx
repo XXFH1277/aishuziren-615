@@ -101,7 +101,10 @@ export default function SpeechQueue() {
 
   return (
     <>
-      <PageHeader title="待播队列" description="管理数字人接下来要说的话，模拟播出前审核、修改、插队和风险标记流程。" />
+      <PageHeader
+        title="待播队列"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于管理待播话术、播出前审核、修改、插队和风险标记流程。"
+      />
 
       <div className="delay-stat-grid">
         <Card className="data-card tone-blue"><span>待播数量</span><strong>{stats.pending}</strong><p>未删除的待播内容</p></Card>

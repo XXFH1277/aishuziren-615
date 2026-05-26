@@ -208,7 +208,7 @@ export default function LiveControlRoom() {
     <>
       <PageHeader
         title="直播中控台"
-        description="直播运行时的一屏操作台，聚合预览、弹幕、问题处理、人工接管、待播审核、字幕预览和风险提示。当前全部为 Mock。"
+        description="直播中控台用于直播进行中的一屏操作，聚合直播预览、弹幕、问题、人工接管、待播队列和风险提示。当前全部为 Mock。"
         extra={
           <Space wrap>
             <Badge status="processing" text="直播中控 v2 Mock" />

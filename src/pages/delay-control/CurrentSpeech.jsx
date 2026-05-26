@@ -26,7 +26,7 @@ export default function CurrentSpeech() {
     <>
       <PageHeader
         title="当前播报"
-        description="展示数字人当前正在播报的内容，以及下一句、下两句的播控预览。当前全部为 Mock，不接真实数字人播报。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于查看当前播报、下一句和下两句的播控预览。"
         extra={<Badge status="processing" text={`延迟模式：${delayControl.delayMode}`} />}
       />
 

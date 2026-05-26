@@ -14,7 +14,10 @@ export default function SubtitlePreview() {
 
   return (
     <>
-      <PageHeader title="字幕预览" description="模拟观众端看到的字幕效果，让运营人员提前预览数字人即将说的话。当前只做前端 Mock。" />
+      <PageHeader
+        title="字幕预览"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于单独预览字幕样式、字幕位置和待播字幕效果。"
+      />
 
       <div className="subtitle-preview-grid">
         <Card title="直播画面字幕预览框" className="panel-card">

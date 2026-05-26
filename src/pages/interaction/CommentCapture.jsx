@@ -142,7 +142,7 @@ export default function CommentCapture() {
     <>
       <PageHeader
         title="弹幕捕获"
-        description="展示直播间实时弹幕捕获状态和评论流。当前使用 Mock 数据，不接真实直播平台弹幕接口或 WebSocket。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。展示直播间实时弹幕捕获状态和评论流，当前使用 Mock 数据。"
         extra={
           <Space wrap>
             <Select

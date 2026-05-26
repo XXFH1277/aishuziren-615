@@ -140,7 +140,7 @@ export default function QuestionQueue() {
     <>
       <PageHeader
         title="问题队列"
-        description="把弹幕中识别出的有效问题整理为可处理队列，并提供 Mock AI 推荐回复和人工编辑流程。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于整理弹幕识别问题，并提供 Mock AI 推荐回复和人工编辑流程。"
         extra={<Select value={currentRoom} onChange={setCurrentRoom} options={interactionLiveRooms} style={{ width: 220 }} />}
       />
 
