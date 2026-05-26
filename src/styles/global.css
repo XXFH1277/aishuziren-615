@@ -368,6 +368,93 @@ body {
   margin-top: 12px;
 }
 
+.avatar-thumb {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.avatar-thumb-island {
+  background: linear-gradient(135deg, #0f766e, #38bdf8);
+}
+
+.avatar-thumb-office,
+.avatar-thumb-guide {
+  background: linear-gradient(135deg, #2563eb, #64748b);
+}
+
+.avatar-thumb-service {
+  background: linear-gradient(135deg, #14b8a6, #8b5cf6);
+}
+
+.avatar-thumb-promo {
+  background: linear-gradient(135deg, #f43f5e, #f59e0b);
+}
+
+.avatar-thumb-test {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
+
+.avatar-preview-panel {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.avatar-preview-figure {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  color: #475569;
+  font-weight: 700;
+  background: linear-gradient(135deg, #e0f2fe, #f1f5f9);
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
+.avatar-preview-steps {
+  margin-bottom: 18px;
+}
+
+.mock-preview-result {
+  padding: 12px 14px;
+  color: #334155;
+  line-height: 1.7;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.action-card {
+  height: 100%;
+  border-radius: 8px;
+}
+
+.action-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.action-description {
+  min-height: 52px;
+  margin: 12px 0 0;
+  color: #64748b;
+  line-height: 1.7;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -399,5 +486,9 @@ body {
 
   .sticky-actions {
     justify-content: flex-start;
+  }
+
+  .avatar-preview-panel {
+    grid-template-columns: 1fr;
   }
 }

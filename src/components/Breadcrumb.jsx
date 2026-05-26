@@ -26,5 +26,18 @@ export default function Breadcrumb() {
     );
   }
 
+  if (pathname.startsWith('/avatar/')) {
+    const currentLabel = matches[matches.length - 1]?.title || '数字人管理';
+    return (
+      <AntBreadcrumb
+        items={[
+          { title: '后台' },
+          { title: <Link to="/avatar/list">数字人管理</Link> },
+          { title: currentLabel },
+        ]}
+      />
+    );
+  }
+
   return <AntBreadcrumb items={matches} />;
 }

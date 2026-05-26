@@ -6,6 +6,7 @@ import PromptTemplates from '../pages/ai-center/PromptTemplates';
 import ActionLibrary from '../pages/avatar/ActionLibrary';
 import AvatarList from '../pages/avatar/AvatarList';
 import CreateAvatar from '../pages/avatar/CreateAvatar';
+import EditAvatar from '../pages/avatar/EditAvatar';
 import Dashboard from '../pages/dashboard/Dashboard';
 import CurrentSpeech from '../pages/delay-control/CurrentSpeech';
 import DelaySettings from '../pages/delay-control/DelaySettings';
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
       { path: 'products/ai-copy', element: <ProductAICopy />, handle: { label: 'AI商品文案' } },
       { path: 'avatar/list', element: <AvatarList />, handle: { label: '数字人列表' } },
       { path: 'avatar/create', element: <CreateAvatar />, handle: { label: '创建数字人' } },
+      { path: 'avatar/:id/edit', element: <EditAvatar />, handle: { label: '编辑数字人' } },
       { path: 'avatar/actions', element: <ActionLibrary />, handle: { label: '动作库' } },
       { path: 'studio/background', element: <AiBackground />, handle: { label: 'AI生成背景' } },
       { path: 'studio/layout', element: <ScreenLayout />, handle: { label: '画面布局' } },

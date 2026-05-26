@@ -29,7 +29,6 @@ export const menuItems = [
     icon: 'avatar',
     children: [
       { key: '/avatar/list', label: '数字人列表' },
-      { key: '/avatar/create', label: '创建数字人' },
       { key: '/avatar/actions', label: '动作库' },
     ],
   },
