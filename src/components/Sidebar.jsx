@@ -62,7 +62,7 @@ export default function Sidebar({ collapsed }) {
       <Menu
         mode="inline"
         items={menu}
-        selectedKeys={[selectedItem?.key || '/dashboard']}
+        selectedKeys={selectedItem?.key ? [selectedItem.key] : []}
         defaultOpenKeys={defaultOpenKeys}
         onClick={({ key }) => navigate(key)}
         style={{ borderInlineEnd: 0, padding: '8px 0' }}
