@@ -1,6 +1,8 @@
 import { Alert, Button, Card, Form, Input, Progress, Space, Statistic, Switch, Tag, message } from 'antd';
 import PageHeader from '../../components/PageHeader';
-import { aiCosts } from '../../mock/aiCosts';
+import { getAiCosts } from '../../services/aiService';
+
+const aiCosts = getAiCosts();
 
 export default function AiCostMonitor() {
   const [form] = Form.useForm();

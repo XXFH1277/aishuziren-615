@@ -13,7 +13,10 @@ import { useState } from 'react';
 import LivePreviewFrame from '../../components/LivePreviewFrame';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { outputMethods, studioOutput } from '../../mock/studioOutput';
+import { getOutputMethods, getStudioOutput } from '../../services/studioService';
+
+const outputMethods = getOutputMethods();
+const studioOutput = getStudioOutput();
 
 const methodIconMap = {
   'OBS WebSocket': <ApiOutlined />,

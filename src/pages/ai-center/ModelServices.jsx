@@ -3,7 +3,11 @@ import { Alert, AutoComplete, Button, Card, Descriptions, Form, Input, List, Mod
 import { useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { modelProviders, modelRoleSettings, modelUsageScenes } from '../../mock/aiModels';
+import { getModelProviders, getModelRoleSettings, getModelUsageScenes } from '../../services/aiService';
+
+const modelProviders = getModelProviders();
+const modelRoleSettings = getModelRoleSettings();
+const modelUsageScenes = getModelUsageScenes();
 
 export default function ModelServices() {
   const [form] = Form.useForm();

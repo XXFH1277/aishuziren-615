@@ -3,7 +3,10 @@ import { Button, Card, Col, Empty, Modal, Row, Space, Tabs, Tag, message } from 
 import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { actionTypes, avatarActions } from '../../mock/avatarActions';
+import { getAvatarActionTypes, getAvatarActions } from '../../services/avatarService';
+
+const avatarActions = getAvatarActions();
+const actionTypes = getAvatarActionTypes();
 
 export default function ActionLibrary() {
   const [previewAction, setPreviewAction] = useState(null);

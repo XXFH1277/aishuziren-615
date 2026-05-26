@@ -9,7 +9,9 @@ import {
 } from '@ant-design/icons';
 import { Button, List, Space, Tag, Tooltip, message } from 'antd';
 import { useState } from 'react';
-import { studioLayers } from '../mock/studioLayouts';
+import { getStudioLayers } from '../services/studioService';
+
+const studioLayers = getStudioLayers();
 
 export default function LayerPanel() {
   const [layers, setLayers] = useState(studioLayers);

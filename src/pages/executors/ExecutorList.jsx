@@ -4,7 +4,11 @@ import { useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { bindingDeviceMock, executorStatusOptions, executors } from '../../mock/executors';
+import { getBindingDeviceMock, getExecutorStatusOptions, getExecutors } from '../../services/executorService';
+
+const executors = getExecutors();
+const executorStatusOptions = getExecutorStatusOptions();
+const bindingDeviceMock = getBindingDeviceMock();
 
 const onlineStatuses = ['在线', '直播中', '更新中'];
 

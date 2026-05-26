@@ -3,10 +3,12 @@ import { Alert, Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Pro
 import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { executorHeartbeats, heartbeatLevels } from '../../mock/executorHeartbeats';
-import { executors } from '../../mock/executors';
+import { getExecutorHeartbeats, getExecutors, getHeartbeatLevels } from '../../services/executorService';
 
 const { RangePicker } = DatePicker;
+const executorHeartbeats = getExecutorHeartbeats();
+const heartbeatLevels = getHeartbeatLevels();
+const executors = getExecutors();
 
 const levelColor = {
   info: 'green',

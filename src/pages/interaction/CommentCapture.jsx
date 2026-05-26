@@ -6,7 +6,13 @@ import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
-import { commentConnection, commentTypes, comments, interactionLiveRooms, riskLevels } from '../../mock/comments';
+import { getCommentConnection, getCommentTypes, getComments, getInteractionLiveRooms, getRiskLevels } from '../../services/interactionService';
+
+const comments = getComments();
+const commentConnection = getCommentConnection();
+const commentTypes = getCommentTypes();
+const interactionLiveRooms = getInteractionLiveRooms();
+const riskLevels = getRiskLevels();
 
 function nowTime() {
   return new Date().toLocaleTimeString('zh-CN', { hour12: false });

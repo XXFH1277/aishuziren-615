@@ -4,7 +4,9 @@ import { useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
 import SpeechStatusTag from '../../components/SpeechStatusTag';
-import { subtitles } from '../../mock/subtitles';
+import { getSubtitles } from '../../services/delayControlService';
+
+const subtitles = getSubtitles();
 
 export default function SubtitlePreview() {
   const [style, setStyle] = useState(subtitles.subtitleStyle);

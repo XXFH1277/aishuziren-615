@@ -6,8 +6,21 @@ import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
-import { commentTypes, interactionLiveRooms, riskLevels } from '../../mock/comments';
-import { aiReplyTemplates, questionStatuses, questions } from '../../mock/questions';
+import {
+  getAiReplyTemplates,
+  getCommentTypes,
+  getInteractionLiveRooms,
+  getQuestionStatuses,
+  getQuestions,
+  getRiskLevels,
+} from '../../services/interactionService';
+
+const commentTypes = getCommentTypes();
+const interactionLiveRooms = getInteractionLiveRooms();
+const riskLevels = getRiskLevels();
+const questions = getQuestions();
+const questionStatuses = getQuestionStatuses();
+const aiReplyTemplates = getAiReplyTemplates();
 
 export default function QuestionQueue() {
   const [questionList, setQuestionList] = useState(questions);

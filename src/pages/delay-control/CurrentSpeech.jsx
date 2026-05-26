@@ -3,7 +3,9 @@ import { Alert, Badge, Button, Card, Col, Descriptions, Row, Space, Tabs, Timeli
 import PageHeader from '../../components/PageHeader';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
 import StatusTag from '../../components/StatusTag';
-import { delayControl } from '../../mock/delayControl';
+import { getDelayControl } from '../../services/delayControlService';
+
+const delayControl = getDelayControl();
 
 function SpeechSummary({ speech, title }) {
   return (

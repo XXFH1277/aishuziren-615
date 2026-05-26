@@ -2,11 +2,11 @@ import { Result } from 'antd';
 import { useParams } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import ProductForm, { mapProductToFormValues } from '../../components/ProductForm';
-import { products } from '../../mock/products';
+import { getProductById } from '../../services/productService';
 
 export default function EditProduct() {
   const { id } = useParams();
-  const product = products.find((item) => item.id === id);
+  const product = getProductById(id);
 
   if (!product) {
     return <Result status="404" title="未找到商品" subTitle="当前编辑页只读取本地 Mock 商品数据。" />;

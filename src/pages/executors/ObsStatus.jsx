@@ -4,7 +4,10 @@ import { useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { executorObsList, obsChecklist } from '../../mock/executorObs';
+import { getExecutorObsList, getObsChecklist } from '../../services/executorService';
+
+const executorObsList = getExecutorObsList();
+const obsChecklist = getObsChecklist();
 
 export default function ObsStatus() {
   const [sourceRecord, setSourceRecord] = useState(null);

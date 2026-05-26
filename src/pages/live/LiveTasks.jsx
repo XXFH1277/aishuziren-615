@@ -2,10 +2,13 @@ import { DatePicker, Button, Card, Input, Select, Space, Table, Tag, message } f
 import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { executorOptions, liveTaskStatuses, liveTasks } from '../../mock/liveTasks';
-import { liveRooms } from '../../mock/liveRooms';
+import { getExecutorOptions, getLiveRooms, getLiveTasks, getLiveTaskStatuses } from '../../services/liveService';
 
 const { RangePicker } = DatePicker;
+const liveTasks = getLiveTasks();
+const liveTaskStatuses = getLiveTaskStatuses();
+const executorOptions = getExecutorOptions();
+const liveRooms = getLiveRooms();
 
 export default function LiveTasks() {
   const [keyword, setKeyword] = useState('');

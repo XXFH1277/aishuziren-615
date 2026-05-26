@@ -5,7 +5,9 @@ import LayerPanel from '../../components/LayerPanel';
 import LivePreviewFrame from '../../components/LivePreviewFrame';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { studioLayouts } from '../../mock/studioLayouts';
+import { getStudioLayouts } from '../../services/studioService';
+
+const studioLayouts = getStudioLayouts();
 
 export default function StudioLayout() {
   const [selectedLayout, setSelectedLayout] = useState(studioLayouts[0]);

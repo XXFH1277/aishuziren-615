@@ -2,11 +2,11 @@ import { Result } from 'antd';
 import { useParams } from 'react-router-dom';
 import LiveRoomForm, { mapLiveRoomToFormValues } from '../../components/LiveRoomForm';
 import PageHeader from '../../components/PageHeader';
-import { liveRooms } from '../../mock/liveRooms';
+import { getLiveRoomById } from '../../services/liveService';
 
 export default function EditLiveRoom() {
   const { id } = useParams();
-  const room = liveRooms.find((item) => item.id === id);
+  const room = getLiveRoomById(id);
 
   if (!room) {
     return <Result status="404" title="未找到直播间" subTitle="当前编辑页只读取本地 Mock 直播间数据。" />;

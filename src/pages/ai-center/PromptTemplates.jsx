@@ -3,7 +3,12 @@ import { Alert, Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, Ta
 import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { promptCategories, promptTemplateStatuses, promptTemplates, promptVariables } from '../../mock/promptTemplates';
+import { getPromptCategories, getPromptTemplateStatuses, getPromptTemplates, getPromptVariables } from '../../services/aiService';
+
+const promptCategories = getPromptCategories();
+const promptTemplates = getPromptTemplates();
+const promptTemplateStatuses = getPromptTemplateStatuses();
+const promptVariables = getPromptVariables();
 
 export default function PromptTemplates() {
   const [activeCategory, setActiveCategory] = useState('全部');

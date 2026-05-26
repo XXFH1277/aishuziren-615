@@ -5,12 +5,18 @@ import LivePreviewFrame from '../../components/LivePreviewFrame';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import {
-  studioBackgrounds,
-  studioCategories,
-  studioRatios,
-  studioRoomTypes,
-  studioVisualStyles,
-} from '../../mock/studioBackgrounds';
+  getStudioBackgrounds,
+  getStudioCategories,
+  getStudioRatios,
+  getStudioRoomTypes,
+  getStudioVisualStyles,
+} from '../../services/studioService';
+
+const studioBackgrounds = getStudioBackgrounds();
+const studioCategories = getStudioCategories();
+const studioRatios = getStudioRatios();
+const studioRoomTypes = getStudioRoomTypes();
+const studioVisualStyles = getStudioVisualStyles();
 
 export default function StudioBackground() {
   const [form] = Form.useForm();

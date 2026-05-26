@@ -2,7 +2,9 @@ import { FileTextOutlined, SafetyCertificateOutlined, SoundOutlined, QuestionCir
 import { Alert, Card, Col, Input, Row, Select, Space, Tabs, Tag } from 'antd';
 import AiGenerateButton from '../../components/AiGenerateButton';
 import PageHeader from '../../components/PageHeader';
-import { products } from '../../mock/products';
+import { getProducts } from '../../services/productService';
+
+const products = getProducts();
 
 const copyScenes = [
   {

@@ -36,16 +36,27 @@ import RiskTag from '../../components/RiskTag';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
 import SpeechStatusTag from '../../components/SpeechStatusTag';
 import StatusTag from '../../components/StatusTag';
-import { comments } from '../../mock/comments';
-import { delayControl, speechActions, speechTones } from '../../mock/delayControl';
-import { delaySettings } from '../../mock/delaySettings';
-import { broadcastModes, manualTakeover, takeoverActions, takeoverTones } from '../../mock/manualTakeover';
-import { aiReplyTemplates, questions } from '../../mock/questions';
-import { speechQueue } from '../../mock/speechQueue';
-import { liveRooms } from '../../mock/liveRooms';
-import { liveTasks } from '../../mock/liveTasks';
-import { studioOutput } from '../../mock/studioOutput';
-import { subtitles } from '../../mock/subtitles';
+import { getDelayControl, getDelaySettings, getSpeechActions, getSpeechQueue, getSpeechTones, getSubtitles } from '../../services/delayControlService';
+import { getAiReplyTemplates, getBroadcastModes, getComments, getManualTakeover, getQuestions, getTakeoverActions, getTakeoverTones } from '../../services/interactionService';
+import { getLiveRooms, getLiveTasks } from '../../services/liveService';
+import { getStudioOutput } from '../../services/studioService';
+
+const comments = getComments();
+const delayControl = getDelayControl();
+const speechActions = getSpeechActions();
+const speechTones = getSpeechTones();
+const delaySettings = getDelaySettings();
+const manualTakeover = getManualTakeover();
+const broadcastModes = getBroadcastModes();
+const takeoverActions = getTakeoverActions();
+const takeoverTones = getTakeoverTones();
+const aiReplyTemplates = getAiReplyTemplates();
+const questions = getQuestions();
+const speechQueue = getSpeechQueue();
+const liveRooms = getLiveRooms();
+const liveTasks = getLiveTasks();
+const studioOutput = getStudioOutput();
+const subtitles = getSubtitles();
 
 const commentFilters = [
   { key: 'all', label: '全部' },

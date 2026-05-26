@@ -2,7 +2,10 @@ import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Form, Input, List, Radio, Slider, Space, Switch, Tabs, message } from 'antd';
 import PageHeader from '../../components/PageHeader';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
-import { delayModes, delaySettings } from '../../mock/delaySettings';
+import { getDelayModes, getDelaySettings } from '../../services/delayControlService';
+
+const delayModes = getDelayModes();
+const delaySettings = getDelaySettings();
 
 export default function DelaySettings() {
   const [form] = Form.useForm();

@@ -4,7 +4,12 @@ import { useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
-import { broadcastModes, manualTakeover, takeoverActions, takeoverTones } from '../../mock/manualTakeover';
+import { getBroadcastModes, getManualTakeover, getTakeoverActions, getTakeoverTones } from '../../services/interactionService';
+
+const manualTakeover = getManualTakeover();
+const broadcastModes = getBroadcastModes();
+const takeoverActions = getTakeoverActions();
+const takeoverTones = getTakeoverTones();
 
 export default function ManualTakeover() {
   const [form] = Form.useForm();

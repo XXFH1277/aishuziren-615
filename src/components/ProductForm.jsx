@@ -1,10 +1,11 @@
 import { InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Checkbox, Form, Input, Select, Space, Tabs, Upload, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { productCategories } from '../mock/products';
+import { getProductCategories } from '../services/productService';
 import AiGenerateButton from './AiGenerateButton';
 
 const { TextArea } = Input;
+const productCategories = getProductCategories();
 
 export const forbiddenOptions = [
   '不能说最低价',

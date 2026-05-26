@@ -4,7 +4,11 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { productCategories, productStatuses, products } from '../../mock/products';
+import { getProductCategories, getProductStatuses, getProducts } from '../../services/productService';
+
+const products = getProducts();
+const productCategories = getProductCategories();
+const productStatuses = getProductStatuses();
 
 const statusActionText = {
   已上架: '下架',

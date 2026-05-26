@@ -4,9 +4,15 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { avatars } from '../../mock/avatars';
-import { livePlatforms, liveRoomStatuses, liveRooms } from '../../mock/liveRooms';
-import { productGroups } from '../../mock/productGroups';
+import { getAvatars } from '../../services/avatarService';
+import { getLivePlatforms, getLiveRoomStatuses, getLiveRooms } from '../../services/liveService';
+import { getProductGroups } from '../../services/productService';
+
+const liveRooms = getLiveRooms();
+const livePlatforms = getLivePlatforms();
+const liveRoomStatuses = getLiveRoomStatuses();
+const avatars = getAvatars();
+const productGroups = getProductGroups();
 
 function enabledText(enabled) {
   return enabled ? <Tag color="green">开启</Tag> : <Tag>关闭</Tag>;

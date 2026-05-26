@@ -4,7 +4,12 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { avatarCategories, avatarStatuses, avatars, voiceOptions } from '../../mock/avatars';
+import { getAvatarCategories, getAvatarStatuses, getAvatars, getVoiceOptions } from '../../services/avatarService';
+
+const avatars = getAvatars();
+const avatarCategories = getAvatarCategories();
+const avatarStatuses = getAvatarStatuses();
+const voiceOptions = getVoiceOptions();
 
 function AvatarPreview({ avatar }) {
   return (

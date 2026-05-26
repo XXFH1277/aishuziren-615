@@ -2,8 +2,11 @@ import { PlusOutlined } from '@ant-design/icons';
 import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Tag, message } from 'antd';
 import { useState } from 'react';
 import PageHeader from '../../components/PageHeader';
-import { productGroupTypes, productGroups } from '../../mock/productGroups';
-import { products } from '../../mock/products';
+import { getProductGroupTypes, getProductGroups, getProducts } from '../../services/productService';
+
+const productGroups = getProductGroups();
+const productGroupTypes = getProductGroupTypes();
+const products = getProducts();
 
 const typeColors = {
   福利品: 'gold',

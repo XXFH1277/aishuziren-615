@@ -4,8 +4,12 @@ import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
 import SpeechStatusTag from '../../components/SpeechStatusTag';
-import { speechActions, speechTones } from '../../mock/delayControl';
-import { reviewStatuses, speechQueue } from '../../mock/speechQueue';
+import { getReviewStatuses, getSpeechActions, getSpeechQueue, getSpeechTones } from '../../services/delayControlService';
+
+const speechActions = getSpeechActions();
+const speechTones = getSpeechTones();
+const speechQueue = getSpeechQueue();
+const reviewStatuses = getReviewStatuses();
 
 export default function SpeechQueue() {
   const [queue, setQueue] = useState(speechQueue);

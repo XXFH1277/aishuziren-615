@@ -1,10 +1,12 @@
 import { InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Checkbox, Descriptions, Empty, Form, Input, Select, Slider, Space, Steps, Tabs, Upload, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { avatarCategories, voiceOptions } from '../mock/avatars';
-import { avatarActions } from '../mock/avatarActions';
+import { getAvatarActions, getAvatarCategories, getVoiceOptions } from '../services/avatarService';
 
 const { TextArea } = Input;
+const avatarCategories = getAvatarCategories();
+const voiceOptions = getVoiceOptions();
+const avatarActions = getAvatarActions();
 
 const imageTemplates = ['海岛蓝衬衫', '职场白衬衫', '客服蓝外套', '导购西装', '直播红外套', '默认模板'];
 const imageStyles = ['真实主播', '半写实', '写实', '测试模板'];

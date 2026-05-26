@@ -2,11 +2,11 @@ import { Result } from 'antd';
 import { useParams } from 'react-router-dom';
 import AvatarForm, { mapAvatarToFormValues } from '../../components/AvatarForm';
 import PageHeader from '../../components/PageHeader';
-import { avatars } from '../../mock/avatars';
+import { getAvatarById } from '../../services/avatarService';
 
 export default function EditAvatar() {
   const { id } = useParams();
-  const avatar = avatars.find((item) => item.id === id);
+  const avatar = getAvatarById(id);
 
   if (!avatar) {
     return <Result status="404" title="未找到数字人" subTitle="当前编辑页只读取本地 Mock 数字人数据。" />;

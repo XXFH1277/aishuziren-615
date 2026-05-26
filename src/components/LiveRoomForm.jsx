@@ -2,11 +2,14 @@ import { SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Empty, Form, Input, Select, Slider, Space, Steps, Switch, Tabs, message } from 'antd';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { avatars } from '../mock/avatars';
-import { livePlatforms } from '../mock/liveRooms';
-import { productGroups } from '../mock/productGroups';
+import { getAvatarById, getAvatars } from '../services/avatarService';
+import { getLivePlatforms } from '../services/liveService';
+import { getProductGroups } from '../services/productService';
 
 const { TextArea } = Input;
+const avatars = getAvatars();
+const livePlatforms = getLivePlatforms();
+const productGroups = getProductGroups();
 
 const liveTypes = ['常规直播', '福利专场', '新品首播', '测试直播', '返场直播'];
 const platformAccounts = ['舟山鲜选官方号', '职场好物研究所', '新人福利测试号', '明眸光电旗舰店', '轻盈计划官方号', '内部测试账号'];
@@ -16,10 +19,6 @@ const layoutTypes = ['左侧数字人 + 右侧商品卡', '居中数字人 + 底
 const productPositions = ['右侧商品卡', '底部商品栏', '左侧参数卡', '场景商品台'];
 const danmuStyles = ['右侧浮层', '底部滚动', '精简弹幕条', '隐藏弹幕'];
 const faqLibraries = ['通用商品 FAQ', '海鲜特产 FAQ', '办公好物 FAQ', '轻食健康 FAQ'];
-
-function getAvatarById(id) {
-  return avatars.find((item) => item.id === id);
-}
 
 function getGroupById(id) {
   return productGroups.find((item) => item.id === id);

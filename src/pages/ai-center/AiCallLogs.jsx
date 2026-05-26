@@ -3,10 +3,13 @@ import { Button, Card, DatePicker, Descriptions, Input, Modal, Select, Space, Ta
 import { useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { aiCallLogs, aiCallStatuses, aiCallTypes } from '../../mock/aiCallLogs';
-import { modelProviders } from '../../mock/aiModels';
+import { getAiCallLogs, getAiCallStatuses, getAiCallTypes, getModelProviders } from '../../services/aiService';
 
 const { RangePicker } = DatePicker;
+const aiCallLogs = getAiCallLogs();
+const aiCallStatuses = getAiCallStatuses();
+const aiCallTypes = getAiCallTypes();
+const modelProviders = getModelProviders();
 
 export default function AiCallLogs() {
   const [selectedLog, setSelectedLog] = useState(null);
