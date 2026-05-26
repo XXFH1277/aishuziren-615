@@ -11,6 +11,7 @@ export const menuItems = [
     children: [
       { key: '/live/rooms', label: '直播间列表' },
       { key: '/live/tasks', label: '直播任务' },
+      { key: '/live/control-room', label: '直播中控台' },
     ],
   },
   {

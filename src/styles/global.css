@@ -788,6 +788,96 @@ body {
   line-height: 1.7;
 }
 
+.live-status-bar {
+  margin-bottom: 18px;
+}
+
+.status-bar-item {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+}
+
+.status-bar-item span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.status-bar-item strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.live-control-room-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.18fr) minmax(380px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.control-room-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.control-room-panel {
+  border-radius: 8px;
+}
+
+.control-room-panel .ant-card-head-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.control-room-alert {
+  margin-top: 14px;
+  border-radius: 8px;
+}
+
+.control-room-risk-row {
+  padding: 8px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+}
+
+.control-room-comment-text {
+  margin: 8px 0 4px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.control-room-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.control-room-form-grid .ant-select:last-child {
+  grid-column: 1 / -1;
+}
+
+.risk-icon-high {
+  color: #e11d48;
+}
+
+.risk-icon-mid {
+  color: #f59e0b;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -835,7 +925,12 @@ body {
   .studio-card-grid,
   .output-method-grid,
   .interaction-stat-grid,
-  .manual-console-grid {
+  .manual-console-grid,
+  .live-control-room-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .control-room-form-grid {
     grid-template-columns: 1fr;
   }
 }

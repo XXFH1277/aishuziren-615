@@ -23,6 +23,7 @@ import ManualTakeover from '../pages/interaction/ManualTakeover';
 import QuestionQueue from '../pages/interaction/QuestionQueue';
 import CreateLiveRoom from '../pages/live/CreateLiveRoom';
 import EditLiveRoom from '../pages/live/EditLiveRoom';
+import LiveControlRoom from '../pages/live/LiveControlRoom';
 import LiveRoomList from '../pages/live/LiveRoomList';
 import LiveTasks from '../pages/live/LiveTasks';
 import CreateProduct from '../pages/products/CreateProduct';
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: 'live/rooms/create', element: <CreateLiveRoom />, handle: { label: '创建直播间' } },
       { path: 'live/rooms/:id/edit', element: <EditLiveRoom />, handle: { label: '编辑直播间' } },
       { path: 'live/tasks', element: <LiveTasks />, handle: { label: '直播任务' } },
+      { path: 'live/control-room', element: <LiveControlRoom />, handle: { label: '直播中控台' } },
       { path: 'products/list', element: <ProductList />, handle: { label: '商品列表' } },
       { path: 'products/create', element: <CreateProduct />, handle: { label: '创建商品' } },
       { path: 'products/:id/edit', element: <EditProduct />, handle: { label: '编辑商品' } },
