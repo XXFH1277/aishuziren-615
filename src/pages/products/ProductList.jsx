@@ -2,7 +2,6 @@ import { CopyOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Card, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AiGenerateButton from '../../components/AiGenerateButton';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { productCategories, productStatuses, products } from '../../mock/products';
@@ -11,7 +10,7 @@ const statusActionText = {
   已上架: '下架',
   草稿: '上架',
   已下架: '上架',
-  待审核: '撤回',
+  待审核: '上架',
 };
 
 export default function ProductList() {
@@ -94,13 +93,13 @@ export default function ProductList() {
     {
       title: '操作',
       fixed: 'right',
-      width: 280,
+      width: 230,
       render: (_, record) => (
         <Space size={4} wrap>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => message.info(`查看 ${record.name}`)}>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/products/${record.id}/edit`)}>
             查看
           </Button>
-          <Button type="link" size="small" onClick={() => message.info(`编辑 ${record.name}`)}>
+          <Button type="link" size="small" onClick={() => navigate(`/products/${record.id}/edit`)}>
             编辑
           </Button>
           <Button
@@ -114,9 +113,6 @@ export default function ProductList() {
           <Button type="link" size="small" danger={record.status === '已上架'} onClick={() => message.info('仅演示状态动作')}>
             {statusActionText[record.status]}
           </Button>
-          <AiGenerateButton target="口播" fieldName={record.name} size="small">
-            生成话术
-          </AiGenerateButton>
         </Space>
       ),
     },
@@ -129,7 +125,6 @@ export default function ProductList() {
         description="管理直播带货商品资料、上架状态和商品组绑定情况，当前全部使用本地 Mock 数据。"
         extra={
           <Space wrap>
-            <Button onClick={() => navigate('/products/ai-copy')}>AI商品文案</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/products/create')}>
               新建商品
             </Button>

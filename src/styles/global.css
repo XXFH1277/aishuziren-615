@@ -280,6 +280,20 @@ body {
   margin-bottom: 12px;
 }
 
+.form-section-intro,
+.editing-product-name {
+  margin-bottom: 14px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.editing-product-name {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
 .sticky-actions {
   position: sticky;
   bottom: 0;
