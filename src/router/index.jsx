@@ -18,7 +18,7 @@ import ObsStatus from '../pages/executors/ObsStatus';
 import Faq from '../pages/help/Faq';
 import Tickets from '../pages/help/Tickets';
 import Troubleshooting from '../pages/help/Troubleshooting';
-import DanmuCapture from '../pages/interaction/DanmuCapture';
+import CommentCapture from '../pages/interaction/CommentCapture';
 import ManualTakeover from '../pages/interaction/ManualTakeover';
 import QuestionQueue from '../pages/interaction/QuestionQueue';
 import CreateLiveRoom from '../pages/live/CreateLiveRoom';
@@ -60,9 +60,9 @@ const router = createBrowserRouter([
       { path: 'studio/background', element: <StudioBackground />, handle: { label: 'AI生成背景' } },
       { path: 'studio/layout', element: <StudioLayout />, handle: { label: '画面布局' } },
       { path: 'studio/output', element: <StudioOutput />, handle: { label: 'OBS输出预留' } },
-      { path: 'interaction/danmu', element: <DanmuCapture />, handle: { label: '弹幕捕获' } },
+      { path: 'interaction/comments', element: <CommentCapture />, handle: { label: '弹幕捕获' } },
       { path: 'interaction/questions', element: <QuestionQueue />, handle: { label: '问题队列' } },
-      { path: 'interaction/manual', element: <ManualTakeover />, handle: { label: '人工接管台' } },
+      { path: 'interaction/takeover', element: <ManualTakeover />, handle: { label: '人工接管台' } },
       { path: 'delay-control/current', element: <CurrentSpeech />, handle: { label: '当前播报' } },
       { path: 'delay-control/queue', element: <SpeechQueue />, handle: { label: '待播队列' } },
       { path: 'delay-control/subtitles', element: <SubtitlePreview />, handle: { label: '字幕预览' } },

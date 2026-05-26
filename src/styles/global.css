@@ -738,6 +738,56 @@ body {
   border-radius: 8px;
 }
 
+.interaction-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.interaction-stat-grid .data-card-value {
+  font-size: 24px;
+  word-break: break-word;
+}
+
+.interaction-alert {
+  border-radius: 8px;
+}
+
+.ai-reply-text {
+  display: block;
+  color: #334155;
+  line-height: 1.7;
+}
+
+.manual-console-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(360px, 1.18fr) minmax(320px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.takeover-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.takeover-control-card .ant-card-body {
+  min-height: 460px;
+}
+
+.takeover-suggestion {
+  margin-top: 16px;
+}
+
+.speech-preview-item p {
+  margin: 6px 0 10px;
+  color: #475569;
+  line-height: 1.7;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -783,7 +833,9 @@ body {
   .studio-layout-grid,
   .studio-output-grid,
   .studio-card-grid,
-  .output-method-grid {
+  .output-method-grid,
+  .interaction-stat-grid,
+  .manual-console-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -46,9 +46,9 @@ export const menuItems = [
     label: '实时互动',
     icon: 'interaction',
     children: [
-      { key: '/interaction/danmu', label: '弹幕捕获' },
+      { key: '/interaction/comments', label: '弹幕捕获' },
       { key: '/interaction/questions', label: '问题队列' },
-      { key: '/interaction/manual', label: '人工接管台' },
+      { key: '/interaction/takeover', label: '人工接管台' },
     ],
   },
   {

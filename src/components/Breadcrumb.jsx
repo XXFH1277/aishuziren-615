@@ -6,6 +6,7 @@ const moduleBreadcrumbs = [
   { prefix: '/live/', link: '/live/rooms', label: '直播管理' },
   { prefix: '/avatar/', link: '/avatar/list', label: '数字人管理' },
   { prefix: '/studio/', link: '/studio/background', label: '直播间搭建' },
+  { prefix: '/interaction/', link: '/interaction/comments', label: '实时互动' },
 ];
 
 export default function Breadcrumb() {
