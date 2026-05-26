@@ -225,6 +225,63 @@ body {
   line-height: 1.8;
 }
 
+.ai-center-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.ai-model-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ai-model-tags {
+  margin-top: 12px;
+}
+
+.ai-card-description {
+  min-height: 68px;
+  margin: 12px 0 0;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.ai-modal-alert {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.ai-template-preview {
+  margin-top: 16px;
+}
+
+.ai-cost-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ai-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-progress-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: #334155;
+}
+
 .toolbar-row {
   display: flex;
   align-items: center;
@@ -1339,6 +1396,9 @@ body {
   .studio-layout-grid,
   .studio-output-grid,
   .studio-card-grid,
+  .ai-center-layout-grid,
+  .ai-model-grid,
+  .ai-cost-stat-grid,
   .output-method-grid,
   .interaction-stat-grid,
   .manual-console-grid,

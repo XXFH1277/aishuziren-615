@@ -2,6 +2,9 @@ import { Tag } from 'antd';
 
 const statusColor = {
   成功: 'success',
+  失败: 'error',
+  超时: 'warning',
+  已拦截: 'error',
   已配置: 'success',
   已生成: 'success',
   已应用: 'success',
@@ -42,6 +45,7 @@ const statusColor = {
   已忽略: 'default',
   未连接: 'default',
   未开启: 'default',
+  未配置: 'default',
   离线: 'default',
   停用: 'default',
   未授权: 'error',
