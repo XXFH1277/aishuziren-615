@@ -1,5 +1,5 @@
 import { ApiOutlined, ExperimentOutlined, SettingOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Form, Input, List, Modal, Select, Slider, Space, Switch, Tag, message } from 'antd';
+import { Alert, AutoComplete, Button, Card, Descriptions, Form, Input, List, Modal, Select, Slider, Space, Switch, Tag, message } from 'antd';
 import { useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
@@ -13,7 +13,7 @@ export default function ModelServices() {
     setConfiguring(model);
     form.setFieldsValue({
       provider: model.name,
-      baseUrl: '',
+      baseUrl: model.officialBaseUrl || model.baseUrlOptions?.[0] || '',
       modelName: model.defaultModel,
       maxTokens: 2048,
       temperature: 0.7,
@@ -66,13 +66,16 @@ export default function ModelServices() {
             <div className="model-meta">
               <div>服务商：{model.provider}</div>
               <div>默认模型：{model.defaultModel}</div>
+              <div>预设类型：{model.isOfficialPreset ? '官方预设参考' : '手动配置'}</div>
               <div>今日调用：{model.todayCalls} 次</div>
               <div>今日费用：¥{model.todayCost.toFixed(2)}</div>
             </div>
             <Space wrap className="ai-model-tags">
               {model.usage.map((item) => <Tag color="blue" key={item}>{item}</Tag>)}
+              {model.isOfficialPreset ? <Tag color="green">官方预设</Tag> : <Tag>手动配置</Tag>}
             </Space>
             <p className="ai-card-description">{model.description}</p>
+            <p className="ai-docs-note">{model.docsNote}</p>
           </Card>
         ))}
       </div>
@@ -99,18 +102,34 @@ export default function ModelServices() {
           className="ai-modal-alert"
           type="warning"
           showIcon
-          message="请勿输入真实 API Key"
-          description="本阶段仅验证表单交互，不读取模型api.txt 或 .env.local。"
+          message="官方 URL 和模型名仅作为预设参考，请以服务商最新文档为准。API Key 不会在当前 Mock 阶段保存。"
+          description="本阶段仅验证表单交互，不读取模型api.txt 或 .env.local，不调用真实测试连接接口。"
         />
         <Form form={form} layout="vertical">
           <Form.Item label="服务商" name="provider">
             <Input disabled />
           </Form.Item>
-          <Form.Item label="baseUrl" name="baseUrl">
-            <Input placeholder="https://api.example.com/mock" />
+          <Form.Item
+            label="baseUrl"
+            name="baseUrl"
+            extra={configuring?.isOfficialPreset ? '可选择官方预设，也可以手动编辑。' : '该服务商暂无官方预设，请手动填写。'}
+          >
+            <AutoComplete
+              options={(configuring?.baseUrlOptions || []).map((value) => ({ label: value, value }))}
+              placeholder={configuring?.isOfficialPreset ? '选择或输入 baseUrl' : '用户手动填写 baseUrl'}
+              filterOption={(inputValue, option) => option?.value?.toLowerCase().includes(inputValue.toLowerCase())}
+            />
           </Form.Item>
-          <Form.Item label="modelName" name="modelName">
-            <Input placeholder="model-name-mock" />
+          <Form.Item
+            label="modelName"
+            name="modelName"
+            extra={configuring?.modelOptions?.length ? '可选择常用模型，也可以手动输入。' : '该服务商暂无模型预设，请手动填写。'}
+          >
+            <AutoComplete
+              options={(configuring?.modelOptions || []).map((value) => ({ label: value, value }))}
+              placeholder={configuring?.modelOptions?.length ? '选择或输入 modelName' : '用户手动填写 modelName'}
+              filterOption={(inputValue, option) => option?.value?.toLowerCase().includes(inputValue.toLowerCase())}
+            />
           </Form.Item>
           <Form.Item label="apiKey 占位输入框" name="apiKey">
             <Input.Password placeholder="仅占位，不要输入真实 API Key" autoComplete="new-password" />
@@ -125,6 +144,7 @@ export default function ModelServices() {
             <Switch />
           </Form.Item>
           <Descriptions size="small" column={1}>
+            <Descriptions.Item label="预设说明">{configuring?.docsNote}</Descriptions.Item>
             <Descriptions.Item label="可选用途">{modelUsageScenes.join(' / ')}</Descriptions.Item>
           </Descriptions>
         </Form>

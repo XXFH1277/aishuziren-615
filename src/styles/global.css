@@ -251,6 +251,18 @@ body {
   line-height: 1.7;
 }
 
+.ai-docs-note {
+  min-height: 44px;
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 .ai-modal-alert {
   margin-bottom: 16px;
   border-radius: 8px;
