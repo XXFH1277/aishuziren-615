@@ -1,15 +1,37 @@
 import { PlusOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Empty, Modal, Row, Space, Tabs, Tag, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Col, Empty, Modal, Row, Space, Spin, Tabs, Tag, message } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getAvatarActionTypes, getAvatarActions } from '../../services/avatarService';
 
-const avatarActions = getAvatarActions();
 const actionTypes = getAvatarActionTypes();
 
 export default function ActionLibrary() {
+  const [avatarActions, setAvatarActions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [previewAction, setPreviewAction] = useState(null);
+
+  useEffect(() => {
+    async function fetchActions() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getAvatarActions({ pageSize: 100 });
+        setAvatarActions(data.list || []);
+      } catch (requestError) {
+        const messageText = requestError.message || '动作库加载失败';
+        setError(messageText);
+        message.error(messageText);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchActions();
+  }, []);
 
   const tabItems = useMemo(
     () =>
@@ -57,21 +79,24 @@ export default function ActionLibrary() {
           </Row>
         ),
       })),
-    [],
+    [avatarActions],
   );
 
   return (
     <>
       <PageHeader
         title="动作库"
-        description="维护全局动作模板库，用于数字人互动、商品讲解、促单、空场和异常场景。"
+        description="维护全局动作模板库，用于数字人互动、商品讲解、促单、空场和异常场景，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建动作仅为 Mock 入口')}>
             新建动作
           </Button>
         }
       />
-      <Tabs items={tabItems} />
+      {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+      <Spin spinning={loading}>
+        <Tabs items={tabItems} />
+      </Spin>
       <Modal
         title="动作预览（Mock）"
         open={Boolean(previewAction)}

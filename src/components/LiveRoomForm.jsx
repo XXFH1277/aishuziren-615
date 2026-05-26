@@ -2,12 +2,12 @@ import { SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Empty, Form, Input, Select, Slider, Space, Steps, Switch, Tabs, message } from 'antd';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAvatarById, getAvatars } from '../services/avatarService';
+import { getMockAvatarById, getMockAvatars } from '../services/avatarService';
 import { getLivePlatforms } from '../services/liveService';
 import { getMockProductGroups } from '../services/productService';
 
 const { TextArea } = Input;
-const avatars = getAvatars();
+const avatars = getMockAvatars();
 const livePlatforms = getLivePlatforms();
 const productGroups = getMockProductGroups();
 
@@ -73,7 +73,7 @@ export default function LiveRoomForm({ mode = 'create', initialValues, roomName 
 
   const watchedAvatarId = Form.useWatch('avatarId', form);
   const watchedGroupId = Form.useWatch('productGroupId', form);
-  const selectedAvatar = useMemo(() => getAvatarById(watchedAvatarId), [watchedAvatarId]);
+  const selectedAvatar = useMemo(() => getMockAvatarById(watchedAvatarId), [watchedAvatarId]);
   const selectedGroup = useMemo(() => getGroupById(watchedGroupId), [watchedGroupId]);
 
   const handleSaveDraft = () => {

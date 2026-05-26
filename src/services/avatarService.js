@@ -1,12 +1,24 @@
-import { actionTypes, avatarActions } from '../mock/avatarActions';
-import { avatarCategories, avatarStatuses, avatars, voiceOptions } from '../mock/avatars';
+import { actionTypes, avatarActions as mockAvatarActions } from '../mock/avatarActions';
+import { avatarCategories, avatarStatuses, avatars as mockAvatars, voiceOptions } from '../mock/avatars';
+import { apiRequest } from './request';
 
-export function getAvatars() {
-  return avatars;
+export async function getAvatars(params = {}) {
+  return apiRequest.get('/api/avatars', params);
 }
 
-export function getAvatarById(id) {
-  return avatars.find((item) => item.id === id);
+export async function getAvatarById(id) {
+  const data = await apiRequest.get(`/api/avatars/${id}`);
+  return data.avatar;
+}
+
+export async function createAvatar(data) {
+  const result = await apiRequest.post('/api/avatars', data);
+  return result.avatar;
+}
+
+export async function updateAvatar(id, data) {
+  const result = await apiRequest.put(`/api/avatars/${id}`, data);
+  return result.avatar;
 }
 
 export function getAvatarCategories() {
@@ -21,10 +33,22 @@ export function getVoiceOptions() {
   return voiceOptions;
 }
 
-export function getAvatarActions() {
-  return avatarActions;
+export async function getAvatarActions(params = {}) {
+  return apiRequest.get('/api/avatar-actions', params);
 }
 
 export function getAvatarActionTypes() {
   return actionTypes;
+}
+
+export function getMockAvatars() {
+  return mockAvatars;
+}
+
+export function getMockAvatarById(id) {
+  return mockAvatars.find((item) => item.id === id);
+}
+
+export function getMockAvatarActions() {
+  return mockAvatarActions;
 }

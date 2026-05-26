@@ -57,3 +57,19 @@ productService -> fetch(`${API_BASE_URL}/api/product-groups`)
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 - `getProductCategories()`、`getProductStatuses()`、`getProductGroupTypes()` 仍使用前端静态选项。
 - 非商品模块暂不切 API；直播间页面如需商品组下拉，仍显式使用 Mock helper，避免扩大试点范围。
+
+## Phase 12.6 数字人 Service API 试点
+
+当前已切换：
+
+```text
+avatarService -> fetch(`${API_BASE_URL}/api/avatars`)
+avatarService -> fetch(`${API_BASE_URL}/api/avatar-actions`)
+```
+
+说明：
+
+- 数字人列表、数字人详情、创建数字人、编辑数字人、动作库读取本地 Express + SQLite。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+- `getAvatarCategories()`、`getAvatarStatuses()`、`getVoiceOptions()`、`getAvatarActionTypes()` 仍使用前端静态选项。
+- 非数字人模块暂不切 API；直播间页面如需数字人下拉，仍显式使用 Mock helper，避免扩大试点范围。

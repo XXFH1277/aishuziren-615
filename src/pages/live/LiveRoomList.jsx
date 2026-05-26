@@ -4,14 +4,14 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getAvatars } from '../../services/avatarService';
+import { getMockAvatars } from '../../services/avatarService';
 import { getLivePlatforms, getLiveRoomStatuses, getLiveRooms } from '../../services/liveService';
 import { getMockProductGroups } from '../../services/productService';
 
 const liveRooms = getLiveRooms();
 const livePlatforms = getLivePlatforms();
 const liveRoomStatuses = getLiveRoomStatuses();
-const avatars = getAvatars();
+const avatars = getMockAvatars();
 const productGroups = getMockProductGroups();
 
 function enabledText(enabled) {

@@ -1,12 +1,11 @@
 import { CopyOutlined, DeleteOutlined, EyeOutlined, PlusOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { Button, Card, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Empty, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getAvatarCategories, getAvatarStatuses, getAvatars, getVoiceOptions } from '../../services/avatarService';
 
-const avatars = getAvatars();
 const avatarCategories = getAvatarCategories();
 const avatarStatuses = getAvatarStatuses();
 const voiceOptions = getVoiceOptions();
@@ -21,26 +20,54 @@ function AvatarPreview({ avatar }) {
 
 export default function AvatarList() {
   const navigate = useNavigate();
+  const [avatars, setAvatars] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState();
   const [category, setCategory] = useState();
   const [voice, setVoice] = useState();
   const [testingAvatar, setTestingAvatar] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 6, total: 0 });
 
-  const filteredAvatars = useMemo(
-    () =>
-      avatars.filter((avatar) => {
-        const matchKeyword =
-          !keyword ||
-          avatar.name.toLowerCase().includes(keyword.toLowerCase()) ||
-          avatar.persona.toLowerCase().includes(keyword.toLowerCase());
-        const matchStatus = !status || avatar.status === status;
-        const matchCategory = !category || avatar.suitableCategories.includes(category);
-        const matchVoice = !voice || avatar.voiceName === voice;
-        return matchKeyword && matchStatus && matchCategory && matchVoice;
-      }),
-    [category, keyword, status, voice],
-  );
+  const fetchAvatars = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getAvatars({
+        keyword,
+        status,
+        category,
+        voiceName: voice,
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+      });
+
+      setAvatars(data.list || []);
+      setPagination((current) => ({
+        ...current,
+        current: data.page || current.current,
+        pageSize: data.pageSize || current.pageSize,
+        total: data.total || 0,
+      }));
+    } catch (requestError) {
+      const messageText = requestError.message || '数字人列表加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, keyword, pagination.current, pagination.pageSize, status, voice]);
+
+  useEffect(() => {
+    fetchAvatars();
+  }, [fetchAvatars]);
+
+  const resetToFirstPage = (updater) => {
+    updater();
+    setPagination((current) => ({ ...current, current: 1 }));
+  };
 
   const handleDelete = (avatar) => {
     Modal.confirm({
@@ -83,7 +110,7 @@ export default function AvatarList() {
       width: 220,
       render: (items) => (
         <Space size={4} wrap>
-          {items.map((item) => (
+          {(items || []).map((item) => (
             <Tag color="blue" key={item}>
               {item}
             </Tag>
@@ -149,7 +176,7 @@ export default function AvatarList() {
     <>
       <PageHeader
         title="数字人列表"
-        description="管理数字人资产、形象状态、绑定音色和适合品类，当前全部使用本地 Mock 数据。"
+        description="管理数字人资产、形象状态、绑定音色和适合品类，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/avatar/create')}>
             新建数字人
@@ -157,19 +184,20 @@ export default function AvatarList() {
         }
       />
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
             placeholder="搜索数字人名称或人设"
-            onSearch={setKeyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => resetToFirstPage(() => setKeyword(value))}
+            onChange={(event) => resetToFirstPage(() => setKeyword(event.target.value))}
             style={{ maxWidth: 300 }}
           />
           <Select
             allowClear
             placeholder="状态筛选"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => resetToFirstPage(() => setStatus(value))}
             options={avatarStatuses.map((item) => ({ label: item, value: item }))}
             style={{ width: 150 }}
           />
@@ -177,7 +205,7 @@ export default function AvatarList() {
             allowClear
             placeholder="适合品类筛选"
             value={category}
-            onChange={setCategory}
+            onChange={(value) => resetToFirstPage(() => setCategory(value))}
             options={avatarCategories.map((item) => ({ label: item, value: item }))}
             style={{ width: 170 }}
           />
@@ -185,7 +213,7 @@ export default function AvatarList() {
             allowClear
             placeholder="绑定音色筛选"
             value={voice}
-            onChange={setVoice}
+            onChange={(value) => resetToFirstPage(() => setVoice(value))}
             options={voiceOptions.map((item) => ({ label: item, value: item }))}
             style={{ width: 170 }}
           />
@@ -193,8 +221,22 @@ export default function AvatarList() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredAvatars}
-          pagination={{ pageSize: 6, showTotal: (total) => `共 ${total} 个数字人` }}
+          dataSource={avatars}
+          loading={loading}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无数字人数据'} /> }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showTotal: (total) => `共 ${total} 个数字人`,
+          }}
+          onChange={(nextPagination) =>
+            setPagination((current) => ({
+              ...current,
+              current: nextPagination.current,
+              pageSize: nextPagination.pageSize,
+            }))
+          }
           scroll={{ x: 1480 }}
         />
       </Card>

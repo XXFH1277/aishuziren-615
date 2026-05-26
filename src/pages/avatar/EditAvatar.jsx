@@ -1,4 +1,5 @@
-import { Result } from 'antd';
+import { Result, Spin, message } from 'antd';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import AvatarForm, { mapAvatarToFormValues } from '../../components/AvatarForm';
 import PageHeader from '../../components/PageHeader';
@@ -6,19 +7,57 @@ import { getAvatarById } from '../../services/avatarService';
 
 export default function EditAvatar() {
   const { id } = useParams();
-  const avatar = getAvatarById(id);
+  const [avatar, setAvatar] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (!avatar) {
-    return <Result status="404" title="未找到数字人" subTitle="当前编辑页只读取本地 Mock 数字人数据。" />;
+  useEffect(() => {
+    let active = true;
+
+    async function fetchAvatar() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getAvatarById(id);
+        if (active) {
+          setAvatar(data);
+        }
+      } catch (requestError) {
+        const messageText = requestError.message || '数字人详情加载失败';
+        if (active) {
+          setError(messageText);
+        }
+        message.error(messageText);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchAvatar();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return <Spin tip="正在加载数字人详情..." />;
+  }
+
+  if (error || !avatar) {
+    return <Result status="404" title="未找到数字人" subTitle={error || '本地 API 中未找到对应数字人。'} />;
   }
 
   return (
     <>
       <PageHeader
         title="编辑数字人"
-        description="编辑某一个已有数字人的完整配置。当前保存、预览和素材上传都只做前端 Mock。"
+        description="编辑某一个已有数字人的完整配置，当前详情读取自本地 API / SQLite。预览和素材上传仍为 Mock。"
       />
-      <AvatarForm mode="edit" initialValues={mapAvatarToFormValues(avatar)} avatarName={avatar.name} />
+      <AvatarForm mode="edit" avatarId={avatar.id} initialValues={mapAvatarToFormValues(avatar)} avatarName={avatar.name} />
     </>
   );
 }

@@ -85,6 +85,11 @@ router.get('/avatars', (req, res) => {
     clauses.push('status = @status');
   }
 
+  if (req.query.category) {
+    params.category = `%${req.query.category}%`;
+    clauses.push('suitable_categories LIKE @category');
+  }
+
   if (req.query.voiceName) {
     params.voiceName = req.query.voiceName;
     clauses.push('voice_name = @voiceName');

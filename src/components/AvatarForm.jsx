@@ -1,12 +1,12 @@
 import { InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Checkbox, Descriptions, Empty, Form, Input, Select, Slider, Space, Steps, Tabs, Upload, message } from 'antd';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAvatarActions, getAvatarCategories, getVoiceOptions } from '../services/avatarService';
+import { createAvatar, getAvatarActions, getAvatarCategories, getVoiceOptions, updateAvatar } from '../services/avatarService';
 
 const { TextArea } = Input;
 const avatarCategories = getAvatarCategories();
 const voiceOptions = getVoiceOptions();
-const avatarActions = getAvatarActions();
 
 const imageTemplates = ['海岛蓝衬衫', '职场白衬衫', '客服蓝外套', '导购西装', '直播红外套', '默认模板'];
 const imageStyles = ['真实主播', '半写实', '写实', '测试模板'];
@@ -58,10 +58,41 @@ export function mapAvatarToFormValues(avatar) {
   };
 }
 
-export default function AvatarForm({ mode = 'create', initialValues, avatarName }) {
+function buildAvatarPayload(values, status) {
+  return {
+    name: values.name,
+    persona: values.persona,
+    suitableCategories: values.suitableCategories || [],
+    languageStyle: values.languageStyle || '',
+    avatarImage: values.imageSettings?.template || 'api-avatar',
+    voiceName: values.voiceSettings?.voiceName || '',
+    status,
+    behaviorRules: values.behaviorRules || {},
+    voiceSettings: values.voiceSettings || {},
+    imageSettings: values.imageSettings || {},
+    trainingAssets: values.trainingAssets || {},
+    authorizationStatus: values.authorizationStatus || {},
+  };
+}
+
+export default function AvatarForm({ mode = 'create', avatarId, initialValues, avatarName }) {
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
+  const [avatarActions, setAvatarActions] = useState([]);
+
+  useEffect(() => {
+    async function fetchActions() {
+      try {
+        const data = await getAvatarActions({ pageSize: 100 });
+        setAvatarActions(data.list || []);
+      } catch (error) {
+        message.error(error.message || '动作库加载失败');
+      }
+    }
+
+    fetchActions();
+  }, []);
 
   const handlePreview = async () => {
     const values = await form.validateFields([['preview', 'script'], ['preview', 'action'], ['preview', 'tone']]);
@@ -72,14 +103,44 @@ export default function AvatarForm({ mode = 'create', initialValues, avatarName 
     message.success('已生成 Mock 预览结果，未调用真实数字人服务');
   };
 
-  const handleSaveDraft = () => {
-    message.success(isEdit ? '数字人修改草稿已保存到前端 Mock 状态' : '数字人草稿已保存到前端 Mock 状态');
+  const saveAvatar = async ({ returnToList = false, status = '草稿' } = {}) => {
+    if (returnToList) {
+      await form.validateFields();
+    } else {
+      await form.validateFields(['name']);
+    }
+
+    const values = form.getFieldsValue(true);
+    const payload = buildAvatarPayload(values, status);
+
+    if (isEdit) {
+      await updateAvatar(avatarId, payload);
+    } else {
+      await createAvatar(payload);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      await saveAvatar({ status: '草稿' });
+      message.success(isEdit ? '数字人修改草稿已保存到本地 SQLite' : '数字人草稿已保存到本地 SQLite');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '保存草稿失败');
+      }
+    }
   };
 
   const handleSaveAndReturn = async () => {
-    await form.validateFields();
-    message.success(isEdit ? '数字人编辑已保存，当前仅为前端 Mock 提示' : '数字人已保存，当前仅为前端 Mock 提示');
-    navigate('/avatar/list');
+    try {
+      await saveAvatar({ returnToList: true, status: isEdit ? undefined : '草稿' });
+      message.success(isEdit ? '数字人编辑已保存到本地 SQLite' : '数字人已保存到本地 SQLite');
+      navigate('/avatar/list');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '数字人保存失败');
+      }
+    }
   };
 
   const tabItems = [
