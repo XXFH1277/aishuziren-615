@@ -1363,6 +1363,89 @@ body {
   gap: 8px 18px;
 }
 
+.executor-alert {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.executor-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.executor-stat-grid .data-card-value {
+  font-size: 24px;
+  word-break: break-word;
+}
+
+.executor-obs-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.executor-modal-alert {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.executor-binding-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.executor-binding-code {
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 760;
+  letter-spacing: 0;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
+.executor-qr-placeholder {
+  display: grid;
+  width: 132px;
+  height: 132px;
+  place-items: center;
+  color: #64748b;
+  font-weight: 700;
+  background:
+    linear-gradient(90deg, rgb(15 23 42 / 10%) 1px, transparent 1px),
+    linear-gradient(rgb(15 23 42 / 10%) 1px, transparent 1px),
+    #ffffff;
+  background-size: 12px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.executor-checklist-card .ant-progress {
+  margin-bottom: 12px;
+}
+
+.executor-checklist-list .ant-list-item,
+.executor-source-list .ant-list-item {
+  gap: 12px;
+}
+
+.executor-source-list {
+  margin-top: 16px;
+}
+
+.executor-heartbeat-timeline {
+  margin-top: 18px;
+}
+
 @media (max-width: 768px) {
   .app-header,
   .page-header {
@@ -1420,8 +1503,15 @@ body {
   .subtitle-preview-grid,
   .delay-upcoming-grid,
   .delay-stat-grid,
-  .settings-switch-grid {
+  .settings-switch-grid,
+  .executor-stat-grid,
+  .executor-obs-grid,
+  .executor-binding-panel {
     grid-template-columns: 1fr;
+  }
+
+  .executor-qr-placeholder {
+    width: 100%;
   }
 
   .control-room-status-item.is-wide {

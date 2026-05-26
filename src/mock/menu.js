@@ -74,8 +74,8 @@ export const menuItems = [
     icon: 'executors',
     children: [
       { key: '/executors/list', label: '执行端列表' },
-      { key: '/executors/obs-status', label: 'OBS连接状态' },
-      { key: '/executors/heartbeats', label: '心跳日志' },
+      { key: '/executors/obs', label: 'OBS连接状态' },
+      { key: '/executors/heartbeat', label: '心跳日志' },
     ],
   },
   {

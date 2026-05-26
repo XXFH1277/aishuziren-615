@@ -9,6 +9,7 @@ const moduleBreadcrumbs = [
   { prefix: '/interaction/', link: '/interaction/comments', label: '互动播控' },
   { prefix: '/delay-control/', link: '/interaction/comments', label: '互动播控' },
   { prefix: '/ai-center/', link: '/ai-center/assistant', label: 'AI能力中心' },
+  { prefix: '/executors/', link: '/executors/list', label: '执行端管理' },
 ];
 
 export default function Breadcrumb() {
