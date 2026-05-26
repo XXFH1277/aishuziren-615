@@ -242,6 +242,21 @@ router.get('/live-tasks', (req, res) => {
     clauses.push('live_room_id = @liveRoomId');
   }
 
+  if (req.query.executorName) {
+    params.executorName = req.query.executorName;
+    clauses.push('executor_name = @executorName');
+  }
+
+  if (req.query.startTime) {
+    params.startTime = req.query.startTime;
+    clauses.push('scheduled_start_time >= @startTime');
+  }
+
+  if (req.query.endTime) {
+    params.endTime = req.query.endTime;
+    clauses.push('scheduled_start_time <= @endTime');
+  }
+
   const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) AS count FROM live_tasks ${whereSql}`).get(params).count;
   const rows = db
@@ -249,6 +264,16 @@ router.get('/live-tasks', (req, res) => {
     .all(params);
 
   return page(res, rows.map(mapLiveTask), total, pageNumber, pageSize);
+});
+
+router.get('/live-tasks/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM live_tasks WHERE id = ?').get(req.params.id);
+
+  if (!row) {
+    return fail(res, '直播任务不存在', 40400, { id: req.params.id });
+  }
+
+  return success(res, { liveTask: mapLiveTask(row) });
 });
 
 router.post('/live-tasks', (req, res) => {

@@ -38,7 +38,7 @@ import SpeechStatusTag from '../../components/SpeechStatusTag';
 import StatusTag from '../../components/StatusTag';
 import { getDelayControl, getDelaySettings, getSpeechActions, getSpeechQueue, getSpeechTones, getSubtitles } from '../../services/delayControlService';
 import { getAiReplyTemplates, getBroadcastModes, getComments, getManualTakeover, getQuestions, getTakeoverActions, getTakeoverTones } from '../../services/interactionService';
-import { getLiveRooms, getLiveTasks } from '../../services/liveService';
+import { getMockLiveRooms, getMockLiveTasks } from '../../services/liveService';
 import { getStudioOutput } from '../../services/studioService';
 
 const comments = getComments();
@@ -53,8 +53,8 @@ const takeoverTones = getTakeoverTones();
 const aiReplyTemplates = getAiReplyTemplates();
 const questions = getQuestions();
 const speechQueue = getSpeechQueue();
-const liveRooms = getLiveRooms();
-const liveTasks = getLiveTasks();
+const liveRooms = getMockLiveRooms();
+const liveTasks = getMockLiveTasks();
 const studioOutput = getStudioOutput();
 const subtitles = getSubtitles();
 

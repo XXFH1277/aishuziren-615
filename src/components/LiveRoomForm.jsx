@@ -1,15 +1,13 @@
 import { SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Empty, Form, Input, Select, Slider, Space, Steps, Switch, Tabs, message } from 'antd';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMockAvatarById, getMockAvatars } from '../services/avatarService';
-import { getLivePlatforms } from '../services/liveService';
-import { getMockProductGroups } from '../services/productService';
+import { getAvatars } from '../services/avatarService';
+import { createLiveRoom, getLivePlatforms, updateLiveRoom } from '../services/liveService';
+import { getProductGroups } from '../services/productService';
 
 const { TextArea } = Input;
-const avatars = getMockAvatars();
 const livePlatforms = getLivePlatforms();
-const productGroups = getMockProductGroups();
 
 const liveTypes = ['常规直播', '福利专场', '新品首播', '测试直播', '返场直播'];
 const platformAccounts = ['舟山鲜选官方号', '职场好物研究所', '新人福利测试号', '明眸光电旗舰店', '轻盈计划官方号', '内部测试账号'];
@@ -19,10 +17,6 @@ const layoutTypes = ['左侧数字人 + 右侧商品卡', '居中数字人 + 底
 const productPositions = ['右侧商品卡', '底部商品栏', '左侧参数卡', '场景商品台'];
 const danmuStyles = ['右侧浮层', '底部滚动', '精简弹幕条', '隐藏弹幕'];
 const faqLibraries = ['通用商品 FAQ', '海鲜特产 FAQ', '办公好物 FAQ', '轻食健康 FAQ'];
-
-function getGroupById(id) {
-  return productGroups.find((item) => item.id === id);
-}
 
 export function mapLiveRoomToFormValues(room) {
   if (!room) {
@@ -42,7 +36,9 @@ export function mapLiveRoomToFormValues(room) {
       ruleTip: 'Mock 平台规则提示：请检查平台禁用词、商品资质和直播标题。',
     },
     avatarId: room.avatarId,
+    avatarName: room.avatarName,
     productGroupId: room.productGroupId,
+    productGroupName: room.productGroupName,
     scene: {
       background: room.sceneName,
       layoutType: room.layoutType,
@@ -66,24 +62,92 @@ export function mapLiveRoomToFormValues(room) {
   };
 }
 
-export default function LiveRoomForm({ mode = 'create', initialValues, roomName }) {
+function buildLiveRoomPayload(values, selectedAvatar, selectedGroup, status) {
+  return {
+    name: values.name,
+    theme: values.theme,
+    notes: values.notes || values.description || '',
+    platform: values.platform?.name,
+    platformAccount: values.platform?.account || '',
+    avatarId: values.avatarId,
+    avatarName: selectedAvatar?.name || values.avatarName || '',
+    productGroupId: values.productGroupId,
+    productGroupName: selectedGroup?.name || values.productGroupName || '',
+    sceneName: values.scene?.background || '',
+    layoutType: values.scene?.layoutType || '',
+    danmuEnabled: Boolean(values.interaction?.danmuEnabled),
+    aiReplyEnabled: Boolean(values.interaction?.aiReplyEnabled),
+    manualTakeoverEnabled: Boolean(values.interaction?.manualTakeoverEnabled),
+    delayControlEnabled: Boolean(values.control?.delayControlEnabled),
+    delaySeconds: Number(values.control?.delaySeconds || 0),
+    status,
+  };
+}
+
+export default function LiveRoomForm({ mode = 'create', roomId, initialValues, roomName }) {
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
+  const [avatars, setAvatars] = useState([]);
+  const [productGroups, setProductGroups] = useState([]);
+
+  useEffect(() => {
+    async function fetchOptions() {
+      try {
+        const [avatarData, groupData] = await Promise.all([getAvatars({ pageSize: 100 }), getProductGroups({ pageSize: 100 })]);
+        setAvatars(avatarData.list || []);
+        setProductGroups(groupData.list || []);
+      } catch (error) {
+        message.error(error.message || '直播间表单选项加载失败');
+      }
+    }
+
+    fetchOptions();
+  }, []);
 
   const watchedAvatarId = Form.useWatch('avatarId', form);
   const watchedGroupId = Form.useWatch('productGroupId', form);
-  const selectedAvatar = useMemo(() => getMockAvatarById(watchedAvatarId), [watchedAvatarId]);
-  const selectedGroup = useMemo(() => getGroupById(watchedGroupId), [watchedGroupId]);
+  const selectedAvatar = useMemo(() => avatars.find((item) => item.id === watchedAvatarId), [avatars, watchedAvatarId]);
+  const selectedGroup = useMemo(() => productGroups.find((item) => item.id === watchedGroupId), [productGroups, watchedGroupId]);
 
-  const handleSaveDraft = () => {
-    message.success(isEdit ? '直播间修改草稿已保存到前端 Mock 状态' : '直播间草稿已保存到前端 Mock 状态');
+  const saveLiveRoom = async ({ returnToList = false, status = '草稿' } = {}) => {
+    if (returnToList) {
+      await form.validateFields();
+    } else {
+      await form.validateFields(['name']);
+    }
+
+    const values = form.getFieldsValue(true);
+    const payload = buildLiveRoomPayload(values, selectedAvatar, selectedGroup, status);
+
+    if (isEdit) {
+      await updateLiveRoom(roomId, payload);
+    } else {
+      await createLiveRoom(payload);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      await saveLiveRoom({ status: '草稿' });
+      message.success(isEdit ? '直播间修改草稿已保存到本地 SQLite' : '直播间草稿已保存到本地 SQLite');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '保存草稿失败');
+      }
+    }
   };
 
   const handleSaveAndReturn = async () => {
-    await form.validateFields();
-    message.success(isEdit ? '直播间编辑已保存，当前仅为前端 Mock 提示' : '直播间已保存，当前仅为前端 Mock 提示');
-    navigate('/live/rooms');
+    try {
+      await saveLiveRoom({ returnToList: true, status: isEdit ? undefined : '草稿' });
+      message.success(isEdit ? '直播间编辑已保存到本地 SQLite' : '直播间已保存到本地 SQLite');
+      navigate('/live/rooms');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '直播间保存失败');
+      }
+    }
   };
 
   const tabItems = [

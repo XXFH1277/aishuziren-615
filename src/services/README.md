@@ -73,3 +73,19 @@ avatarService -> fetch(`${API_BASE_URL}/api/avatar-actions`)
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 - `getAvatarCategories()`、`getAvatarStatuses()`、`getVoiceOptions()`、`getAvatarActionTypes()` 仍使用前端静态选项。
 - 非数字人模块暂不切 API；直播间页面如需数字人下拉，仍显式使用 Mock helper，避免扩大试点范围。
+
+## Phase 12.7 直播管理 Service API 试点
+
+当前已切换：
+
+```text
+liveService -> fetch(`${API_BASE_URL}/api/live-rooms`)
+liveService -> fetch(`${API_BASE_URL}/api/live-tasks`)
+```
+
+说明：
+
+- 直播间列表、直播间详情、创建直播间、编辑直播间、直播任务列表、创建直播任务、修改直播任务状态读取本地 Express + SQLite。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+- `getLivePlatforms()`、`getLiveRoomStatuses()`、`getLiveTaskStatuses()`、`getExecutorOptions()` 仍使用前端静态选项。
+- 直播中控台暂不切 API，仍显式使用 Mock helper，避免扩大试点范围。
