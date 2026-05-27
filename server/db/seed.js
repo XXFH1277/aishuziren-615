@@ -118,6 +118,7 @@ function clearTables() {
     'executor_heartbeats',
     'executor_obs_status',
     'executors',
+    'file_assets',
   ].forEach((tableName) => {
     db.prepare(`DELETE FROM ${tableName}`).run();
   });

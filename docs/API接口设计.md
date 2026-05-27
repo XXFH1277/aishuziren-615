@@ -284,16 +284,16 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 | 接口名称 | Method | Path | 用途说明 | 请求参数 | 返回字段 | 成功示例 | 失败示例 | 登录 | 权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 获取直播间列表 | GET | `/api/live/rooms` | 获取直播间配置列表 | Query: `keyword`, `platform`, `status`, `avatarId`, `productGroupId`, `page`, `pageSize` | `list`, `total` | `{"code":0,"data":{"list":[],"total":6}}` | `{"code":40001,"message":"筛选参数错误"}` | 是 | 直播间查看 |
-| 获取直播间详情 | GET | `/api/live/rooms/:id` | 获取直播间编辑页回填 | Params: `id` | `liveRoom` | `{"code":0,"data":{"id":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间查看 |
-| 创建直播间 | POST | `/api/live/rooms` | 创建直播间配置 | Body: 基础信息、平台、数字人、商品组、场景、互动、播控 | `id`, `liveRoom` | `{"code":0,"data":{"id":"LR007"}}` | `{"code":40001,"message":"直播间名称不能为空"}` | 是 | 直播间新增 |
-| 更新直播间 | PUT | `/api/live/rooms/:id` | 保存直播间配置 | Params: `id`; Body: 完整配置 | `liveRoom` | `{"code":0,"data":{"id":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间编辑 |
-| 更新直播间状态 | PATCH | `/api/live/rooms/:id/status` | 启用、停用直播间 | Params: `id`; Body: `status` | `id`, `status` | `{"code":0,"data":{"id":"LR001","status":"停用"}}` | `{"code":40900,"message":"直播中不可停用"}` | 是 | 直播间编辑 |
-| 复制直播间 | POST | `/api/live/rooms/:id/copy` | 复制直播间配置 | Params: `id` | `id`, `sourceId` | `{"code":0,"data":{"id":"LR008","sourceId":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间新增 |
-| 获取直播任务列表 | GET | `/api/live/tasks` | 获取直播任务列表 | Query: `keyword`, `status`, `liveRoomId`, `executorId`, `executorName`, `startTime`, `endTime`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":8,"page":1,"pageSize":20}}` | `{"code":40001,"message":"时间范围错误"}` | 是 | 直播任务查看 |
-| 创建直播任务 | POST | `/api/live/tasks` | 创建一次具体直播任务 | Body: `taskName`, `liveRoomId`, `scheduledStartTime`, `executorName`, `notes` | `id`, `task` | `{"code":0,"data":{"id":"LT009"}}` | `{"code":40001,"message":"直播间不能为空"}` | 是 | 直播任务新增 |
-| 更新任务状态 | PATCH | `/api/live/tasks/:id/status` | 启动、暂停、结束、复盘任务 | Params: `id`; Body: `status`, `reason` | `id`, `status` | `{"code":0,"data":{"id":"LT001","status":"直播中"}}` | `{"code":40900,"message":"执行端离线"}` | 是 | 直播任务操作 |
-| 基于直播间创建任务 | POST | `/api/live/rooms/:id/tasks` | 从直播间列表快速创建任务 | Params: `id`; Body: 任务基础字段 | `id`, `task` | `{"code":0,"data":{"id":"LT010"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播任务新增 |
+| 获取直播间列表 | GET | `/api/live-rooms` | 获取直播间配置列表 | Query: `keyword`, `platform`, `status`, `avatarId`, `productGroupId`, `page`, `pageSize` | `list`, `total` | `{"code":0,"data":{"list":[],"total":6}}` | `{"code":40001,"message":"筛选参数错误"}` | 是 | 直播间查看 |
+| 获取直播间详情 | GET | `/api/live-rooms/:id` | 获取直播间编辑页回填 | Params: `id` | `liveRoom` | `{"code":0,"data":{"id":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间查看 |
+| 创建直播间 | POST | `/api/live-rooms` | 创建直播间配置 | Body: 基础信息、平台、数字人、商品组、场景、互动、播控 | `id`, `liveRoom` | `{"code":0,"data":{"id":"LR007"}}` | `{"code":40001,"message":"直播间名称不能为空"}` | 是 | 直播间新增 |
+| 更新直播间 | PUT | `/api/live-rooms/:id` | 保存直播间配置 | Params: `id`; Body: 完整配置 | `liveRoom` | `{"code":0,"data":{"id":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间编辑 |
+| 更新直播间状态 | PATCH | `/api/live-rooms/:id/status` | 启用、停用直播间 | Params: `id`; Body: `status` | `id`, `status` | `{"code":0,"data":{"id":"LR001","status":"停用"}}` | `{"code":40900,"message":"直播中不可停用"}` | 是 | 直播间编辑 |
+| 复制直播间 | POST | `/api/live-rooms/:id/copy` | 复制直播间配置 | Params: `id` | `id`, `sourceId` | `{"code":0,"data":{"id":"LR008","sourceId":"LR001"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播间新增 |
+| 获取直播任务列表 | GET | `/api/live-tasks` | 获取直播任务列表 | Query: `keyword`, `status`, `liveRoomId`, `executorId`, `executorName`, `startTime`, `endTime`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":8,"page":1,"pageSize":20}}` | `{"code":40001,"message":"时间范围错误"}` | 是 | 直播任务查看 |
+| 创建直播任务 | POST | `/api/live-tasks` | 创建一次具体直播任务 | Body: `taskName`, `liveRoomId`, `scheduledStartTime`, `executorName`, `notes` | `id`, `task` | `{"code":0,"data":{"id":"LT009"}}` | `{"code":40001,"message":"直播间不能为空"}` | 是 | 直播任务新增 |
+| 更新任务状态 | PATCH | `/api/live-tasks/:id/status` | 启动、暂停、结束、复盘任务 | Params: `id`; Body: `status`, `reason` | `id`, `status` | `{"code":0,"data":{"id":"LT001","status":"直播中"}}` | `{"code":40900,"message":"执行端离线"}` | 是 | 直播任务操作 |
+| 基于直播间创建任务 | POST | `/api/live-rooms/:id/tasks` | 从直播间列表快速创建任务 | Params: `id`; Body: 任务基础字段 | `id`, `task` | `{"code":0,"data":{"id":"LT010"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 直播任务新增 |
 
 当前对应 Service 函数：`getLiveRooms()`、`getLiveRoomById(id)`、`getLivePlatforms()`、`getLiveRoomStatuses()`、`getLiveTasks()`、`getLiveTaskStatuses()`、`getExecutorOptions()`
 
@@ -305,12 +305,12 @@ AI 调用日志中的“调用页面”字段统一命名为：
 | 接口名称 | Method | Path | 用途说明 | 请求参数 | 返回字段 | 成功示例 | 失败示例 | 登录 | 权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 获取背景列表 | GET | `/api/studio/backgrounds` | 获取 AI 背景 Mock 结果或已保存背景 | Query: `category`, `style`, `ratio`, `status`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":4,"page":1,"pageSize":20}}` | `{"code":40001,"message":"参数错误"}` | 是 | 搭建查看 |
-| 生成背景 | POST | `/api/studio/backgrounds/generate` | 根据 Prompt 生成背景方案，后续走后端代理 | Body: 背景生成表单字段 | `list`, `prompt` | `{"code":0,"data":{"list":[],"prompt":"Mock"}}` | `{"code":40900,"message":"图片生成服务未配置"}` | 是 | 背景生成 |
+| 生成背景 | POST | `/api/studio/backgrounds/generate-mock` | 根据 Prompt 生成 Mock 背景方案，当前不调用真实图片生成 API | Body: 背景生成表单字段 | `background`, `mock` | `{"code":0,"data":{"background":{"id":"SB007"},"mock":true}}` | `{"code":40001,"message":"参数错误"}` | 是 | 背景生成 |
 | 应用背景 | POST | `/api/studio/backgrounds/:id/apply` | 将背景应用到布局 | Params: `id`; Body: `layoutId`, `liveRoomId` | `id`, `status` | `{"code":0,"data":{"id":"SB001","status":"已应用"}}` | `{"code":40400,"message":"背景不存在"}` | 是 | 搭建编辑 |
 | 删除背景 | DELETE | `/api/studio/backgrounds/:id` | 删除背景方案 | Params: `id` | `id` | `{"code":0,"data":{"id":"SB001"}}` | `{"code":40900,"message":"背景已被使用"}` | 是 | 搭建删除 |
 | 获取布局模板 | GET | `/api/studio/layouts` | 获取布局模板和图层信息 | Query: `ratio`, `status`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":6,"page":1,"pageSize":20}}` | `{"code":40001,"message":"参数错误"}` | 是 | 布局查看 |
 | 应用布局 | POST | `/api/studio/layouts/:id/apply` | 应用布局模板到直播间 | Params: `id`; Body: `liveRoomId` | `id`, `status` | `{"code":0,"data":{"id":"SL001","status":"已应用"}}` | `{"code":40400,"message":"布局不存在"}` | 是 | 布局编辑 |
-| 获取 OBS 输出状态 | GET | `/api/studio/output/status` | 获取 OBS 输出预留状态 | Query: `liveRoomId` | `obsStatus`, `sceneMappings`, `checklist` | `{"code":0,"data":{"obsStatus":"未连接"}}` | `{"code":40001,"message":"直播间参数错误"}` | 是 | 输出查看 |
+| 获取 OBS 输出状态 | GET | `/api/studio/output-status` | 获取 OBS 输出预留状态 | Query: `liveRoomId` | `outputStatus` | `{"code":0,"data":{"outputStatus":{"obsStatus":"未连接"}}}` | `{"code":40001,"message":"直播间参数错误"}` | 是 | 输出查看 |
 | 测试 OBS 连接 | POST | `/api/studio/output/test-connection` | 测试 OBS 连接，后续由后端 / 执行端代理 | Body: `executorId`, `mode` | `status`, `message` | `{"code":0,"data":{"status":"测试中"}}` | `{"code":40900,"message":"执行端未在线"}` | 是 | 输出操作 |
 | 发送预览画面 | POST | `/api/studio/output/preview` | 将预览画面发送到输出链路 | Body: `liveRoomId`, `layoutId` | `status` | `{"code":0,"data":{"status":"预览中"}}` | `{"code":40900,"message":"OBS未连接"}` | 是 | 输出操作 |
 
@@ -328,11 +328,11 @@ AI 调用日志中的“调用页面”字段统一命名为：
 | 加入问题队列 | POST | `/api/interaction/comments/:id/to-question` | 将弹幕转为问题 | Params: `id`; Body: `relatedProduct`, `type` | `questionId` | `{"code":0,"data":{"questionId":"Q009"}}` | `{"code":40400,"message":"弹幕不存在"}` | 是 | 问题处理 |
 | 忽略弹幕 | PATCH | `/api/interaction/comments/:id/ignore` | 标记弹幕为忽略 | Params: `id`; Body: `reason` | `id`, `replyStatus` | `{"code":0,"data":{"id":"C001","replyStatus":"已忽略"}}` | `{"code":40400,"message":"弹幕不存在"}` | 是 | 问题处理 |
 | 获取问题队列 | GET | `/api/interaction/questions` | 获取问题处理队列 | Query: `liveRoomId`, `status`, `riskLevel`, `type` | `list`, `total` | `{"code":0,"data":{"list":[],"total":8}}` | `{"code":40001,"message":"参数错误"}` | 是 | 问题查看 |
-| 生成推荐回复 | POST | `/api/interaction/questions/:id/generate-reply` | 生成 AI 推荐回复，后续走后端模型代理 | Params: `id`; Body: `style`, `length` | `aiReply`, `riskTips` | `{"code":0,"data":{"aiReply":"Mock回复"}}` | `{"code":40900,"message":"模型服务未配置"}` | 是 | AI回复使用 |
+| 生成推荐回复 | POST | `/api/interaction/questions/:id/reply` | 生成或更新 AI 推荐回复，当前只返回 Mock 回复，不调用真实模型 | Params: `id`; Body: `replyText`, `style`, `length` | `question`, `mock` | `{"code":0,"data":{"question":{"aiReply":"Mock回复"},"mock":true}}` | `{"code":40400,"message":"问题不存在"}` | 是 | AI回复使用 |
 | 编辑回复 | PATCH | `/api/interaction/questions/:id/reply` | 修改问题回复内容 | Params: `id`; Body: `replyText` | `id`, `aiReply`, `status` | `{"code":0,"data":{"status":"已编辑"}}` | `{"code":40400,"message":"问题不存在"}` | 是 | 问题编辑 |
-| 加入待播队列 | POST | `/api/interaction/questions/:id/to-speech-queue` | 将回复送入待播队列 | Params: `id`; Body: `action`, `tone`, `scheduledMode` | `speechId` | `{"code":0,"data":{"speechId":"SQ011"}}` | `{"code":40900,"message":"高风险内容需人工确认"}` | 是 | 播控操作 |
-| 获取人工接管状态 | GET | `/api/interaction/manual-takeover/status` | 获取直播状态、推荐回复和待播预览 | Query: `liveRoomId` | `currentLiveRoom`, `recommendedReplies`, `riskWarnings` | `{"code":0,"data":{"executorStatus":"在线"}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 人工接管查看 |
-| 提交人工播报 | POST | `/api/interaction/manual-takeover/speech` | 人工输入一句话并选择语气 / 动作 / 播报方式 | Body: `text`, `tone`, `action`, `broadcastMode`, `liveRoomId` | `speechId`, `status` | `{"code":0,"data":{"status":"已加入待播"}}` | `{"code":40001,"message":"播报内容不能为空"}` | 是 | 人工接管 |
+| 加入待播队列 | POST | `/api/interaction/questions/:id/add-to-queue` | 将回复送入待播队列，当前只做本地 Mock 状态更新 | Params: `id`; Body: `action`, `tone`, `scheduledMode` | `question`, `mock` | `{"code":0,"data":{"question":{"status":"已加入待播"},"mock":true}}` | `{"code":40900,"message":"高风险内容需人工确认"}` | 是 | 播控操作 |
+| 获取人工接管状态 | GET | `/api/interaction/manual-takeover` | 获取直播状态、推荐回复和待播预览 | Query: `liveRoomId` | `manualTakeover` | `{"code":0,"data":{"manualTakeover":{"executorStatus":"在线"}}}` | `{"code":40400,"message":"直播间不存在"}` | 是 | 人工接管查看 |
+| 提交人工播报 | POST | `/api/interaction/manual-speech` | 人工输入一句话并选择语气 / 动作 / 播报方式 | Body: `text`, `tone`, `action`, `broadcastMode`, `liveRoomId` | `speechId`, `status` | `{"code":0,"data":{"status":"已加入待播"}}` | `{"code":40001,"message":"播报内容不能为空"}` | 是 | 人工接管 |
 
 当前对应 Service 函数：`getComments()`、`getCommentConnection()`、`getCommentTypes()`、`getInteractionLiveRooms()`、`getRiskLevels()`、`getQuestions()`、`getQuestionStatuses()`、`getAiReplyTemplates()`、`getManualTakeover()`、`getTakeoverTones()`、`getTakeoverActions()`、`getBroadcastModes()`、`getDelayControl()`、`getSpeechQueue()`、`getSubtitles()`、`getDelaySettings()`
 
@@ -476,3 +476,9 @@ AI 调用日志中的“调用页面”字段统一命名为：
 2. 再实现设置与执行端状态：用户、角色、系统设置、执行端、心跳。
 3. 再实现互动播控链路：弹幕、问题、待播队列、延迟设置。
 4. 最后接 AI 模型代理、OBS、本地执行端和直播平台真实接口。
+## 20. Phase 12.18 Dashboard / Auth / File 实现同步说明
+
+- Dashboard 已实现 `GET /api/dashboard/overview`，当前返回 `data.overview.stats`、`data.overview.aiCallStatus`、`data.overview.recentOperations`、`data.overview.liveTaskStatusStats`、`data.overview.executorStatusStats`、`data.overview.riskSummary`。首页工作台通过 `dashboardService.getDashboardOverview()` 读取，不再直接 import `src/mock/dashboard.js`。
+- Auth 已实现 Mock 占位接口：`POST /api/auth/login`、`POST /api/auth/logout`、`GET /api/auth/me`、`POST /api/auth/refresh`。当前不校验真实密码、不生成真实 token、不设置真实 Cookie、不做真实 RBAC，仅用于前后端契约占位。
+- File 已实现 Mock 占位接口：`POST /api/files/upload`。Phase 12.18 暂时接受 JSON Body：`fileName`、`module`、`businessId`、`fileType`，返回 `data.file`；不解析 multipart、不保存真实文件、不上传云端。真实上传后续再接。
+- 当前实现路径已统一为 `/api/live-rooms`、`/api/live-tasks`、`/api/studio/output-status`、`/api/interaction/manual-takeover`、`/api/interaction/manual-speech`、`/api/dev/interaction/comments/simulate`。

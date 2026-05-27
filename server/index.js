@@ -2,9 +2,12 @@ import cors from 'cors';
 import express from 'express';
 import { runSchema } from './db/database.js';
 import aiRoutes from './routes/ai.js';
+import authRoutes from './routes/auth.js';
 import avatarRoutes from './routes/avatars.js';
+import dashboardRoutes from './routes/dashboard.js';
 import delayControlRoutes from './routes/delayControl.js';
 import executorRoutes from './routes/executors.js';
+import fileRoutes from './routes/files.js';
 import helpRoutes from './routes/help.js';
 import healthRoutes from './routes/health.js';
 import interactionRoutes from './routes/interaction.js';
@@ -36,6 +39,9 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/health', healthRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/files', fileRoutes);
 app.use('/api', productRoutes);
 app.use('/api', avatarRoutes);
 app.use('/api', liveRoutes);

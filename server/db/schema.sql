@@ -564,6 +564,19 @@ CREATE TABLE IF NOT EXISTS executor_commands (
   executed_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS file_assets (
+  id TEXT PRIMARY KEY,
+  file_name TEXT,
+  file_url TEXT,
+  file_type TEXT,
+  module TEXT,
+  business_id TEXT,
+  size INTEGER DEFAULT 0,
+  mime_type TEXT,
+  uploaded_by TEXT,
+  created_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_avatars_status ON avatars(status);
@@ -593,6 +606,8 @@ CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_level ON executor_heartbeats(
 CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_created_at ON executor_heartbeats(created_at);
 CREATE INDEX IF NOT EXISTS idx_executor_commands_executor_id ON executor_commands(executor_id);
 CREATE INDEX IF NOT EXISTS idx_executor_commands_status ON executor_commands(status);
+CREATE INDEX IF NOT EXISTS idx_file_assets_module_business ON file_assets(module, business_id);
+CREATE INDEX IF NOT EXISTS idx_file_assets_uploaded_by ON file_assets(uploaded_by);
 
 -- 后续阶段预留：comments / questions / speech_queue / subtitles / ai_model_providers /
 -- file_assets / ticket_replies / ticket_attachments 等表。

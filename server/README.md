@@ -160,6 +160,12 @@ server/utils/operationLog.js
 ## 已实现 API
 
 - `GET /api/health`
+- `GET /api/dashboard/overview`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `POST /api/auth/refresh`
+- `POST /api/files/upload`
 - `GET /api/products`
 - `GET /api/products/:id`
 - `POST /api/products`
@@ -249,8 +255,8 @@ server/utils/operationLog.js
 
 ## 当前未实现
 
-- 真实登录鉴权与权限校验
-- 文件上传
+- 真实登录鉴权与权限校验（`/api/auth/*` 当前仅为 Mock 登录态占位）
+- 真实文件上传（`POST /api/files/upload` 当前仅接受 JSON Mock 请求，不保存真实文件）
 - AI 模型真实调用
 - OBS / 执行端真实通信
 - WebSocket / 实时弹幕

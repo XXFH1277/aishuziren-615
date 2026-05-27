@@ -230,3 +230,20 @@ liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/speech-qu
 - 人工播报和待播队列操作仍是本地 Mock API，不调用真实数字人、TTS、OBS、执行端或直播平台。
 - 弹幕模拟继续使用 dev-only `/api/dev/interaction/comments/simulate`，不接真实 WebSocket。
 - 互动播控、延迟播控的功能管理页继续走各自 service；中控台只作为运行态聚合页。
+
+## Phase 12.18 Dashboard / Auth / File 基础 API 占位
+
+当前已新增：
+
+```text
+dashboardService -> fetch(`${API_BASE_URL}/api/dashboard/overview`)
+authService -> fetch(`${API_BASE_URL}/api/auth/*`)
+fileService -> fetch(`${API_BASE_URL}/api/files/upload`)
+```
+
+说明：
+
+- Dashboard 首页工作台不再直接读取 `src/mock/dashboard.js`，改为通过 `dashboardService` 读取本地 Express + SQLite 聚合数据。
+- `authService` 当前只是 Mock 登录态契约占位，不做真实登录、不生成真实 token、不设置真实 Cookie、不校验密码。
+- `fileService.uploadFileMock()` 当前只发送 JSON Mock 请求，不解析 multipart、不保存真实文件、不上传云端。
+- 真实登录鉴权、真实文件上传、权限校验和文件资产存储后续必须由后端安全实现。

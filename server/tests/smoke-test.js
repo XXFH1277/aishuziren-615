@@ -92,6 +92,40 @@ async function run() {
   assert(health.status === 'ok', '健康检查 API 未返回 status=ok');
   pass('健康检查 API', '/api/health');
 
+  const dashboard = await requestJson('Dashboard API: overview', '/api/dashboard/overview');
+  assert(dashboard.overview?.stats?.length > 0, 'Dashboard API: overview did not return stats');
+  pass('Dashboard API: overview', `${dashboard.overview.stats.length} stats`);
+  const currentUser = await requestJson('Auth API: current user', '/api/auth/me');
+  assert(currentUser.user?.id, 'Auth API: current user did not return user');
+  pass('Auth API: current user', currentUser.user.username);
+  const loginResult = await requestJson('Auth API: login mock', '/api/auth/login', {
+    method: 'POST',
+    body: { username: 'admin', password: 'mock-password' },
+  });
+  assert(loginResult.mock === true && loginResult.user?.id, 'Auth API: login mock did not return mock user');
+  pass('Auth API: login mock', loginResult.user.username);
+  const logoutResult = await requestJson('Auth API: logout mock', '/api/auth/logout', {
+    method: 'POST',
+  });
+  assert(logoutResult.success === true, 'Auth API: logout mock did not return success=true');
+  pass('Auth API: logout mock', logoutResult.loggedOutAt);
+  const refreshResult = await requestJson('Auth API: refresh mock', '/api/auth/refresh', {
+    method: 'POST',
+  });
+  assert(refreshResult.sessionExpiresAt, 'Auth API: refresh mock did not return sessionExpiresAt');
+  pass('Auth API: refresh mock', refreshResult.sessionExpiresAt);
+  const uploadResult = await requestJson('File API: mock upload', '/api/files/upload', {
+    method: 'POST',
+    body: {
+      fileName: 'smoke-demo.png',
+      module: 'product',
+      businessId: 'P001',
+      fileType: 'image',
+    },
+  });
+  assert(uploadResult.file?.fileId, 'File API: mock upload did not return fileId');
+  pass('File API: mock upload', uploadResult.file.fileId);
+
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);
   await checkList('商品 API：商品组列表', '/api/product-groups');
