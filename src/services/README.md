@@ -166,3 +166,23 @@ studioService -> fetch(`${API_BASE_URL}/api/studio/backgrounds/generate-mock`)
 - `getStudioRoomTypes()`、`getStudioCategories()`、`getStudioVisualStyles()`、`getStudioRatios()`、`getStudioLayers()`、`getOutputMethods()` 仍使用前端静态选项。
 - 本阶段不接真实 OBS、OBS WebSocket、虚拟摄像头、直播伴侣、真实执行端、云端推流或真实图片生成服务。
 - 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+
+## Phase 12.14B 延迟播控 Service API 试点
+
+当前已切换：
+
+```text
+delayControlService -> fetch(`${API_BASE_URL}/api/delay-control/current`)
+delayControlService -> fetch(`${API_BASE_URL}/api/delay-control/queue`)
+delayControlService -> fetch(`${API_BASE_URL}/api/delay-control/subtitles`)
+delayControlService -> fetch(`${API_BASE_URL}/api/delay-control/settings`)
+```
+
+说明：
+
+- 当前播报、待播队列、字幕预览、播控设置页面读取本地 Express + SQLite。
+- 待播队列的通过、驳回、修改、删除、插队，以及字幕样式保存、播控设置保存都只写本地 SQLite 或返回 Mock 成功结果。
+- `getSpeechActions()`、`getSpeechTones()`、`getReviewStatuses()`、`getDelayModes()` 等选项仍使用前端静态选项。
+- 直播中控台聚合页暂不切 API，仍保留同步 Mock helper，避免扩大本阶段范围。
+- 本阶段不接真实数字人播报、TTS、口型同步、OBS、执行端、WebSocket 或直播平台。
+- 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。

@@ -221,6 +221,70 @@ CREATE TABLE IF NOT EXISTS manual_takeover_state (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS delay_control_state (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  live_room_id TEXT,
+  current_avatar_id TEXT,
+  current_avatar_name TEXT,
+  current_product_group_id TEXT,
+  current_product_group_name TEXT,
+  delay_mode TEXT,
+  executor_status TEXT,
+  current_speech_json TEXT,
+  next_speech_json TEXT,
+  upcoming_speech_json TEXT,
+  risk_summary_json TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS speech_queue (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  live_room_id TEXT,
+  question_id TEXT,
+  comment_id TEXT,
+  product_id TEXT,
+  product_name TEXT,
+  text TEXT,
+  source TEXT,
+  action TEXT,
+  tone TEXT,
+  risk_level TEXT,
+  review_status TEXT,
+  scheduled_time TEXT,
+  approved_by TEXT,
+  approved_at TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_speech_queue_live_task_id ON speech_queue(live_task_id);
+CREATE INDEX IF NOT EXISTS idx_speech_queue_live_room_id ON speech_queue(live_room_id);
+CREATE INDEX IF NOT EXISTS idx_speech_queue_review_status ON speech_queue(review_status);
+CREATE INDEX IF NOT EXISTS idx_speech_queue_risk_level ON speech_queue(risk_level);
+CREATE INDEX IF NOT EXISTS idx_speech_queue_question_id ON speech_queue(question_id);
+
+CREATE TABLE IF NOT EXISTS subtitle_settings (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  current_subtitle TEXT,
+  next_subtitle TEXT,
+  upcoming_subtitles_json TEXT,
+  subtitle_style_json TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS delay_settings (
+  id TEXT PRIMARY KEY,
+  delay_mode TEXT,
+  delay_seconds INTEGER DEFAULT 0,
+  review_rules_json TEXT,
+  queue_rules_json TEXT,
+  risk_rules_json TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,

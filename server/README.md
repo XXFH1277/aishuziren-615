@@ -98,7 +98,7 @@ npm run server:smoke
 
 - Smoke test 使用 Node 原生 `fetch`，不引入测试框架。
 - 默认检查 `http://localhost:3000`；如需指定地址，可设置 `SMOKE_BASE_URL=http://localhost:3000`。
-- 检查范围覆盖 health、商品、数字人、直播管理、直播间搭建、系统设置、帮助中心、执行端管理的核心本地 API。
+- 检查范围覆盖 health、商品、数字人、直播管理、直播间搭建、互动播控输入侧、延迟播控输出侧、系统设置、帮助中心、执行端管理的核心本地 API。
 - 测试只访问本地 API，不读取 `模型api.txt`，不读取 `.env.local`，不连接真实外部服务。
 
 ## 错误码
@@ -191,6 +191,17 @@ server/utils/operationLog.js
 - `POST /api/interaction/questions/:id/ignore`
 - `GET /api/interaction/manual-takeover`
 - `POST /api/interaction/manual-speech`
+- `GET /api/delay-control/current`
+- `GET /api/delay-control/queue`
+- `PATCH /api/delay-control/queue/:id`
+- `POST /api/delay-control/queue/:id/approve`
+- `POST /api/delay-control/queue/:id/reject`
+- `POST /api/delay-control/queue/:id/insert`
+- `DELETE /api/delay-control/queue/:id`
+- `GET /api/delay-control/subtitles`
+- `PUT /api/delay-control/subtitles/settings`
+- `GET /api/delay-control/settings`
+- `PUT /api/delay-control/settings`
 - `GET /api/settings/users`
 - `GET /api/settings/roles`
 - `GET /api/settings/basic`

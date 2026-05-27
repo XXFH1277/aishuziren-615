@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { runSchema } from './db/database.js';
 import avatarRoutes from './routes/avatars.js';
+import delayControlRoutes from './routes/delayControl.js';
 import executorRoutes from './routes/executors.js';
 import helpRoutes from './routes/help.js';
 import healthRoutes from './routes/health.js';
@@ -41,6 +42,7 @@ app.use('/api', helpRoutes);
 app.use('/api', executorRoutes);
 app.use('/api', studioRoutes);
 app.use('/api', interactionRoutes);
+app.use('/api', delayControlRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {

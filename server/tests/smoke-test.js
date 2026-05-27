@@ -163,6 +163,68 @@ async function run() {
   assert(manualSpeechResult.mock === true, 'Interaction API: manual speech mock did not return mock=true');
   pass('Interaction API: manual speech mock', manualSpeechResult.status);
 
+  const delayCurrent = await requestJson('Delay Control API: current speech', '/api/delay-control/current');
+  assert(delayCurrent.delayControl?.currentSpeech?.text, 'Delay Control API: current speech did not return currentSpeech');
+  pass('Delay Control API: current speech', delayCurrent.delayControl.currentSpeech.id);
+  const delayQueue = await checkList('Delay Control API: speech queue', '/api/delay-control/queue');
+  const patchedSpeech = await requestJson('Delay Control API: patch speech queue item', `/api/delay-control/queue/${delayQueue[0].id}`, {
+    method: 'PATCH',
+    body: {
+      riskLevel: '中',
+      reviewStatus: '待审核',
+      scheduledTime: '20:30:00',
+    },
+  });
+  assert(patchedSpeech.speechItem?.id === delayQueue[0].id, 'Delay Control API: patch speech queue item did not return speechItem');
+  pass('Delay Control API: patch speech queue item', patchedSpeech.speechItem.id);
+  const approvedSpeech = await requestJson('Delay Control API: approve speech item', `/api/delay-control/queue/${delayQueue[0].id}/approve`, {
+    method: 'POST',
+    body: { approvedBy: 'smoke-test' },
+  });
+  assert(approvedSpeech.reviewStatus, 'Delay Control API: approve speech item did not return reviewStatus');
+  pass('Delay Control API: approve speech item', approvedSpeech.reviewStatus);
+  const rejectedSpeech = await requestJson('Delay Control API: reject speech item', `/api/delay-control/queue/${delayQueue[0].id}/reject`, {
+    method: 'POST',
+    body: { reason: 'smoke test mock reject' },
+  });
+  assert(rejectedSpeech.reviewStatus, 'Delay Control API: reject speech item did not return reviewStatus');
+  pass('Delay Control API: reject speech item', rejectedSpeech.reviewStatus);
+  const insertedSpeech = await requestJson('Delay Control API: insert speech item', `/api/delay-control/queue/${delayQueue[0].id}/insert`, {
+    method: 'POST',
+    body: { position: 1 },
+  });
+  assert(insertedSpeech.reviewStatus, 'Delay Control API: insert speech item did not return reviewStatus');
+  pass('Delay Control API: insert speech item', insertedSpeech.reviewStatus);
+  const subtitleData = await requestJson('Delay Control API: subtitles', '/api/delay-control/subtitles');
+  assert(subtitleData.subtitles?.currentSubtitle?.text, 'Delay Control API: subtitles did not return currentSubtitle');
+  pass('Delay Control API: subtitles', subtitleData.subtitles.currentSubtitle.id);
+  const savedSubtitleStyle = await requestJson('Delay Control API: save subtitle settings', '/api/delay-control/subtitles/settings', {
+    method: 'PUT',
+    body: { fontSize: 30, position: '底部' },
+  });
+  assert(savedSubtitleStyle.subtitleStyle?.fontSize === 30, 'Delay Control API: save subtitle settings did not persist fontSize');
+  pass('Delay Control API: save subtitle settings', `${savedSubtitleStyle.subtitleStyle.fontSize}px`);
+  const delaySettings = await requestJson('Delay Control API: settings', '/api/delay-control/settings');
+  assert(delaySettings.settings?.delayMode, 'Delay Control API: settings did not return delayMode');
+  pass('Delay Control API: settings', delaySettings.settings.delayMode);
+  const savedDelaySettings = await requestJson('Delay Control API: save settings', '/api/delay-control/settings', {
+    method: 'PUT',
+    body: {
+      delayMode: delaySettings.settings.delayMode,
+      delaySeconds: 6,
+      reviewRules: { smokeTestReviewRule: true },
+      queueRules: { smokeTestQueueRule: true },
+    },
+  });
+  assert(savedDelaySettings.settings?.delaySeconds === 6, 'Delay Control API: save settings did not persist delaySeconds');
+  pass('Delay Control API: save settings', `${savedDelaySettings.settings.delaySeconds}s`);
+  const deletedSpeech = await requestJson('Delay Control API: delete speech item', `/api/delay-control/queue/${delayQueue[delayQueue.length - 1].id}`, {
+    method: 'DELETE',
+    body: { reason: 'smoke test mock delete' },
+  });
+  assert(deletedSpeech.id === delayQueue[delayQueue.length - 1].id, 'Delay Control API: delete speech item did not return deleted id');
+  pass('Delay Control API: delete speech item', deletedSpeech.id);
+
   await checkList('系统设置 API：用户列表', '/api/settings/users');
   await checkList('系统设置 API：角色列表', '/api/settings/roles');
   const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');

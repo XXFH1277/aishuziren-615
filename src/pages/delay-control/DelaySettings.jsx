@@ -1,41 +1,109 @@
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Form, Input, List, Radio, Slider, Space, Switch, Tabs, message } from 'antd';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import SpeechRiskTag from '../../components/SpeechRiskTag';
-import { getDelayModes, getDelaySettings } from '../../services/delayControlService';
+import { getDelayModes, getDelaySettings, saveDelaySettings } from '../../services/delayControlService';
 
 const delayModes = getDelayModes();
-const delaySettings = getDelaySettings();
 
 export default function DelaySettings() {
   const [form] = Form.useForm();
+  const [settings, setSettings] = useState(null);
+  const [riskRules, setRiskRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSave = () => {
-    message.success('延迟播控设置已保存 Mock');
+  async function loadSettings() {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await getDelaySettings({});
+      const nextSettings = data.settings || data;
+
+      setSettings(nextSettings);
+      setRiskRules(nextSettings.riskRules || []);
+      form.setFieldsValue({
+        delayMode: nextSettings.delayMode,
+        delaySeconds: nextSettings.delaySeconds,
+        ...(nextSettings.reviewRules || {}),
+        ...(nextSettings.queueRules || {}),
+      });
+    } catch (requestError) {
+      setError(requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const values = form.getFieldsValue();
+      const saved = await saveDelaySettings({
+        delayMode: values.delayMode,
+        delaySeconds: values.delaySeconds,
+        reviewRules: {
+          lowRiskAutoPass: values.lowRiskAutoPass,
+          mediumRiskManualConfirm: values.mediumRiskManualConfirm,
+          highRiskBlockAuto: values.highRiskBlockAuto,
+          priceManualConfirm: values.priceManualConfirm,
+          medicalTermsBlock: values.medicalTermsBlock,
+          platformForbiddenBlock: values.platformForbiddenBlock,
+        },
+        queueRules: {
+          maxAheadSentences: values.maxAheadSentences,
+          showNextTwo: values.showNextTwo,
+          allowManualInsert: values.allowManualInsert,
+          allowDeletePending: values.allowDeletePending,
+          allowReturnToProductLine: values.allowReturnToProductLine,
+        },
+        riskRules,
+      });
+
+      setSettings(saved);
+      message.success('播控设置已保存到本地 API Mock');
+    } catch (requestError) {
+      message.error(requestError.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
-    form.resetFields();
-    message.info('已恢复默认 Mock 设置');
+    if (!settings) {
+      return;
+    }
+
+    form.setFieldsValue({
+      delayMode: settings.delayMode,
+      delaySeconds: settings.delaySeconds,
+      ...(settings.reviewRules || {}),
+      ...(settings.queueRules || {}),
+    });
+    setRiskRules(settings.riskRules || []);
+    message.info('已恢复当前本地 API 设置');
+  };
+
+  const toggleRiskRule = (id, enabled) => {
+    setRiskRules((items) => items.map((item) => (item.id === id ? { ...item, enabled } : item)));
   };
 
   return (
     <>
       <PageHeader
-        title="延迟设置"
+        title="播控设置"
         description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于配置播控延迟、人工审核、队列和风险词策略。"
       />
 
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          delayMode: delaySettings.delayMode,
-          delaySeconds: delaySettings.delaySeconds,
-          ...delaySettings.reviewRules,
-          ...delaySettings.queueRules,
-        }}
-      >
+      {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
+
+      <Form form={form} layout="vertical" disabled={loading}>
         <Tabs
           className="delay-tabs"
           items={[
@@ -43,14 +111,14 @@ export default function DelaySettings() {
               key: 'delay',
               label: '延迟模式',
               children: (
-                <Card className="panel-card">
+                <Card className="panel-card" loading={loading}>
                   <Form.Item label="延迟模式" name="delayMode">
                     <Radio.Group options={delayModes.map((item) => ({ label: item, value: item }))} />
                   </Form.Item>
                   <Form.Item label="自定义延迟秒数" name="delaySeconds">
                     <Slider min={0} max={30} marks={{ 0: '0秒', 5: '5秒', 10: '10秒', 30: '30秒' }} />
                   </Form.Item>
-                  <Alert type="info" showIcon message="延迟模式 Mock" description="设置不会下发到真实数字人、TTS 或执行端。" />
+                  <Alert type="info" showIcon message="延迟模式 Mock" description="设置只保存到本地 SQLite，不会下发到真实数字人、TTS 或执行端。" />
                 </Card>
               ),
             },
@@ -58,7 +126,7 @@ export default function DelaySettings() {
               key: 'review',
               label: '审核策略',
               children: (
-                <Card className="panel-card">
+                <Card className="panel-card" loading={loading}>
                   <div className="settings-switch-grid">
                     <Form.Item label="低风险自动通过" name="lowRiskAutoPass" valuePropName="checked"><Switch /></Form.Item>
                     <Form.Item label="中风险人工确认" name="mediumRiskManualConfirm" valuePropName="checked"><Switch /></Form.Item>
@@ -74,7 +142,7 @@ export default function DelaySettings() {
               key: 'queue',
               label: '队列策略',
               children: (
-                <Card className="panel-card">
+                <Card className="panel-card" loading={loading}>
                   <Form.Item label="每次最多提前生成几句" name="maxAheadSentences">
                     <Slider min={1} max={8} marks={{ 1: '1句', 3: '3句', 5: '5句', 8: '8句' }} />
                   </Form.Item>
@@ -91,11 +159,11 @@ export default function DelaySettings() {
               key: 'risk',
               label: '风险词策略',
               children: (
-                <Card className="panel-card">
+                <Card className="panel-card" loading={loading}>
                   <List
-                    dataSource={delaySettings.riskRules}
+                    dataSource={riskRules}
                     renderItem={(item) => (
-                      <List.Item actions={[<Switch defaultChecked={item.enabled} key="switch" />]}>
+                      <List.Item actions={[<Switch checked={item.enabled} onChange={(checked) => toggleRiskRule(item.id, checked)} key="switch" />]}>
                         <List.Item.Meta
                           title={<Space><span>{item.name}</span><SpeechRiskTag level={item.level} /></Space>}
                           description={item.description}
@@ -113,8 +181,8 @@ export default function DelaySettings() {
         />
         <div className="sticky-actions">
           <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={handleReset}>恢复默认 Mock</Button>
-            <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>保存设置 Mock</Button>
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>恢复当前 API 设置</Button>
+            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>保存设置</Button>
           </Space>
         </div>
       </Form>

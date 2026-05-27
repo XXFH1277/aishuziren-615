@@ -6,16 +6,20 @@ import { executorObsList } from '../../src/mock/executorObs.js';
 import { executors } from '../../src/mock/executors.js';
 import { helpFaqList } from '../../src/mock/helpFaq.js';
 import { comments } from '../../src/mock/comments.js';
+import { delayControl } from '../../src/mock/delayControl.js';
+import { delaySettings } from '../../src/mock/delaySettings.js';
 import { liveRooms } from '../../src/mock/liveRooms.js';
 import { liveTasks } from '../../src/mock/liveTasks.js';
 import { manualTakeover } from '../../src/mock/manualTakeover.js';
 import { productGroups } from '../../src/mock/productGroups.js';
 import { products } from '../../src/mock/products.js';
 import { questions } from '../../src/mock/questions.js';
+import { speechQueue } from '../../src/mock/speechQueue.js';
 import { basicSettings, operationLogs, roles, users } from '../../src/mock/settings.js';
 import { studioBackgrounds } from '../../src/mock/studioBackgrounds.js';
 import { studioLayouts } from '../../src/mock/studioLayouts.js';
 import { studioOutput } from '../../src/mock/studioOutput.js';
+import { subtitles } from '../../src/mock/subtitles.js';
 import { systemStatusList } from '../../src/mock/systemStatus.js';
 import { tickets } from '../../src/mock/tickets.js';
 import { troubleshootingList } from '../../src/mock/troubleshooting.js';
@@ -83,6 +87,10 @@ function clearTables() {
     'studio_output_status',
     'studio_layouts',
     'studio_backgrounds',
+    'delay_settings',
+    'subtitle_settings',
+    'speech_queue',
+    'delay_control_state',
     'manual_takeover_state',
     'questions',
     'comments',
@@ -500,6 +508,114 @@ function seedInteraction() {
   });
 }
 
+function seedDelayControl() {
+  const insertDelayState = db.prepare(
+    `INSERT INTO delay_control_state (
+      id, live_task_id, live_room_id, current_avatar_id, current_avatar_name,
+      current_product_group_id, current_product_group_name, delay_mode,
+      executor_status, current_speech_json, next_speech_json,
+      upcoming_speech_json, risk_summary_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @currentAvatarId, @currentAvatarName,
+      @currentProductGroupId, @currentProductGroupName, @delayMode,
+      @executorStatus, @currentSpeech, @nextSpeech,
+      @upcomingSpeech, @riskSummary, @updatedAt
+    )`,
+  );
+
+  const insertSpeechQueueItem = db.prepare(
+    `INSERT INTO speech_queue (
+      id, live_task_id, live_room_id, question_id, comment_id, product_id,
+      product_name, text, source, action, tone, risk_level, review_status,
+      scheduled_time, approved_by, approved_at, created_at, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @questionId, @commentId, @productId,
+      @productName, @text, @source, @action, @tone, @riskLevel, @reviewStatus,
+      @scheduledTime, @approvedBy, @approvedAt, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertSubtitleSettings = db.prepare(
+    `INSERT INTO subtitle_settings (
+      id, live_task_id, current_subtitle, next_subtitle,
+      upcoming_subtitles_json, subtitle_style_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @currentSubtitle, @nextSubtitle,
+      @upcomingSubtitles, @subtitleStyle, @updatedAt
+    )`,
+  );
+
+  const insertDelaySettings = db.prepare(
+    `INSERT INTO delay_settings (
+      id, delay_mode, delay_seconds, review_rules_json,
+      queue_rules_json, risk_rules_json, updated_at
+    ) VALUES (
+      @id, @delayMode, @delaySeconds, @reviewRules,
+      @queueRules, @riskRules, @updatedAt
+    )`,
+  );
+
+  insertDelayState.run({
+    id: 'DCS001',
+    liveTaskId: 'LT001',
+    liveRoomId: 'LR001',
+    currentAvatarId: 'A001',
+    currentAvatarName: delayControl.currentAvatar,
+    currentProductGroupId: productGroupIdByName.get(delayControl.currentProductGroup) || 'G005',
+    currentProductGroupName: delayControl.currentProductGroup,
+    delayMode: delayControl.delayMode,
+    executorStatus: delayControl.executorStatus,
+    currentSpeech: toJson(delayControl.currentSpeech),
+    nextSpeech: toJson(delayControl.nextSpeech),
+    upcomingSpeech: toJson(delayControl.upcomingSpeech || []),
+    riskSummary: toJson(delayControl.riskSummary || {}),
+    updatedAt: timestamp,
+  });
+
+  speechQueue.forEach((item, index) => {
+    insertSpeechQueueItem.run({
+      id: item.id,
+      liveTaskId: 'LT001',
+      liveRoomId: 'LR001',
+      questionId: questions[index]?.id || '',
+      commentId: comments[index]?.id || '',
+      productId: productIdByName.get(item.relatedProduct) || '',
+      productName: item.relatedProduct,
+      text: item.text,
+      source: item.source,
+      action: item.action,
+      tone: item.tone,
+      riskLevel: item.riskLevel,
+      reviewStatus: item.reviewStatus,
+      scheduledTime: item.scheduledTime,
+      approvedBy: item.reviewStatus === '已通过' ? 'system-seed' : '',
+      approvedAt: item.reviewStatus === '已通过' ? timestamp : '',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  insertSubtitleSettings.run({
+    id: 'SUBSET001',
+    liveTaskId: 'LT001',
+    currentSubtitle: toJson(subtitles.currentSubtitle),
+    nextSubtitle: toJson(subtitles.nextSubtitle),
+    upcomingSubtitles: toJson(subtitles.upcomingSubtitles || []),
+    subtitleStyle: toJson(subtitles.subtitleStyle || {}),
+    updatedAt: timestamp,
+  });
+
+  insertDelaySettings.run({
+    id: 'default',
+    delayMode: delaySettings.delayMode,
+    delaySeconds: Number(delaySettings.delaySeconds || 0),
+    reviewRules: toJson(delaySettings.reviewRules || {}),
+    queueRules: toJson(delaySettings.queueRules || {}),
+    riskRules: toJson(delaySettings.riskRules || []),
+    updatedAt: timestamp,
+  });
+}
+
 function seedSettings() {
   const insertUser = db.prepare(
     `INSERT INTO users (
@@ -864,6 +980,7 @@ const seed = db.transaction(() => {
   seedLive();
   seedStudio();
   seedInteraction();
+  seedDelayControl();
   seedSettings();
   seedExecutors();
   seedHelp();
@@ -875,5 +992,6 @@ console.log('SQLite seed completed.');
 console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live rooms: ${liveRooms.length}, Live tasks: ${liveTasks.length}`);
 console.log(`Studio backgrounds: ${studioBackgrounds.length}, Studio layouts: ${studioLayouts.length}, Studio output status: 1`);
 console.log(`Interaction comments: ${comments.length}, Questions: ${questions.length}, Manual takeover states: 1`);
+console.log(`Delay control states: 1, Speech queue: ${speechQueue.length}, Subtitle settings: 1, Delay settings: 1`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);
