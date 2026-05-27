@@ -147,3 +147,22 @@ executorService -> fetch(`${API_BASE_URL}/api/executor-heartbeats`)
 - `getExecutorStatusOptions()`、`getHeartbeatLevels()`、`getObsChecklist()` 仍使用前端静态选项或本地 API 返回的检查项兜底。
 - 本阶段不接真实 OBS WebSocket、本地执行端、虚拟摄像头、直播伴侣、直播平台或真实 WebSocket 心跳。
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+
+## Phase 12.13 直播间搭建 Service API 试点
+
+当前已切换：
+
+```text
+studioService -> fetch(`${API_BASE_URL}/api/studio/backgrounds`)
+studioService -> fetch(`${API_BASE_URL}/api/studio/layouts`)
+studioService -> fetch(`${API_BASE_URL}/api/studio/output-status`)
+studioService -> fetch(`${API_BASE_URL}/api/studio/backgrounds/generate-mock`)
+```
+
+说明：
+
+- AI生成背景、画面布局、OBS输出预留页面读取本地 Express + SQLite。
+- `generateStudioBackgroundMock()` 只在本地 SQLite 新增一条 Mock 背景记录，不调用真实图片生成 API。
+- `getStudioRoomTypes()`、`getStudioCategories()`、`getStudioVisualStyles()`、`getStudioRatios()`、`getStudioLayers()`、`getOutputMethods()` 仍使用前端静态选项。
+- 本阶段不接真实 OBS、OBS WebSocket、虚拟摄像头、直播伴侣、真实执行端、云端推流或真实图片生成服务。
+- 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。

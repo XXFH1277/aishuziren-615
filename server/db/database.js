@@ -15,6 +15,7 @@ const allowedIdTables = new Set([
   'avatar_actions',
   'live_rooms',
   'live_tasks',
+  'studio_backgrounds',
   'users',
   'roles',
   'operation_logs',

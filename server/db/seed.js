@@ -10,6 +10,9 @@ import { liveTasks } from '../../src/mock/liveTasks.js';
 import { productGroups } from '../../src/mock/productGroups.js';
 import { products } from '../../src/mock/products.js';
 import { basicSettings, operationLogs, roles, users } from '../../src/mock/settings.js';
+import { studioBackgrounds } from '../../src/mock/studioBackgrounds.js';
+import { studioLayouts } from '../../src/mock/studioLayouts.js';
+import { studioOutput } from '../../src/mock/studioOutput.js';
 import { systemStatusList } from '../../src/mock/systemStatus.js';
 import { tickets } from '../../src/mock/tickets.js';
 import { troubleshootingList } from '../../src/mock/troubleshooting.js';
@@ -73,6 +76,9 @@ function clearTables() {
     'avatar_actions',
     'live_tasks',
     'live_rooms',
+    'studio_output_status',
+    'studio_layouts',
+    'studio_backgrounds',
     'users',
     'roles',
     'basic_settings',
@@ -301,6 +307,92 @@ function seedLive() {
       createdAt: task.createdAt || timestamp,
       updatedAt: task.updatedAt || task.createdAt || timestamp,
     });
+  });
+}
+
+function seedStudio() {
+  const insertBackground = db.prepare(
+    `INSERT INTO studio_backgrounds (
+      id, name, style, ratio, category, prompt, status, preview_color,
+      suitable_scene, created_at, updated_at
+    ) VALUES (
+      @id, @name, @style, @ratio, @category, @prompt, @status, @previewColor,
+      @suitableScene, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertLayout = db.prepare(
+    `INSERT INTO studio_layouts (
+      id, name, ratio, avatar_position, product_area_position, danmu_position,
+      has_coupon_area, has_title_bar, suitable_for_obs, status, description,
+      created_at, updated_at
+    ) VALUES (
+      @id, @name, @ratio, @avatarPosition, @productAreaPosition, @danmuPosition,
+      @hasCouponArea, @hasTitleBar, @suitableForObs, @status, @description,
+      @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertOutputStatus = db.prepare(
+    `INSERT INTO studio_output_status (
+      id, obs_status, virtual_camera_status, window_capture_status, obs_version,
+      current_scene, current_source, resolution, fps, last_heartbeat_at,
+      scene_mappings_json, checklist_json, updated_at
+    ) VALUES (
+      @id, @obsStatus, @virtualCameraStatus, @windowCaptureStatus, @obsVersion,
+      @currentScene, @currentSource, @resolution, @fps, @lastHeartbeatAt,
+      @sceneMappings, @checklist, @updatedAt
+    )`,
+  );
+
+  studioBackgrounds.forEach((background) => {
+    insertBackground.run({
+      id: background.id,
+      name: background.name,
+      style: background.style,
+      ratio: background.ratio,
+      category: background.category,
+      prompt: background.prompt,
+      status: background.status,
+      previewColor: background.previewColor,
+      suitableScene: background.suitableScene,
+      createdAt: background.createdAt || timestamp,
+      updatedAt: background.updatedAt || background.createdAt || timestamp,
+    });
+  });
+
+  studioLayouts.forEach((layout) => {
+    insertLayout.run({
+      id: layout.id,
+      name: layout.name,
+      ratio: layout.ratio,
+      avatarPosition: layout.avatarPosition,
+      productAreaPosition: layout.productAreaPosition,
+      danmuPosition: layout.danmuPosition,
+      hasCouponArea: layout.hasCouponArea ? 1 : 0,
+      hasTitleBar: layout.hasTitleBar ? 1 : 0,
+      suitableForObs: layout.suitableForObs ? 1 : 0,
+      status: layout.status,
+      description: layout.description,
+      createdAt: layout.createdAt || timestamp,
+      updatedAt: layout.updatedAt || timestamp,
+    });
+  });
+
+  insertOutputStatus.run({
+    id: 'SO001',
+    obsStatus: studioOutput.obsStatus,
+    virtualCameraStatus: studioOutput.virtualCameraStatus,
+    windowCaptureStatus: studioOutput.windowCaptureStatus,
+    obsVersion: studioOutput.obsVersion,
+    currentScene: studioOutput.currentScene,
+    currentSource: studioOutput.currentSource,
+    resolution: studioOutput.resolution,
+    fps: Number(studioOutput.fps || 0),
+    lastHeartbeatAt: studioOutput.lastHeartbeatAt,
+    sceneMappings: toJson(studioOutput.sceneMappings || []),
+    checklist: toJson(studioOutput.checklist || []),
+    updatedAt: studioOutput.updatedAt || studioOutput.lastHeartbeatAt || timestamp,
   });
 }
 
@@ -666,6 +758,7 @@ const seed = db.transaction(() => {
   seedProducts();
   seedAvatars();
   seedLive();
+  seedStudio();
   seedSettings();
   seedExecutors();
   seedHelp();
@@ -675,5 +768,6 @@ seed();
 
 console.log('SQLite seed completed.');
 console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live rooms: ${liveRooms.length}, Live tasks: ${liveTasks.length}`);
+console.log(`Studio backgrounds: ${studioBackgrounds.length}, Studio layouts: ${studioLayouts.length}, Studio output status: 1`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);

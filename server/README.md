@@ -98,7 +98,7 @@ npm run server:smoke
 
 - Smoke test 使用 Node 原生 `fetch`，不引入测试框架。
 - 默认检查 `http://localhost:3000`；如需指定地址，可设置 `SMOKE_BASE_URL=http://localhost:3000`。
-- 检查范围覆盖 health、商品、数字人、直播管理、系统设置、帮助中心、执行端管理的核心本地 API。
+- 检查范围覆盖 health、商品、数字人、直播管理、直播间搭建、系统设置、帮助中心、执行端管理的核心本地 API。
 - 测试只访问本地 API，不读取 `模型api.txt`，不读取 `.env.local`，不连接真实外部服务。
 
 ## 错误码
@@ -179,6 +179,10 @@ server/utils/operationLog.js
 - `GET /api/live-tasks`
 - `POST /api/live-tasks`
 - `PATCH /api/live-tasks/:id/status`
+- `GET /api/studio/backgrounds`
+- `POST /api/studio/backgrounds/generate-mock`
+- `GET /api/studio/layouts`
+- `GET /api/studio/output-status`
 - `GET /api/settings/users`
 - `GET /api/settings/roles`
 - `GET /api/settings/basic`

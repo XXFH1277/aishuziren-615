@@ -8,6 +8,7 @@ import healthRoutes from './routes/health.js';
 import liveRoutes from './routes/liveRooms.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
+import studioRoutes from './routes/studio.js';
 import { fail, success } from './utils/response.js';
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api', liveRoutes);
 app.use('/api', settingsRoutes);
 app.use('/api', helpRoutes);
 app.use('/api', executorRoutes);
+app.use('/api', studioRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {

@@ -1,17 +1,39 @@
 import { CopyOutlined, EyeOutlined } from '@ant-design/icons';
-import { Button, Card, Empty, Modal, Space, Table, Tabs, Tag, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Empty, Modal, Space, Table, Tabs, Tag, message } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
 import LayerPanel from '../../components/LayerPanel';
 import LivePreviewFrame from '../../components/LivePreviewFrame';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getStudioLayouts } from '../../services/studioService';
 
-const studioLayouts = getStudioLayouts();
-
 export default function StudioLayout() {
-  const [selectedLayout, setSelectedLayout] = useState(studioLayouts[0]);
+  const [layouts, setLayouts] = useState([]);
+  const [selectedLayout, setSelectedLayout] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadLayouts = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getStudioLayouts({ page: 1, pageSize: 100 });
+      const list = data.list || [];
+      setLayouts(list);
+      setSelectedLayout((current) => current || list[0] || null);
+    } catch (err) {
+      setError(err.message || '本地 API 服务未连接，请先运行 npm run server:dev');
+      message.error(err.message || '布局模板加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLayouts();
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -76,7 +98,12 @@ export default function StudioLayout() {
 
   return (
     <>
-      <PageHeader title="画面布局" description="配置直播间画面布局。当前不做真实拖拽引擎，仅提供模板选择、图层面板和 Mock 预览。" />
+      <PageHeader
+        title="画面布局"
+        description="配置直播间画面布局。当前模板数据来自本地 API + SQLite，真实拖拽引擎仍为后续预留。"
+      />
+
+      {error ? <Alert className="studio-alert" type="error" showIcon message={error} /> : null}
 
       <Tabs
         className="studio-tabs"
@@ -86,7 +113,15 @@ export default function StudioLayout() {
             label: '布局模板',
             children: (
               <Card className="panel-card">
-                <Table rowKey="id" columns={columns} dataSource={studioLayouts} pagination={false} scroll={{ x: 1180 }} />
+                <Table
+                  rowKey="id"
+                  columns={columns}
+                  dataSource={layouts}
+                  loading={loading}
+                  pagination={false}
+                  locale={{ emptyText: <Empty description="暂无布局模板，请先运行 npm run server:seed 或检查本地 API 服务" /> }}
+                  scroll={{ x: 1180 }}
+                />
               </Card>
             ),
           },
@@ -97,8 +132,9 @@ export default function StudioLayout() {
               <div className="studio-layout-grid">
                 <Card
                   title="布局预览编辑区"
-                  extra={<StatusTag status={selectedLayout.status} />}
+                  extra={selectedLayout ? <StatusTag status={selectedLayout.status} /> : null}
                   className="panel-card"
+                  loading={loading}
                 >
                   {selectedLayout ? (
                     <>
@@ -131,16 +167,20 @@ export default function StudioLayout() {
       />
 
       <Modal title="布局预览" open={previewOpen} footer={null} onCancel={() => setPreviewOpen(false)} width={560}>
-        <LivePreviewFrame
-          ratio={selectedLayout.ratio}
-          backgroundColor={selectedLayout.name.includes('海岛') ? '#0ea5e9' : '#2563eb'}
-          title={selectedLayout.name}
-          showAvatar
-          showProduct
-          showDanmu
-          showCoupon={selectedLayout.hasCouponArea}
-          showLogo
-        />
+        {selectedLayout ? (
+          <LivePreviewFrame
+            ratio={selectedLayout.ratio}
+            backgroundColor={selectedLayout.name.includes('海岛') ? '#0ea5e9' : '#2563eb'}
+            title={selectedLayout.name}
+            showAvatar
+            showProduct
+            showDanmu
+            showCoupon={selectedLayout.hasCouponArea}
+            showLogo
+          />
+        ) : (
+          <Empty description="暂无可预览布局" />
+        )}
       </Modal>
     </>
   );

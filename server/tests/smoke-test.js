@@ -108,6 +108,24 @@ async function run() {
   await checkDetail('直播管理 API：直播间详情', `/api/live-rooms/${liveRooms[0].id}`, 'liveRoom', liveRooms[0].id);
   await checkList('直播管理 API：直播任务列表', '/api/live-tasks');
 
+  await checkList('直播间搭建 API：背景方案列表', '/api/studio/backgrounds');
+  await checkList('直播间搭建 API：布局模板列表', '/api/studio/layouts');
+  const outputStatus = await requestJson('直播间搭建 API：输出状态', '/api/studio/output-status');
+  assert(outputStatus.outputStatus?.id, '直播间搭建 API：输出状态未返回 outputStatus');
+  pass('直播间搭建 API：输出状态', outputStatus.outputStatus.id);
+  const generatedBackground = await requestJson('直播间搭建 API：Mock 背景生成', '/api/studio/backgrounds/generate-mock', {
+    method: 'POST',
+    body: {
+      category: 'Smoke Test',
+      visualStyle: 'Mock',
+      ratio: '9:16',
+      mainColor: '#2563eb',
+      prompt: 'Smoke test mock background generation. No external image API call.',
+    },
+  });
+  assert(generatedBackground.background?.id, '直播间搭建 API：Mock 背景生成未返回 background');
+  pass('直播间搭建 API：Mock 背景生成', generatedBackground.background.id);
+
   await checkList('系统设置 API：用户列表', '/api/settings/users');
   await checkList('系统设置 API：角色列表', '/api/settings/roles');
   const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');

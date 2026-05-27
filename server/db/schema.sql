@@ -112,6 +112,52 @@ CREATE TABLE IF NOT EXISTS live_tasks (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS studio_backgrounds (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  style TEXT,
+  ratio TEXT,
+  category TEXT,
+  prompt TEXT,
+  status TEXT,
+  preview_color TEXT,
+  suitable_scene TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS studio_layouts (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  ratio TEXT,
+  avatar_position TEXT,
+  product_area_position TEXT,
+  danmu_position TEXT,
+  has_coupon_area INTEGER DEFAULT 0,
+  has_title_bar INTEGER DEFAULT 0,
+  suitable_for_obs INTEGER DEFAULT 0,
+  status TEXT,
+  description TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS studio_output_status (
+  id TEXT PRIMARY KEY,
+  obs_status TEXT,
+  virtual_camera_status TEXT,
+  window_capture_status TEXT,
+  obs_version TEXT,
+  current_scene TEXT,
+  current_source TEXT,
+  resolution TEXT,
+  fps INTEGER DEFAULT 0,
+  last_heartbeat_at TEXT,
+  scene_mappings_json TEXT,
+  checklist_json TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
@@ -313,6 +359,10 @@ CREATE INDEX IF NOT EXISTS idx_avatars_status ON avatars(status);
 CREATE INDEX IF NOT EXISTS idx_live_rooms_status ON live_rooms(status);
 CREATE INDEX IF NOT EXISTS idx_live_tasks_status ON live_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_live_tasks_live_room ON live_tasks(live_room_id);
+CREATE INDEX IF NOT EXISTS idx_studio_backgrounds_category ON studio_backgrounds(category);
+CREATE INDEX IF NOT EXISTS idx_studio_backgrounds_status ON studio_backgrounds(status);
+CREATE INDEX IF NOT EXISTS idx_studio_layouts_ratio ON studio_layouts(ratio);
+CREATE INDEX IF NOT EXISTS idx_studio_layouts_status ON studio_layouts(status);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(time);
 CREATE INDEX IF NOT EXISTS idx_help_faq_category ON help_faq(category);
 CREATE INDEX IF NOT EXISTS idx_troubleshooting_category ON troubleshooting_guides(category);

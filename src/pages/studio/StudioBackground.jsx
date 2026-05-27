@@ -1,10 +1,11 @@
 import { CopyOutlined, DeleteOutlined, EyeOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Form, Input, Modal, Select, Space, Switch, Tag, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Switch, Tag, message } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
 import LivePreviewFrame from '../../components/LivePreviewFrame';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import {
+  generateStudioBackgroundMock,
   getStudioBackgrounds,
   getStudioCategories,
   getStudioRatios,
@@ -12,7 +13,6 @@ import {
   getStudioVisualStyles,
 } from '../../services/studioService';
 
-const studioBackgrounds = getStudioBackgrounds();
 const studioCategories = getStudioCategories();
 const studioRatios = getStudioRatios();
 const studioRoomTypes = getStudioRoomTypes();
@@ -20,10 +20,15 @@ const studioVisualStyles = getStudioVisualStyles();
 
 export default function StudioBackground() {
   const [form] = Form.useForm();
-  const [previewBackground, setPreviewBackground] = useState(studioBackgrounds[0]);
+  const [backgrounds, setBackgrounds] = useState([]);
+  const [previewBackground, setPreviewBackground] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const currentRatio = Form.useWatch('ratio', form) || previewBackground.ratio;
-  const currentColor = Form.useWatch('mainColor', form) || previewBackground.previewColor;
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
+
+  const currentRatio = Form.useWatch('ratio', form) || previewBackground?.ratio || '9:16 竖屏';
+  const currentColor = Form.useWatch('mainColor', form) || previewBackground?.previewColor || '#0ea5e9';
 
   const initialValues = useMemo(
     () => ({
@@ -41,8 +46,46 @@ export default function StudioBackground() {
     [],
   );
 
-  const handleGenerate = () => {
-    message.success('已生成 4 张 Mock 背景结果，本阶段不调用真实图片生成服务');
+  const loadBackgrounds = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getStudioBackgrounds({ page: 1, pageSize: 100 });
+      const list = data.list || [];
+      setBackgrounds(list);
+      setPreviewBackground((current) => current || list[0] || null);
+    } catch (err) {
+      setError(err.message || '本地 API 服务未连接，请先运行 npm run server:dev');
+      message.error(err.message || '背景方案加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBackgrounds();
+  }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+
+    try {
+      const values = form.getFieldsValue();
+      const background = await generateStudioBackgroundMock({
+        ...values,
+        style: values.visualStyle,
+        previewColor: values.mainColor,
+      });
+
+      message.success('已生成 1 条 Mock 背景记录，本阶段不调用真实图片生成服务');
+      setBackgrounds((items) => [background, ...items]);
+      setPreviewBackground(background);
+    } catch (err) {
+      message.error(err.message || 'Mock 背景生成失败');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handlePreview = (item) => {
@@ -54,16 +97,18 @@ export default function StudioBackground() {
     <>
       <PageHeader
         title="AI生成背景"
-        description="为直播间生成或选择背景方案。当前全部为 Mock，不调用真实图片生成服务。"
+        description="为直播间生成或选择背景方案。当前数据来自本地 API + SQLite，生成动作仍为 Mock，不调用真实图片生成服务。"
       />
 
       <Alert
         className="studio-alert"
         type="info"
         showIcon
-        message="当前为前端原型"
+        message="当前为本地 API 试点"
         description="生成、预览、应用、复制 Prompt 和删除均为 Mock 操作，不会上传素材，也不会请求任何 AI 图片生成接口。"
       />
+
+      {error ? <Alert className="studio-alert" type="error" showIcon message={error} /> : null}
 
       <div className="studio-background-grid">
         <Card title="背景生成表单" className="panel-card">
@@ -100,17 +145,17 @@ export default function StudioBackground() {
             <Form.Item label="Prompt 输入框" name="prompt">
               <Input.TextArea rows={4} placeholder="描述直播间背景、氛围、商品区、弹幕区和数字人站位要求" />
             </Form.Item>
-            <Button type="primary" icon={<ThunderboltOutlined />} onClick={handleGenerate}>
+            <Button type="primary" icon={<ThunderboltOutlined />} loading={generating} onClick={handleGenerate}>
               生成 Mock 背景
             </Button>
           </Form>
         </Card>
 
-        <Card title="背景预览区" className="panel-card">
+        <Card title="背景预览区" className="panel-card" loading={loading}>
           <LivePreviewFrame
             ratio={currentRatio}
             backgroundColor={currentColor}
-            title={previewBackground.name}
+            title={previewBackground?.name || '直播间背景预览'}
             showAvatar
             showProduct
             showDanmu
@@ -119,53 +164,61 @@ export default function StudioBackground() {
         </Card>
       </div>
 
-      <Card title="Mock 背景结果" className="panel-card">
-        <div className="studio-card-grid">
-          {studioBackgrounds.map((item) => (
-            <Card
-              key={item.id}
-              className="studio-result-card"
-              actions={[
-                <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreview(item)} key="preview">
-                  预览
-                </Button>,
-                <Button type="link" onClick={() => message.success(`已将「${item.name}」Mock 应用到布局`)} key="apply">
-                  应用到布局
-                </Button>,
-                <Button type="link" icon={<CopyOutlined />} onClick={() => message.success('Prompt 已复制到 Mock 剪贴板')} key="copy">
-                  复制 Prompt
-                </Button>,
-                <Button type="link" danger icon={<DeleteOutlined />} onClick={() => message.info('删除仅为 Mock 提示')} key="delete">
-                  删除
-                </Button>,
-              ]}
-            >
-              <div className="studio-background-swatch" style={{ background: item.previewColor }} />
-              <div className="studio-card-title">
-                <strong>{item.name}</strong>
-                <StatusTag status={item.status} />
-              </div>
-              <Space wrap size={6}>
-                <Tag color="blue">{item.style}</Tag>
-                <Tag>{item.ratio}</Tag>
-                <Tag>{item.category}</Tag>
-              </Space>
-              <p className="studio-card-desc">适用直播间：{item.suitableScene}</p>
-            </Card>
-          ))}
-        </div>
+      <Card title="Mock 背景结果" className="panel-card" loading={loading}>
+        {backgrounds.length ? (
+          <div className="studio-card-grid">
+            {backgrounds.map((item) => (
+              <Card
+                key={item.id}
+                className="studio-result-card"
+                actions={[
+                  <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreview(item)} key="preview">
+                    预览
+                  </Button>,
+                  <Button type="link" onClick={() => message.success(`已将「${item.name}」Mock 应用到布局`)} key="apply">
+                    应用到布局
+                  </Button>,
+                  <Button type="link" icon={<CopyOutlined />} onClick={() => message.success('Prompt 已复制到 Mock 剪贴板')} key="copy">
+                    复制 Prompt
+                  </Button>,
+                  <Button type="link" danger icon={<DeleteOutlined />} onClick={() => message.info('删除仅为 Mock 提示')} key="delete">
+                    删除
+                  </Button>,
+                ]}
+              >
+                <div className="studio-background-swatch" style={{ background: item.previewColor }} />
+                <div className="studio-card-title">
+                  <strong>{item.name}</strong>
+                  <StatusTag status={item.status} />
+                </div>
+                <Space wrap size={6}>
+                  <Tag color="blue">{item.style}</Tag>
+                  <Tag>{item.ratio}</Tag>
+                  <Tag>{item.category}</Tag>
+                </Space>
+                <p className="studio-card-desc">适用直播间：{item.suitableScene}</p>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Empty description="暂无背景方案，请先运行 npm run server:seed 或检查本地 API 服务" />
+        )}
       </Card>
 
       <Modal title="背景预览" open={previewOpen} footer={null} onCancel={() => setPreviewOpen(false)} width={520}>
-        <LivePreviewFrame
-          ratio={previewBackground.ratio}
-          backgroundColor={previewBackground.previewColor}
-          title={previewBackground.name}
-          showAvatar
-          showProduct
-          showDanmu
-          showCoupon
-        />
+        {previewBackground ? (
+          <LivePreviewFrame
+            ratio={previewBackground.ratio}
+            backgroundColor={previewBackground.previewColor}
+            title={previewBackground.name}
+            showAvatar
+            showProduct
+            showDanmu
+            showCoupon
+          />
+        ) : (
+          <Empty description="暂无可预览背景" />
+        )}
       </Modal>
     </>
   );
