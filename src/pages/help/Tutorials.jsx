@@ -1,12 +1,11 @@
 import { BookOutlined, EyeOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Empty, Modal, Row, Select, Space, Tag, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Col, Empty, Modal, Row, Select, Space, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import { getTutorialCategories, getTutorials } from '../../services/helpService';
 
-const tutorials = getTutorials();
-const tutorialCategories = getTutorialCategories();
+const defaultTutorialCategories = getTutorialCategories();
 
 const difficultyColor = {
   入门: 'green',
@@ -15,19 +14,44 @@ const difficultyColor = {
 };
 
 export default function Tutorials() {
+  const [tutorials, setTutorials] = useState([]);
+  const [tutorialCategories, setTutorialCategories] = useState(defaultTutorialCategories);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [category, setCategory] = useState();
   const [detail, setDetail] = useState(null);
 
-  const filteredTutorials = useMemo(
-    () => tutorials.filter((item) => !category || item.category === category),
-    [category],
-  );
+  const fetchTutorials = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getTutorials({
+        category,
+        page: 1,
+        pageSize: 100,
+      });
+
+      setTutorials(data.list || []);
+      setTutorialCategories(data.categories?.length ? data.categories : defaultTutorialCategories);
+    } catch (requestError) {
+      const messageText = requestError.message || '操作教程加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [category]);
+
+  useEffect(() => {
+    fetchTutorials();
+  }, [fetchTutorials]);
 
   return (
     <>
       <PageHeader
         title="操作教程"
-        description="面向运营人员的操作教程集合，覆盖商品、数字人、直播间、互动播控、AI模型和执行端配置。"
+        description="面向运营人员的操作教程集合，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Select
             allowClear
@@ -40,9 +64,17 @@ export default function Tutorials() {
         }
       />
 
+      {error ? <Alert className="help-alert" type="error" showIcon message={error} /> : null}
+
       <Row gutter={[16, 16]}>
-        {filteredTutorials.length ? (
-          filteredTutorials.map((item) => (
+        {loading ? (
+          [0, 1, 2].map((item) => (
+            <Col xs={24} md={12} xl={8} key={item}>
+              <Card className="help-tutorial-card" loading />
+            </Col>
+          ))
+        ) : tutorials.length ? (
+          tutorials.map((item) => (
             <Col xs={24} md={12} xl={8} key={item.id}>
               <Card
                 className="help-tutorial-card"
@@ -76,7 +108,7 @@ export default function Tutorials() {
           ))
         ) : (
           <Col span={24}>
-            <Empty description="暂无符合条件的教程" />
+            <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的教程'} />
           </Col>
         )}
       </Row>

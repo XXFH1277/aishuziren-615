@@ -1,10 +1,16 @@
 import { avatarActions } from '../../src/mock/avatarActions.js';
 import { avatars } from '../../src/mock/avatars.js';
+import { changelog } from '../../src/mock/changelog.js';
+import { helpFaqList } from '../../src/mock/helpFaq.js';
 import { liveRooms } from '../../src/mock/liveRooms.js';
 import { liveTasks } from '../../src/mock/liveTasks.js';
 import { productGroups } from '../../src/mock/productGroups.js';
 import { products } from '../../src/mock/products.js';
 import { basicSettings, operationLogs, roles, users } from '../../src/mock/settings.js';
+import { systemStatusList } from '../../src/mock/systemStatus.js';
+import { tickets } from '../../src/mock/tickets.js';
+import { troubleshootingList } from '../../src/mock/troubleshooting.js';
+import { tutorials } from '../../src/mock/tutorials.js';
 import { db, now, runSchema, toJson } from './database.js';
 
 runSchema();
@@ -33,6 +39,12 @@ function clearTables() {
     'roles',
     'basic_settings',
     'operation_logs',
+    'help_faq',
+    'troubleshooting_guides',
+    'tickets',
+    'tutorials',
+    'system_status',
+    'changelog',
   ].forEach((tableName) => {
     db.prepare(`DELETE FROM ${tableName}`).run();
   });
@@ -343,15 +355,164 @@ function seedSettings() {
   });
 }
 
+function seedHelp() {
+  const insertFaq = db.prepare(
+    `INSERT INTO help_faq (
+      id, title, category, causes_json, steps_json, related_page,
+      need_support, created_at, updated_at
+    ) VALUES (
+      @id, @title, @category, @causes, @steps, @relatedPage,
+      @needSupport, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertTroubleshooting = db.prepare(
+    `INSERT INTO troubleshooting_guides (
+      id, title, category, description, steps_json, created_at, updated_at
+    ) VALUES (
+      @id, @title, @category, @description, @steps, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertTicket = db.prepare(
+    `INSERT INTO tickets (
+      id, title, type, urgency, related_live_room, related_avatar, related_product,
+      related_executor, status, submitter, submitted_at, description, diagnosis,
+      error_log, technical_reply, resolution_record, contact, created_at, updated_at
+    ) VALUES (
+      @id, @title, @type, @urgency, @relatedLiveRoom, @relatedAvatar, @relatedProduct,
+      @relatedExecutor, @status, @submitter, @submittedAt, @description, @diagnosis,
+      @errorLog, @technicalReply, @resolutionRecord, @contact, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertTutorial = db.prepare(
+    `INSERT INTO tutorials (
+      id, title, category, difficulty, duration, summary_json, target_page, created_at, updated_at
+    ) VALUES (
+      @id, @title, @category, @difficulty, @duration, @summary, @targetPage, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertStatus = db.prepare(
+    `INSERT INTO system_status (
+      id, name, status, checked_at, abnormal_count, detail, created_at, updated_at
+    ) VALUES (
+      @id, @name, @status, @checkedAt, @abnormalCount, @detail, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertChangelog = db.prepare(
+    `INSERT INTO changelog (
+      id, version, title, updated_at, features_json, fixes_json, notes_json, important, created_at
+    ) VALUES (
+      @id, @version, @title, @updatedAt, @features, @fixes, @notes, @important, @createdAt
+    )`,
+  );
+
+  helpFaqList.forEach((item) => {
+    insertFaq.run({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      causes: toJson(item.causes || []),
+      steps: toJson(item.steps || []),
+      relatedPage: item.relatedPage,
+      needSupport: item.needSupport ? 1 : 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  troubleshootingList.forEach((item) => {
+    insertTroubleshooting.run({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      description: item.description,
+      steps: toJson(item.steps || []),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  tickets.forEach((ticket) => {
+    insertTicket.run({
+      id: ticket.id,
+      title: ticket.title,
+      type: ticket.type,
+      urgency: ticket.urgency,
+      relatedLiveRoom: ticket.liveRoom,
+      relatedAvatar: ticket.avatar,
+      relatedProduct: ticket.product || '',
+      relatedExecutor: ticket.executor,
+      status: ticket.status,
+      submitter: ticket.submitter,
+      submittedAt: ticket.submittedAt,
+      description: ticket.description,
+      diagnosis: ticket.diagnosis,
+      errorLog: ticket.errorLog,
+      technicalReply: ticket.reply,
+      resolutionRecord: ticket.resolution,
+      contact: '',
+      createdAt: ticket.submittedAt || timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  tutorials.forEach((item) => {
+    insertTutorial.run({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      difficulty: item.difficulty,
+      duration: item.duration,
+      summary: toJson(item.summary || []),
+      targetPage: item.targetPage,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  systemStatusList.forEach((item) => {
+    insertStatus.run({
+      id: item.id,
+      name: item.name,
+      status: item.status,
+      checkedAt: item.checkedAt,
+      abnormalCount: Number(item.abnormalCount || 0),
+      detail: item.description,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  changelog.forEach((item) => {
+    insertChangelog.run({
+      id: item.id,
+      version: item.version,
+      title: item.title,
+      updatedAt: item.updatedAt,
+      features: toJson(item.features || []),
+      fixes: toJson(item.fixes || []),
+      notes: toJson(item.notes || []),
+      important: item.important ? 1 : 0,
+      createdAt: item.updatedAt || timestamp,
+    });
+  });
+}
+
 const seed = db.transaction(() => {
   clearTables();
   seedProducts();
   seedAvatars();
   seedLive();
   seedSettings();
+  seedHelp();
 });
 
 seed();
 
 console.log('SQLite seed completed.');
 console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live rooms: ${liveRooms.length}, Live tasks: ${liveTasks.length}`);
+console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);

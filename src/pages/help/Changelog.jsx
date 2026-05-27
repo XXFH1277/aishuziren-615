@@ -1,18 +1,56 @@
-import { Card, Empty, Space, Tag, Timeline, Typography } from 'antd';
+import { Alert, Card, Empty, Space, Tag, Timeline, Typography, message } from 'antd';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import { getChangelog } from '../../services/helpService';
 
-const changelog = getChangelog();
-
 export default function Changelog() {
+  const [changelog, setChangelog] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchChangelog() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getChangelog({ page: 1, pageSize: 100 });
+
+        if (!ignore) {
+          setChangelog(data.list || []);
+        }
+      } catch (requestError) {
+        const messageText = requestError.message || '更新日志加载失败';
+
+        if (!ignore) {
+          setError(messageText);
+          message.error(messageText);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchChangelog();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   return (
     <>
       <PageHeader
         title="更新日志"
-        description="查看系统原型各阶段版本更新记录，帮助团队了解当前功能边界和注意事项。"
+        description="查看系统原型各阶段版本更新记录，当前通过本地 API 读取 SQLite 数据。"
       />
 
-      <Card className="panel-card">
+      <Card className="panel-card" loading={loading}>
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         {changelog.length ? (
           <Timeline
             className="help-changelog-timeline"
@@ -56,7 +94,7 @@ export default function Changelog() {
             }))}
           />
         ) : (
-          <Empty description="暂无更新日志" />
+          <Empty description={error ? '本地 API 暂无可展示数据' : '暂无更新日志'} />
         )}
       </Card>
     </>

@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { runSchema } from './db/database.js';
 import avatarRoutes from './routes/avatars.js';
+import helpRoutes from './routes/help.js';
 import healthRoutes from './routes/health.js';
 import liveRoutes from './routes/liveRooms.js';
 import productRoutes from './routes/products.js';
@@ -33,6 +34,7 @@ app.use('/api', productRoutes);
 app.use('/api', avatarRoutes);
 app.use('/api', liveRoutes);
 app.use('/api', settingsRoutes);
+app.use('/api', helpRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {

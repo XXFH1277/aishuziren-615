@@ -165,6 +165,85 @@ CREATE TABLE IF NOT EXISTS operation_logs (
   created_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS help_faq (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT,
+  causes_json TEXT,
+  steps_json TEXT,
+  related_page TEXT,
+  need_support INTEGER DEFAULT 0,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS troubleshooting_guides (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT,
+  description TEXT,
+  steps_json TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  type TEXT,
+  urgency TEXT,
+  related_live_room TEXT,
+  related_avatar TEXT,
+  related_product TEXT,
+  related_executor TEXT,
+  status TEXT,
+  submitter TEXT,
+  submitted_at TEXT,
+  description TEXT,
+  diagnosis TEXT,
+  error_log TEXT,
+  technical_reply TEXT,
+  resolution_record TEXT,
+  contact TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tutorials (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT,
+  difficulty TEXT,
+  duration TEXT,
+  summary_json TEXT,
+  target_page TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS system_status (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  status TEXT,
+  checked_at TEXT,
+  abnormal_count INTEGER DEFAULT 0,
+  detail TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS changelog (
+  id TEXT PRIMARY KEY,
+  version TEXT,
+  title TEXT,
+  updated_at TEXT,
+  features_json TEXT,
+  fixes_json TEXT,
+  notes_json TEXT,
+  important INTEGER DEFAULT 0,
+  created_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_avatars_status ON avatars(status);
@@ -172,6 +251,11 @@ CREATE INDEX IF NOT EXISTS idx_live_rooms_status ON live_rooms(status);
 CREATE INDEX IF NOT EXISTS idx_live_tasks_status ON live_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_live_tasks_live_room ON live_tasks(live_room_id);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(time);
+CREATE INDEX IF NOT EXISTS idx_help_faq_category ON help_faq(category);
+CREATE INDEX IF NOT EXISTS idx_troubleshooting_category ON troubleshooting_guides(category);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
+CREATE INDEX IF NOT EXISTS idx_tutorials_category ON tutorials(category);
 
 -- 后续阶段预留：comments / questions / speech_queue / subtitles / ai_model_providers /
 -- file_assets / executor_commands / ticket_replies / ticket_attachments 等表。

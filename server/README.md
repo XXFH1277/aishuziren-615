@@ -90,6 +90,13 @@ http://localhost:3000
 - `GET /api/settings/basic`
 - `PUT /api/settings/basic`
 - `GET /api/settings/logs`
+- `GET /api/help/faq`
+- `GET /api/help/troubleshooting`
+- `GET /api/help/tickets`
+- `POST /api/help/tickets`
+- `GET /api/help/tutorials`
+- `GET /api/help/status`
+- `GET /api/help/changelog`
 
 ## 当前未实现
 
@@ -98,6 +105,8 @@ http://localhost:3000
 - AI 模型真实调用
 - OBS / 执行端真实通信
 - WebSocket / 实时弹幕
+- 工单回复、工单附件和真实文件上传
+- 真实外部工单系统或通知系统
 - 全量 API 文档中的所有扩展接口
 
 ## 安全注意事项

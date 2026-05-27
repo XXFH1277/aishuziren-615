@@ -57,10 +57,10 @@ export const systemStatusList = [
   },
   {
     id: 'SS008',
-    name: '数据库状态 Mock',
-    status: '预留',
+    name: '本地数据库状态',
+    status: 'Mock运行中',
     checkedAt: '2026-05-26 22:28',
     abnormalCount: 0,
-    description: '当前无数据库，后续由本地 Node 后端 + SQLite 阶段接入。',
+    description: '当前使用本地 SQLite 支撑 Phase 12 API 试点，未接入真实生产数据库。',
   },
 ];

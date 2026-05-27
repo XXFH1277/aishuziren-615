@@ -1,10 +1,8 @@
 import { Alert, Button, Card, Empty, List, Space, Steps, Tag, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getTroubleshootingList } from '../../services/helpService';
-
-const troubleshootingList = getTroubleshootingList();
 
 const stepStatusMap = {
   正常: 'finish',
@@ -13,17 +11,44 @@ const stepStatusMap = {
 };
 
 export default function Troubleshooting() {
-  const [selectedId, setSelectedId] = useState(troubleshootingList[0]?.id);
+  const [troubleshootingList, setTroubleshootingList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedId, setSelectedId] = useState();
+
+  const fetchTroubleshooting = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getTroubleshootingList({ page: 1, pageSize: 100 });
+      const list = data.list || [];
+
+      setTroubleshootingList(list);
+      setSelectedId((current) => current || list[0]?.id);
+    } catch (requestError) {
+      const messageText = requestError.message || '快速排查加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTroubleshooting();
+  }, [fetchTroubleshooting]);
+
   const selectedItem = useMemo(
     () => troubleshootingList.find((item) => item.id === selectedId) || troubleshootingList[0],
-    [selectedId],
+    [selectedId, troubleshootingList],
   );
 
   return (
     <>
       <PageHeader
         title="快速排查"
-        description="通过步骤清单排查常见直播故障。当前所有检查结果和建议操作均为 Mock，不连接真实服务。"
+        description="通过步骤清单排查常见直播故障，当前通过本地 API 读取 SQLite 数据。"
         extra={
           <Button type="primary" onClick={() => message.success('提交技术工单为 Mock 入口，请到技术工单页继续填写')}>
             提交技术工单 Mock
@@ -35,14 +60,17 @@ export default function Troubleshooting() {
         className="help-alert"
         type="warning"
         showIcon
-        message="排查结果仅用于前端原型演示"
-        description="当前不读取真实日志、不连接 OBS、不访问直播平台，也不会向任何工单系统发送信息。"
+        message="排查结果说明"
+        description="排查项来自本地 SQLite；当前不读取真实日志、不连接 OBS、不访问直播平台，也不会向任何外部工单系统发送信息。"
       />
 
+      {error ? <Alert className="help-alert" type="error" showIcon message={error} /> : null}
+
       <div className="help-troubleshooting-grid">
-        <Card title="问题类型" className="panel-card">
+        <Card title="问题类型" className="panel-card" loading={loading}>
           <List
             dataSource={troubleshootingList}
+            locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无排查项'} /> }}
             renderItem={(item) => (
               <List.Item
                 className={item.id === selectedItem?.id ? 'help-list-item-active' : ''}
@@ -65,6 +93,7 @@ export default function Troubleshooting() {
         <Card
           title={selectedItem?.title || '排查步骤'}
           className="panel-card"
+          loading={loading}
           extra={selectedItem ? <Tag color="blue">{selectedItem.category}</Tag> : null}
         >
           {selectedItem ? (

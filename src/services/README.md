@@ -108,3 +108,24 @@ settingsService -> fetch(`${API_BASE_URL}/api/settings/logs`)
 - 用户新增/编辑/禁用、角色权限编辑、通知规则读取/编辑/测试仍使用前端 Mock。
 - `getNotificationRules()`、`getNotificationChannels()`、`getPermissionTree()`、`getSettingsOptions()` 仍使用前端静态或 Mock 数据。
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+
+## Phase 12.9 帮助中心 Service API 试点
+
+当前已切换：
+
+```text
+helpService -> fetch(`${API_BASE_URL}/api/help/faq`)
+helpService -> fetch(`${API_BASE_URL}/api/help/troubleshooting`)
+helpService -> fetch(`${API_BASE_URL}/api/help/tickets`)
+helpService -> fetch(`${API_BASE_URL}/api/help/tutorials`)
+helpService -> fetch(`${API_BASE_URL}/api/help/status`)
+helpService -> fetch(`${API_BASE_URL}/api/help/changelog`)
+```
+
+说明：
+
+- FAQ、快速排查、技术工单、操作教程、系统状态、更新日志读取本地 Express + SQLite。
+- `createTicket()` 会写入本地 SQLite，但不发送邮件、短信、企业微信、飞书、钉钉，也不接真实外部工单系统。
+- `getTicketTypes()`、`getTicketUrgencies()`、`getTicketStatuses()`、`getFaqCategories()`、`getTutorialCategories()` 仍使用前端静态选项。
+- 工单回复、工单附件、真实文件上传、真实通知推送暂不实现。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。

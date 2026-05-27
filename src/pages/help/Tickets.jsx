@@ -1,45 +1,94 @@
 import { InboxOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Card, Descriptions, Empty, Form, Input, Modal, Select, Space, Table, Timeline, Upload, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Modal, Select, Space, Table, Timeline, Upload, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getTicketStatuses, getTicketTypes, getTicketUrgencies, getTickets } from '../../services/helpService';
+import { createTicket, getTicketStatuses, getTicketTypes, getTicketUrgencies, getTickets } from '../../services/helpService';
 
 const { TextArea } = Input;
-const tickets = getTickets();
 const ticketTypes = getTicketTypes();
 const ticketUrgencies = getTicketUrgencies();
 const ticketStatuses = getTicketStatuses();
 
 export default function Tickets() {
   const [form] = Form.useForm();
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState();
   const [type, setType] = useState();
+  const [priority, setPriority] = useState();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 6, total: 0 });
 
-  const filteredTickets = useMemo(
-    () =>
-      tickets.filter((item) => {
-        const lowerKeyword = keyword.toLowerCase();
-        const matchKeyword =
-          !keyword ||
-          item.id.toLowerCase().includes(lowerKeyword) ||
-          item.title.toLowerCase().includes(lowerKeyword) ||
-          item.description.toLowerCase().includes(lowerKeyword);
-        const matchStatus = !status || item.status === status;
-        const matchType = !type || item.type === type;
-        return matchKeyword && matchStatus && matchType;
-      }),
-    [keyword, status, type],
-  );
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getTickets({
+        keyword,
+        status,
+        type,
+        priority,
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+      });
+
+      setTickets(data.list || []);
+      setPagination((current) => ({
+        ...current,
+        current: data.page || current.current,
+        pageSize: data.pageSize || current.pageSize,
+        total: data.total || 0,
+      }));
+    } catch (requestError) {
+      const messageText = requestError.message || '技术工单加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [keyword, pagination.current, pagination.pageSize, priority, status, type]);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  const resetToFirstPage = (updater) => {
+    updater();
+    setPagination((current) => ({ ...current, current: 1 }));
+  };
 
   const handleCreate = async () => {
-    await form.validateFields();
-    message.success('技术工单已提交 Mock，不发送邮件或通知');
-    form.resetFields();
-    setCreateOpen(false);
+    setCreating(true);
+
+    try {
+      const values = await form.validateFields();
+
+      await createTicket({
+        ...values,
+        relatedLiveRoom: values.liveRoom,
+        relatedAvatar: values.avatar,
+        relatedProduct: values.product,
+        relatedExecutor: values.executor,
+      });
+
+      message.success('技术工单已写入本地 SQLite，不发送邮件或通知');
+      form.resetFields();
+      setCreateOpen(false);
+      setPagination((current) => ({ ...current, current: 1 }));
+      fetchTickets();
+    } catch (requestError) {
+      if (!requestError.errorFields) {
+        message.error(requestError.message || '技术工单提交失败');
+      }
+    } finally {
+      setCreating(false);
+    }
   };
 
   const columns = [
@@ -77,36 +126,45 @@ export default function Tickets() {
     <>
       <PageHeader
         title="技术工单"
-        description="提交和查看技术工单。当前全部为前端 Mock，不发送邮件，不接企业微信 / 飞书 / 钉钉，也不接真实工单系统。"
+        description="提交和查看技术工单，当前通过本地 API 读取并写入 SQLite；不发送邮件，不接企业微信 / 飞书 / 钉钉，也不接真实工单系统。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            新建工单 Mock
+            新建工单
           </Button>
         }
       />
 
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
             placeholder="搜索工单编号、标题或描述"
-            onSearch={setKeyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => resetToFirstPage(() => setKeyword(value))}
+            onChange={(event) => resetToFirstPage(() => setKeyword(event.target.value))}
             style={{ maxWidth: 320 }}
           />
           <Select
             allowClear
             placeholder="问题类型"
             value={type}
-            onChange={setType}
+            onChange={(value) => resetToFirstPage(() => setType(value))}
             options={ticketTypes.map((item) => ({ label: item, value: item }))}
             style={{ width: 160 }}
           />
           <Select
             allowClear
+            placeholder="紧急程度"
+            value={priority}
+            onChange={(value) => resetToFirstPage(() => setPriority(value))}
+            options={ticketUrgencies.map((item) => ({ label: item, value: item }))}
+            style={{ width: 130 }}
+          />
+          <Select
+            allowClear
             placeholder="工单状态"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => resetToFirstPage(() => setStatus(value))}
             options={ticketStatuses.map((item) => ({ label: item, value: item }))}
             style={{ width: 140 }}
           />
@@ -114,14 +172,35 @@ export default function Tickets() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredTickets}
-          pagination={{ pageSize: 6, showTotal: (total) => `共 ${total} 个工单` }}
+          dataSource={tickets}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showTotal: (total) => `共 ${total} 个工单`,
+          }}
+          onChange={(nextPagination) =>
+            setPagination((current) => ({
+              ...current,
+              current: nextPagination.current,
+              pageSize: nextPagination.pageSize,
+            }))
+          }
           scroll={{ x: 1680 }}
-          locale={{ emptyText: <Empty description="暂无符合条件的工单" /> }}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的工单'} /> }}
         />
       </Card>
 
-      <Modal title="新建技术工单 Mock" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={handleCreate} okText="提交 Mock 工单" width={760}>
+      <Modal
+        title="新建技术工单"
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        onOk={handleCreate}
+        okText="提交工单"
+        confirmLoading={creating}
+        width={760}
+      >
         <Form form={form} layout="vertical">
           <div className="form-grid">
             <Form.Item name="type" label="问题类型" rules={[{ required: true, message: '请选择问题类型' }]}>

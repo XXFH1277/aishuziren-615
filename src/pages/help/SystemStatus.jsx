@@ -1,24 +1,48 @@
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Badge, Button, Card, Descriptions, Empty, Modal, Space, Table, Tag, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getSystemStatus } from '../../services/helpService';
 
-const systemStatusList = getSystemStatus();
-
 export default function SystemStatus() {
+  const [systemStatusList, setSystemStatusList] = useState([]);
+  const [summary, setSummary] = useState();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
 
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getSystemStatus();
+      setSystemStatusList(data.list || []);
+      setSummary(data.summary);
+    } catch (requestError) {
+      const messageText = requestError.message || '系统状态加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
   const stats = useMemo(
-    () => ({
-      normal: systemStatusList.filter((item) => ['正常', 'Mock运行中'].includes(item.status)).length,
-      abnormal: systemStatusList.filter((item) => ['异常', '部分异常'].includes(item.status)).length,
-      reserved: systemStatusList.filter((item) => ['预留', '未配置'].includes(item.status)).length,
-      totalAbnormal: systemStatusList.reduce((sum, item) => sum + item.abnormalCount, 0),
-    }),
-    [],
+    () =>
+      summary || {
+        normal: systemStatusList.filter((item) => ['正常', 'Mock运行中'].includes(item.status)).length,
+        abnormal: systemStatusList.filter((item) => ['异常', '部分异常'].includes(item.status)).length,
+        reserved: systemStatusList.filter((item) => ['预留', '未配置'].includes(item.status)).length,
+        totalAbnormal: systemStatusList.reduce((sum, item) => sum + item.abnormalCount, 0),
+      },
+    [summary, systemStatusList],
   );
 
   const columns = [
@@ -48,10 +72,10 @@ export default function SystemStatus() {
     <>
       <PageHeader
         title="系统状态"
-        description="查看关键模块状态。当前全部为 Mock，不探测真实服务，不连接数据库、模型服务、OBS 或执行端。"
+        description="查看关键模块状态，当前通过本地 API 读取 SQLite 中的 Mock 状态，不探测真实外部服务。"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={() => message.success('刷新系统状态为 Mock 操作')}>
-            刷新状态 Mock
+          <Button icon={<ReloadOutlined />} onClick={fetchStatus} loading={loading}>
+            刷新状态
           </Button>
         }
       />
@@ -60,9 +84,11 @@ export default function SystemStatus() {
         className="help-alert"
         type="info"
         showIcon
-        message="系统状态仅为前端 Mock"
-        description="状态数据用于帮助理解系统模块边界，不代表真实可用性监控。"
+        message="系统状态说明"
+        description="状态数据来自本地 SQLite，用于帮助理解系统模块边界，不代表真实可用性监控。"
       />
+
+      {error ? <Alert className="help-alert" type="error" showIcon message={error} /> : null}
 
       <div className="help-status-grid">
         <DataCard title="正常 / Mock运行中" value={stats.normal} helper="无需立即处理的模块" tone="teal" />
@@ -76,9 +102,10 @@ export default function SystemStatus() {
           rowKey="id"
           columns={columns}
           dataSource={systemStatusList}
+          loading={loading}
           pagination={false}
           scroll={{ x: 980 }}
-          locale={{ emptyText: <Empty description="暂无系统状态" /> }}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无系统状态'} /> }}
         />
       </Card>
 
