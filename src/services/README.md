@@ -129,3 +129,21 @@ helpService -> fetch(`${API_BASE_URL}/api/help/changelog`)
 - `getTicketTypes()`、`getTicketUrgencies()`、`getTicketStatuses()`、`getFaqCategories()`、`getTutorialCategories()` 仍使用前端静态选项。
 - 工单回复、工单附件、真实文件上传、真实通知推送暂不实现。
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+
+## Phase 12.10 执行端管理 Service API 试点
+
+当前已切换：
+
+```text
+executorService -> fetch(`${API_BASE_URL}/api/executors`)
+executorService -> fetch(`${API_BASE_URL}/api/executor-obs`)
+executorService -> fetch(`${API_BASE_URL}/api/executor-heartbeats`)
+```
+
+说明：
+
+- 执行端列表、执行端详情、OBS 状态列表、单执行端 OBS 状态、心跳日志读取本地 Express + SQLite。
+- `bindExecutorMock()`、`restartExecutor()`、`unbindExecutor()`、`refreshExecutorConfig()`、`testExecutorObsConnection()`、`refreshExecutorObsScenes()` 通过本地 API 返回或记录 Mock 指令，不触达真实设备。
+- `getExecutorStatusOptions()`、`getHeartbeatLevels()`、`getObsChecklist()` 仍使用前端静态选项或本地 API 返回的检查项兜底。
+- 本阶段不接真实 OBS WebSocket、本地执行端、虚拟摄像头、直播伴侣、直播平台或真实 WebSocket 心跳。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。

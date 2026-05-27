@@ -244,6 +244,69 @@ CREATE TABLE IF NOT EXISTS changelog (
   created_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS executors (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  device_id TEXT,
+  bound_account TEXT,
+  device_name TEXT,
+  os TEXT,
+  status TEXT,
+  current_live_task TEXT,
+  obs_status TEXT,
+  virtual_camera_status TEXT,
+  version TEXT,
+  last_heartbeat_at TEXT,
+  notes TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS executor_obs_status (
+  id TEXT PRIMARY KEY,
+  executor_id TEXT,
+  executor_name TEXT,
+  obs_status TEXT,
+  obs_version TEXT,
+  current_scene TEXT,
+  source_count INTEGER DEFAULT 0,
+  resolution TEXT,
+  fps INTEGER DEFAULT 0,
+  virtual_camera_status TEXT,
+  output_status TEXT,
+  error_message TEXT,
+  scene_sources_json TEXT,
+  last_connected_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS executor_heartbeats (
+  id TEXT PRIMARY KEY,
+  executor_id TEXT,
+  executor_name TEXT,
+  online_status TEXT,
+  obs_status TEXT,
+  virtual_camera_status TEXT,
+  cpu_usage INTEGER DEFAULT 0,
+  memory_usage INTEGER DEFAULT 0,
+  network_latency INTEGER DEFAULT 0,
+  error_message TEXT,
+  level TEXT,
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS executor_commands (
+  id TEXT PRIMARY KEY,
+  executor_id TEXT,
+  command_type TEXT,
+  payload_json TEXT,
+  status TEXT,
+  result_message TEXT,
+  created_by TEXT,
+  created_at TEXT,
+  executed_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_avatars_status ON avatars(status);
@@ -256,6 +319,14 @@ CREATE INDEX IF NOT EXISTS idx_troubleshooting_category ON troubleshooting_guide
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
 CREATE INDEX IF NOT EXISTS idx_tutorials_category ON tutorials(category);
+CREATE INDEX IF NOT EXISTS idx_executors_status ON executors(status);
+CREATE INDEX IF NOT EXISTS idx_executor_obs_executor_id ON executor_obs_status(executor_id);
+CREATE INDEX IF NOT EXISTS idx_executor_obs_status ON executor_obs_status(obs_status);
+CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_executor_id ON executor_heartbeats(executor_id);
+CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_level ON executor_heartbeats(level);
+CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_created_at ON executor_heartbeats(created_at);
+CREATE INDEX IF NOT EXISTS idx_executor_commands_executor_id ON executor_commands(executor_id);
+CREATE INDEX IF NOT EXISTS idx_executor_commands_status ON executor_commands(status);
 
 -- 后续阶段预留：comments / questions / speech_queue / subtitles / ai_model_providers /
--- file_assets / executor_commands / ticket_replies / ticket_attachments 等表。
+-- file_assets / ticket_replies / ticket_attachments 等表。

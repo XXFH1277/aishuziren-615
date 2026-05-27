@@ -19,6 +19,8 @@ const allowedIdTables = new Set([
   'roles',
   'operation_logs',
   'tickets',
+  'executors',
+  'executor_commands',
 ]);
 
 fs.mkdirSync(dataDir, { recursive: true });

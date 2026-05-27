@@ -1,14 +1,12 @@
 import { EyeOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Progress, Select, Space, Table, Tag, Timeline, Typography } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Progress, Select, Space, Table, Tag, Timeline, Typography, message } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getExecutorHeartbeats, getExecutors, getHeartbeatLevels } from '../../services/executorService';
 
 const { RangePicker } = DatePicker;
-const executorHeartbeats = getExecutorHeartbeats();
 const heartbeatLevels = getHeartbeatLevels();
-const executors = getExecutors();
 
 const levelColor = {
   info: 'green',
@@ -22,11 +20,11 @@ function progressStatus(value) {
   return 'normal';
 }
 
-function parseTime(value) {
-  return new Date(value.replace(/-/g, '/')).getTime();
-}
-
 export default function HeartbeatLogs() {
+  const [executorHeartbeats, setExecutorHeartbeats] = useState([]);
+  const [executors, setExecutors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [executorId, setExecutorId] = useState();
   const [level, setLevel] = useState();
@@ -34,26 +32,41 @@ export default function HeartbeatLogs() {
   const [range, setRange] = useState();
   const [detailRecord, setDetailRecord] = useState(null);
 
-  const filteredLogs = useMemo(
-    () =>
-      executorHeartbeats.filter((item) => {
-        const lowerKeyword = keyword.toLowerCase();
-        const matchKeyword =
-          !keyword ||
-          item.executorName.toLowerCase().includes(lowerKeyword) ||
-          item.errorMessage.toLowerCase().includes(lowerKeyword) ||
-          item.executorId.toLowerCase().includes(lowerKeyword);
-        const matchExecutor = !executorId || item.executorId === executorId;
-        const matchLevel = !level || item.level === level;
-        const isAbnormal = item.level !== 'info' || item.errorMessage !== '无';
-        const matchAbnormal = abnormalOnly === undefined || (abnormalOnly ? isAbnormal : !isAbnormal);
-        const matchRange =
-          !range?.[0] ||
-          (parseTime(item.time) >= range[0].startOf('day').valueOf() && parseTime(item.time) <= range[1].endOf('day').valueOf());
-        return matchKeyword && matchExecutor && matchLevel && matchAbnormal && matchRange;
-      }),
-    [abnormalOnly, executorId, keyword, level, range],
-  );
+  const fetchHeartbeats = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [heartbeatData, executorData] = await Promise.all([
+        getExecutorHeartbeats({
+          keyword,
+          executorId,
+          level,
+          isAbnormal: abnormalOnly,
+          startTime: range?.[0]?.startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+          endTime: range?.[1]?.endOf('day').format('YYYY-MM-DD HH:mm:ss'),
+          page: 1,
+          pageSize: 100,
+        }),
+        getExecutors({ page: 1, pageSize: 100 }),
+      ]);
+
+      setExecutorHeartbeats(heartbeatData.list || []);
+      setExecutors(executorData.list || []);
+    } catch (requestError) {
+      const messageText = requestError.message || '心跳日志加载失败';
+      setExecutorHeartbeats([]);
+      setExecutors([]);
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [abnormalOnly, executorId, keyword, level, range]);
+
+  useEffect(() => {
+    fetchHeartbeats();
+  }, [fetchHeartbeats]);
 
   const columns = [
     { title: '时间', dataIndex: 'time', width: 170 },
@@ -112,7 +125,7 @@ export default function HeartbeatLogs() {
     <>
       <PageHeader
         title="心跳日志"
-        description="查看本地执行端上报的 Mock 状态日志，用于观察在线状态、OBS、虚拟摄像头、资源占用和异常提示。"
+        description="查看本地 API 从 SQLite 读取的执行端心跳日志，用于观察在线状态、OBS、虚拟摄像头、资源占用和异常提示。"
       />
 
       <Alert
@@ -120,10 +133,11 @@ export default function HeartbeatLogs() {
         type="info"
         showIcon
         message="当前不接真实 WebSocket 心跳"
-        description="日志来自前端 Mock 数据，不读取真实设备信息，不接后端，不持久化任何执行端状态。"
+        description="日志来自本地 SQLite 中的虚构 Mock 数据，不读取真实设备信息，也不连接真实执行端或 WebSocket。"
       />
 
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
@@ -165,7 +179,8 @@ export default function HeartbeatLogs() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredLogs}
+          dataSource={executorHeartbeats}
+          loading={loading}
           pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 条心跳日志` }}
           scroll={{ x: 1540 }}
           locale={{ emptyText: <Empty description="暂无符合条件的心跳日志" /> }}

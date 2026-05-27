@@ -97,6 +97,18 @@ http://localhost:3000
 - `GET /api/help/tutorials`
 - `GET /api/help/status`
 - `GET /api/help/changelog`
+- `GET /api/executors`
+- `GET /api/executors/:id`
+- `POST /api/executors/bind`
+- `POST /api/executors/:id/restart`
+- `POST /api/executors/:id/unbind`
+- `POST /api/executors/:id/refresh-config`
+- `POST /api/executors/:id/obs/test`
+- `POST /api/executors/:id/obs/refresh-scenes`
+- `GET /api/executor-obs`
+- `GET /api/executor-obs/:executorId`
+- `GET /api/executor-heartbeats`
+- `GET /api/executor-heartbeats/:executorId`
 
 ## 当前未实现
 
@@ -107,6 +119,7 @@ http://localhost:3000
 - WebSocket / 实时弹幕
 - 工单回复、工单附件和真实文件上传
 - 真实外部工单系统或通知系统
+- 真实执行端绑定、重启、解绑、配置下发和 OBS WebSocket 控制
 - 全量 API 文档中的所有扩展接口
 
 ## 安全注意事项

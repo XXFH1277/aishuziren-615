@@ -1,6 +1,9 @@
 import { avatarActions } from '../../src/mock/avatarActions.js';
 import { avatars } from '../../src/mock/avatars.js';
 import { changelog } from '../../src/mock/changelog.js';
+import { executorHeartbeats } from '../../src/mock/executorHeartbeats.js';
+import { executorObsList } from '../../src/mock/executorObs.js';
+import { executors } from '../../src/mock/executors.js';
 import { helpFaqList } from '../../src/mock/helpFaq.js';
 import { liveRooms } from '../../src/mock/liveRooms.js';
 import { liveTasks } from '../../src/mock/liveTasks.js';
@@ -25,6 +28,41 @@ const executorIdByName = new Map([
 
 const liveRoomById = new Map(liveRooms.map((item) => [item.id, item]));
 const productGroupIdByName = new Map(productGroups.map((item) => [item.name, item.id]));
+const executorCommandMocks = [
+  {
+    id: 'CMD001',
+    executorId: 'EX001',
+    commandType: 'restart',
+    payload: { source: 'seed', mock: true },
+    status: '已完成',
+    resultMessage: 'Mock 重启指令已记录，未触达真实设备。',
+    createdBy: 'system-seed',
+    createdAt: '2026-05-26 22:20:00',
+    executedAt: '2026-05-26 22:20:05',
+  },
+  {
+    id: 'CMD002',
+    executorId: 'EX004',
+    commandType: 'refresh_obs',
+    payload: { source: 'seed', mock: true },
+    status: '已下发',
+    resultMessage: 'Mock 刷新 OBS 场景指令已记录。',
+    createdBy: 'system-seed',
+    createdAt: '2026-05-26 22:21:00',
+    executedAt: '',
+  },
+  {
+    id: 'CMD003',
+    executorId: 'EX002',
+    commandType: 'refresh_config',
+    payload: { source: 'seed', mock: true },
+    status: '已完成',
+    resultMessage: 'Mock 刷新配置指令已记录。',
+    createdBy: 'system-seed',
+    createdAt: '2026-05-26 22:22:00',
+    executedAt: '2026-05-26 22:22:04',
+  },
+];
 
 function clearTables() {
   [
@@ -45,6 +83,10 @@ function clearTables() {
     'tutorials',
     'system_status',
     'changelog',
+    'executor_commands',
+    'executor_heartbeats',
+    'executor_obs_status',
+    'executors',
   ].forEach((tableName) => {
     db.prepare(`DELETE FROM ${tableName}`).run();
   });
@@ -355,6 +397,123 @@ function seedSettings() {
   });
 }
 
+function seedExecutors() {
+  const insertExecutor = db.prepare(
+    `INSERT INTO executors (
+      id, name, device_id, bound_account, device_name, os, status,
+      current_live_task, obs_status, virtual_camera_status, version,
+      last_heartbeat_at, notes, created_at, updated_at
+    ) VALUES (
+      @id, @name, @deviceId, @boundAccount, @deviceName, @os, @status,
+      @currentLiveTask, @obsStatus, @virtualCameraStatus, @version,
+      @lastHeartbeatAt, @notes, @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertObsStatus = db.prepare(
+    `INSERT INTO executor_obs_status (
+      id, executor_id, executor_name, obs_status, obs_version, current_scene,
+      source_count, resolution, fps, virtual_camera_status, output_status,
+      error_message, scene_sources_json, last_connected_at, updated_at
+    ) VALUES (
+      @id, @executorId, @executorName, @obsStatus, @obsVersion, @currentScene,
+      @sourceCount, @resolution, @fps, @virtualCameraStatus, @outputStatus,
+      @errorMessage, @sceneSources, @lastConnectedAt, @updatedAt
+    )`,
+  );
+
+  const insertHeartbeat = db.prepare(
+    `INSERT INTO executor_heartbeats (
+      id, executor_id, executor_name, online_status, obs_status, virtual_camera_status,
+      cpu_usage, memory_usage, network_latency, error_message, level, created_at
+    ) VALUES (
+      @id, @executorId, @executorName, @onlineStatus, @obsStatus, @virtualCameraStatus,
+      @cpuUsage, @memoryUsage, @networkLatency, @errorMessage, @level, @createdAt
+    )`,
+  );
+
+  const insertCommand = db.prepare(
+    `INSERT INTO executor_commands (
+      id, executor_id, command_type, payload_json, status, result_message,
+      created_by, created_at, executed_at
+    ) VALUES (
+      @id, @executorId, @commandType, @payload, @status, @resultMessage,
+      @createdBy, @createdAt, @executedAt
+    )`,
+  );
+
+  executors.forEach((executor) => {
+    insertExecutor.run({
+      id: executor.id,
+      name: executor.name,
+      deviceId: executor.deviceId,
+      boundAccount: executor.boundAccount,
+      deviceName: executor.deviceName,
+      os: executor.os,
+      status: executor.status,
+      currentLiveTask: executor.currentLiveTask,
+      obsStatus: executor.obsStatus,
+      virtualCameraStatus: executor.virtualCameraStatus,
+      version: executor.version,
+      lastHeartbeatAt: executor.lastHeartbeatAt,
+      notes: executor.notes,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+
+  executorObsList.forEach((item, index) => {
+    insertObsStatus.run({
+      id: `OBS${String(index + 1).padStart(3, '0')}`,
+      executorId: item.executorId,
+      executorName: item.executorName,
+      obsStatus: item.obsStatus,
+      obsVersion: item.obsVersion,
+      currentScene: item.currentScene,
+      sourceCount: Number(item.sourceCount || 0),
+      resolution: item.resolution,
+      fps: Number(item.fps || 0),
+      virtualCameraStatus: item.virtualCameraStatus,
+      outputStatus: item.outputStatus,
+      errorMessage: item.errorMessage,
+      sceneSources: toJson(item.sceneSources || []),
+      lastConnectedAt: item.lastConnectedAt,
+      updatedAt: item.lastConnectedAt === '无' ? timestamp : item.lastConnectedAt,
+    });
+  });
+
+  executorHeartbeats.forEach((item) => {
+    insertHeartbeat.run({
+      id: item.id,
+      executorId: item.executorId,
+      executorName: item.executorName,
+      onlineStatus: item.onlineStatus,
+      obsStatus: item.obsStatus,
+      virtualCameraStatus: item.virtualCameraStatus,
+      cpuUsage: Number(item.cpuUsage || 0),
+      memoryUsage: Number(item.memoryUsage || 0),
+      networkLatency: Number(item.networkLatency || 0),
+      errorMessage: item.errorMessage,
+      level: item.level,
+      createdAt: item.time || timestamp,
+    });
+  });
+
+  executorCommandMocks.forEach((item) => {
+    insertCommand.run({
+      id: item.id,
+      executorId: item.executorId,
+      commandType: item.commandType,
+      payload: toJson(item.payload),
+      status: item.status,
+      resultMessage: item.resultMessage,
+      createdBy: item.createdBy,
+      createdAt: item.createdAt,
+      executedAt: item.executedAt,
+    });
+  });
+}
+
 function seedHelp() {
   const insertFaq = db.prepare(
     `INSERT INTO help_faq (
@@ -508,6 +667,7 @@ const seed = db.transaction(() => {
   seedAvatars();
   seedLive();
   seedSettings();
+  seedExecutors();
   seedHelp();
 });
 
@@ -516,3 +676,4 @@ seed();
 console.log('SQLite seed completed.');
 console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live rooms: ${liveRooms.length}, Live tasks: ${liveTasks.length}`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
+console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);
