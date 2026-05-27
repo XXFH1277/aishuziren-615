@@ -8,17 +8,19 @@ import {
   settingsOptions,
   users,
 } from '../mock/settings';
+import { apiRequest } from './request';
 
-export function getUsers() {
-  return users;
+export async function getUsers(params = {}) {
+  return apiRequest.get('/api/settings/users', params);
 }
 
-export function getRoles() {
-  return roles;
+export async function getRoles(params = {}) {
+  return apiRequest.get('/api/settings/roles', params);
 }
 
-export function getBasicSettings() {
-  return basicSettings;
+export async function getBasicSettings() {
+  const data = await apiRequest.get('/api/settings/basic');
+  return data.settings || data.basicSettings || {};
 }
 
 export function getNotificationRules() {
@@ -29,8 +31,8 @@ export function getNotificationChannels() {
   return notificationChannels;
 }
 
-export function getOperationLogs() {
-  return operationLogs;
+export async function getOperationLogs(params = {}) {
+  return apiRequest.get('/api/settings/logs', params);
 }
 
 export function getPermissionTree() {
@@ -41,8 +43,9 @@ export function getSettingsOptions() {
   return settingsOptions;
 }
 
-export function saveBasicSettingsMock(data) {
-  return { success: true, data };
+export async function saveBasicSettings(data) {
+  const result = await apiRequest.put('/api/settings/basic', data);
+  return result.settings || result.basicSettings || {};
 }
 
 export function updateUserMock(id, data) {
@@ -51,4 +54,20 @@ export function updateUserMock(id, data) {
 
 export function updateRoleMock(id, data) {
   return { success: true, id, data };
+}
+
+export function getMockUsers() {
+  return users;
+}
+
+export function getMockRoles() {
+  return roles;
+}
+
+export function getMockBasicSettings() {
+  return basicSettings;
+}
+
+export function getMockOperationLogs() {
+  return operationLogs;
 }

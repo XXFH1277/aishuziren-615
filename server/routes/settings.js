@@ -84,6 +84,11 @@ router.get('/settings/users', (req, res) => {
     clauses.push('status = @status');
   }
 
+  if (req.query.role) {
+    params.role = req.query.role;
+    clauses.push('role = @role');
+  }
+
   const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) AS count FROM users ${whereSql}`).get(params).count;
   const rows = db.prepare(`SELECT * FROM users ${whereSql} ORDER BY id ASC LIMIT @limit OFFSET @offset`).all(params);
@@ -156,6 +161,11 @@ router.get('/settings/logs', (req, res) => {
   if (req.query.result) {
     params.result = req.query.result;
     clauses.push('result = @result');
+  }
+
+  if (req.query.actionType) {
+    params.actionType = req.query.actionType;
+    clauses.push('action_type = @actionType');
   }
 
   if (req.query.startTime) {

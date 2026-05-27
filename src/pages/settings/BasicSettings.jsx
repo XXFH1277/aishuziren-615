@@ -1,20 +1,82 @@
 import { ReloadOutlined, SaveOutlined, UploadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Form, Input, Select, Space, Switch, Upload, message } from 'antd';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
-import { getBasicSettings, getSettingsOptions, saveBasicSettingsMock } from '../../services/settingsService';
+import { getBasicSettings, getSettingsOptions, saveBasicSettings } from '../../services/settingsService';
 
-const basicSettings = getBasicSettings();
 const settingsOptions = getSettingsOptions();
 
 const normalizeUpload = (event) => (Array.isArray(event) ? event : event?.fileList);
 
+const serializeBasicSettings = (values) => ({
+  ...values,
+  logo: Array.isArray(values.logo)
+    ? values.logo.map((file) => ({
+        uid: file.uid,
+        name: file.name,
+        status: file.status,
+      }))
+    : values.logo,
+});
+
 export default function BasicSettings() {
   const [form] = Form.useForm();
+  const [basicSettings, setBasicSettings] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSave = () => {
-    const response = saveBasicSettingsMock(form.getFieldsValue());
-    if (response.success) {
-      message.success('基础设置已保存 Mock，不写入后端或数据库');
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchBasicSettings() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getBasicSettings();
+
+        if (!ignore) {
+          setBasicSettings(data);
+          form.setFieldsValue(data);
+        }
+      } catch (requestError) {
+        const messageText = requestError.message || '基础设置加载失败';
+
+        if (!ignore) {
+          setError(messageText);
+          message.error(messageText);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchBasicSettings();
+
+    return () => {
+      ignore = true;
+    };
+  }, [form]);
+
+  const handleSave = async () => {
+    setSaving(true);
+
+    try {
+      const values = await form.validateFields();
+      const savedSettings = await saveBasicSettings(serializeBasicSettings(values));
+
+      setBasicSettings(savedSettings);
+      form.setFieldsValue(savedSettings);
+      message.success('基础设置已保存到本地 SQLite');
+    } catch (requestError) {
+      if (!requestError.errorFields) {
+        message.error(requestError.message || '基础设置保存失败');
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -27,14 +89,14 @@ export default function BasicSettings() {
     <>
       <PageHeader
         title="基础设置"
-        description="集中管理系统名称、默认展示项和开发阶段安全提示。当前仅保存前端 Mock 状态，不写入真实配置。"
+        description="集中管理系统名称、默认展示项和开发阶段安全提示，当前通过本地 API 读取并保存到 SQLite。"
         extra={
           <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={handleReset}>
-              恢复默认 Mock
+            <Button icon={<ReloadOutlined />} onClick={handleReset} disabled={loading || saving}>
+              恢复当前配置
             </Button>
-            <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
-              保存 Mock
+            <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving}>
+              保存设置
             </Button>
           </Space>
         }
@@ -48,7 +110,9 @@ export default function BasicSettings() {
         description="API Key 不进入前端，.env.local 不提交 GitHub，真实模型调用必须走后端代理。本页不会读取模型api.txt 或 .env.local。"
       />
 
-      <Form form={form} layout="vertical" initialValues={basicSettings}>
+      {error ? <Alert className="settings-alert" type="error" showIcon message={error} /> : null}
+
+      <Form form={form} layout="vertical" initialValues={basicSettings} disabled={loading}>
         <div className="settings-two-column">
           <Card title="系统信息" className="panel-card">
             <Form.Item label="系统名称" name="systemName">

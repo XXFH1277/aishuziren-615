@@ -89,3 +89,22 @@ liveService -> fetch(`${API_BASE_URL}/api/live-tasks`)
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 - `getLivePlatforms()`、`getLiveRoomStatuses()`、`getLiveTaskStatuses()`、`getExecutorOptions()` 仍使用前端静态选项。
 - 直播中控台暂不切 API，仍显式使用 Mock helper，避免扩大试点范围。
+
+## Phase 12.8 系统设置 Service API 试点
+
+当前已切换：
+
+```text
+settingsService -> fetch(`${API_BASE_URL}/api/settings/users`)
+settingsService -> fetch(`${API_BASE_URL}/api/settings/roles`)
+settingsService -> fetch(`${API_BASE_URL}/api/settings/basic`)
+settingsService -> fetch(`${API_BASE_URL}/api/settings/logs`)
+```
+
+说明：
+
+- 用户列表、角色列表、基础设置读取/保存、操作日志读取本地 Express + SQLite。
+- 本阶段不接真实登录系统、真实权限系统或真实通知服务。
+- 用户新增/编辑/禁用、角色权限编辑、通知规则读取/编辑/测试仍使用前端 Mock。
+- `getNotificationRules()`、`getNotificationChannels()`、`getPermissionTree()`、`getSettingsOptions()` 仍使用前端静态或 Mock 数据。
+- 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。

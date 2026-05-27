@@ -1,20 +1,59 @@
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getOperationLogs, getSettingsOptions } from '../../services/settingsService';
 
 const { RangePicker } = DatePicker;
-const operationLogs = getOperationLogs();
 const settingsOptions = getSettingsOptions();
 
 export default function OperationLogs() {
+  const [operationLogs, setOperationLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [module, setModule] = useState();
   const [actionType, setActionType] = useState();
   const [result, setResult] = useState();
+  const [timeRange, setTimeRange] = useState([]);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 8, total: 0 });
+
+  const fetchOperationLogs = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getOperationLogs({
+        module,
+        actionType,
+        result,
+        startTime: timeRange?.[0]?.format?.('YYYY-MM-DD HH:mm:ss'),
+        endTime: timeRange?.[1]?.format?.('YYYY-MM-DD HH:mm:ss'),
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+      });
+
+      setOperationLogs(data.list || []);
+      setPagination((current) => ({
+        ...current,
+        current: data.page || current.current,
+        pageSize: data.pageSize || current.pageSize,
+        total: data.total || 0,
+      }));
+    } catch (requestError) {
+      const messageText = requestError.message || '操作日志加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [actionType, module, pagination.current, pagination.pageSize, result, timeRange]);
+
+  useEffect(() => {
+    fetchOperationLogs();
+  }, [fetchOperationLogs]);
 
   const filteredLogs = useMemo(
     () =>
@@ -30,8 +69,13 @@ export default function OperationLogs() {
         const matchResult = !result || item.result === result;
         return matchKeyword && matchModule && matchAction && matchResult;
       }),
-    [actionType, keyword, module, result],
+    [actionType, keyword, module, operationLogs, result],
   );
+
+  const resetToFirstPage = (updater) => {
+    updater();
+    setPagination((current) => ({ ...current, current: 1 }));
+  };
 
   const columns = [
     { title: '操作时间', dataIndex: 'time', width: 170 },
@@ -59,15 +103,16 @@ export default function OperationLogs() {
     <>
       <PageHeader
         title="操作日志"
-        description="查看后台用户的登录、创建、编辑、任务操作、人工接管、模型配置和工单提交记录。当前为 Mock 日志，不记录真实 IP。"
+        description="查看后台用户的登录、创建、编辑、任务操作、人工接管、模型配置和工单提交记录，当前通过本地 API 读取 SQLite。"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={() => message.success('刷新操作日志为 Mock 操作')}>
-            刷新 Mock
+          <Button icon={<ReloadOutlined />} onClick={fetchOperationLogs} loading={loading}>
+            刷新
           </Button>
         }
       />
 
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
@@ -80,7 +125,7 @@ export default function OperationLogs() {
             allowClear
             placeholder="所属模块"
             value={module}
-            onChange={setModule}
+            onChange={(value) => resetToFirstPage(() => setModule(value))}
             options={settingsOptions.operationModules.map((item) => ({ label: item, value: item }))}
             style={{ width: 150 }}
           />
@@ -88,7 +133,7 @@ export default function OperationLogs() {
             allowClear
             placeholder="操作类型"
             value={actionType}
-            onChange={setActionType}
+            onChange={(value) => resetToFirstPage(() => setActionType(value))}
             options={settingsOptions.operationTypes.map((item) => ({ label: item, value: item }))}
             style={{ width: 140 }}
           />
@@ -96,19 +141,37 @@ export default function OperationLogs() {
             allowClear
             placeholder="操作结果"
             value={result}
-            onChange={setResult}
+            onChange={(value) => resetToFirstPage(() => setResult(value))}
             options={settingsOptions.operationResults.map((item) => ({ label: item, value: item }))}
             style={{ width: 130 }}
           />
-          <RangePicker showTime style={{ width: 320 }} />
+          <RangePicker
+            showTime
+            value={timeRange.length ? timeRange : null}
+            onChange={(value) => resetToFirstPage(() => setTimeRange(value || []))}
+            style={{ width: 320 }}
+          />
         </div>
         <Table
           rowKey="id"
           columns={columns}
           dataSource={filteredLogs}
-          pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 条操作日志` }}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: keyword ? filteredLogs.length : pagination.total,
+            showTotal: (total) => `共 ${total} 条操作日志`,
+          }}
+          onChange={(nextPagination) =>
+            setPagination((current) => ({
+              ...current,
+              current: nextPagination.current,
+              pageSize: nextPagination.pageSize,
+            }))
+          }
           scroll={{ x: 1640 }}
-          locale={{ emptyText: <Empty description="暂无符合条件的操作日志" /> }}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的操作日志'} /> }}
         />
       </Card>
 

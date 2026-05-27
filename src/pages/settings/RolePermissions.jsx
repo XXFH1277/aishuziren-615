@@ -1,20 +1,41 @@
 import { CopyOutlined, EditOutlined, EyeOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Checkbox, Descriptions, Empty, Modal, Select, Space, Table, Tree, Typography, message } from 'antd';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getPermissionTree, getRoles, getSettingsOptions, updateRoleMock } from '../../services/settingsService';
 
-const initialRoles = getRoles();
 const permissionTree = getPermissionTree();
 const settingsOptions = getSettingsOptions();
 
 export default function RolePermissions() {
-  const [roles, setRoles] = useState(initialRoles);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [currentRole, setCurrentRole] = useState(null);
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [dataScope, setDataScope] = useState('所属团队');
   const [operationPermissions, setOperationPermissions] = useState([]);
+
+  const fetchRoles = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getRoles({ pageSize: 100 });
+      setRoles(data.list || []);
+    } catch (requestError) {
+      const messageText = requestError.message || '角色列表加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
 
   const openRoleModal = (record) => {
     setCurrentRole(record);
@@ -98,7 +119,7 @@ export default function RolePermissions() {
     <>
       <PageHeader
         title="角色权限"
-        description="管理 RBAC（Role-Based Access Control / 基于角色的权限控制）中的菜单权限、数据权限和操作权限。当前全部为 Mock。"
+        description="角色列表通过本地 API 读取 SQLite；权限编辑仍为 Mock，不接真实登录系统、真实权限系统或后端鉴权逻辑。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新增角色为 Mock 入口，暂不创建真实角色')}>
             新增角色 Mock
@@ -115,13 +136,15 @@ export default function RolePermissions() {
       />
 
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <Table
           rowKey="id"
           columns={columns}
           dataSource={roles}
+          loading={loading}
           pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 个角色` }}
           scroll={{ x: 1240 }}
-          locale={{ emptyText: <Empty description="暂无角色权限配置" /> }}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无角色权限配置'} /> }}
         />
       </Card>
 

@@ -1,23 +1,62 @@
 import { EditOutlined, FileTextOutlined, LockOutlined, PlusOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
-import { Button, Card, Descriptions, Empty, Form, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getRoles, getSettingsOptions, getUsers, updateUserMock } from '../../services/settingsService';
 
-const initialUsers = getUsers();
-const roles = getRoles();
 const settingsOptions = getSettingsOptions();
 
 export default function UserManagement() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState();
   const [role, setRole] = useState();
   const [editingUser, setEditingUser] = useState(null);
   const [detailUser, setDetailUser] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 8, total: 0 });
   const [form] = Form.useForm();
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [userData, roleData] = await Promise.all([
+        getUsers({
+          keyword,
+          role,
+          status,
+          page: pagination.current,
+          pageSize: pagination.pageSize,
+        }),
+        getRoles({ pageSize: 100 }),
+      ]);
+
+      setUsers(userData.list || []);
+      setRoles(roleData.list || []);
+      setPagination((current) => ({
+        ...current,
+        current: userData.page || current.current,
+        pageSize: userData.pageSize || current.pageSize,
+        total: userData.total || 0,
+      }));
+    } catch (requestError) {
+      const messageText = requestError.message || '用户列表加载失败';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [keyword, pagination.current, pagination.pageSize, role, status]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const stats = useMemo(
     () => ({
@@ -30,21 +69,10 @@ export default function UserManagement() {
     [users],
   );
 
-  const filteredUsers = useMemo(
-    () =>
-      users.filter((item) => {
-        const lowerKeyword = keyword.toLowerCase();
-        const matchKeyword =
-          !keyword ||
-          item.username.toLowerCase().includes(lowerKeyword) ||
-          item.nickname.toLowerCase().includes(lowerKeyword) ||
-          item.email.toLowerCase().includes(lowerKeyword);
-        const matchStatus = !status || item.status === status;
-        const matchRole = !role || item.role === role;
-        return matchKeyword && matchStatus && matchRole;
-      }),
-    [keyword, role, status, users],
-  );
+  const resetToFirstPage = (updater) => {
+    updater();
+    setPagination((current) => ({ ...current, current: 1 }));
+  };
 
   const openUserModal = (record) => {
     setEditingUser(record || {});
@@ -130,7 +158,7 @@ export default function UserManagement() {
     <>
       <PageHeader
         title="用户管理"
-        description="管理后台用户账号、角色和账号状态。当前全部为 Mock，不接真实登录、权限或通知系统。"
+        description="用户列表通过本地 API 读取 SQLite；新增、编辑、重置密码仍为 Mock，不接真实登录、权限或通知系统。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openUserModal()}>
             新增用户 Mock
@@ -147,19 +175,20 @@ export default function UserManagement() {
       </div>
 
       <Card className="panel-card">
+        {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
         <div className="toolbar-row">
           <Input.Search
             allowClear
             placeholder="搜索用户名、昵称或邮箱"
-            onSearch={setKeyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => resetToFirstPage(() => setKeyword(value))}
+            onChange={(event) => resetToFirstPage(() => setKeyword(event.target.value))}
             style={{ maxWidth: 300 }}
           />
           <Select
             allowClear
             placeholder="角色"
             value={role}
-            onChange={setRole}
+            onChange={(value) => resetToFirstPage(() => setRole(value))}
             options={roles.map((item) => ({ label: item.name, value: item.name }))}
             style={{ width: 150 }}
           />
@@ -167,7 +196,7 @@ export default function UserManagement() {
             allowClear
             placeholder="账号状态"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => resetToFirstPage(() => setStatus(value))}
             options={settingsOptions.userStatuses.map((item) => ({ label: item, value: item }))}
             style={{ width: 130 }}
           />
@@ -175,10 +204,23 @@ export default function UserManagement() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={filteredUsers}
-          pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 个用户` }}
+          dataSource={users}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showTotal: (total) => `共 ${total} 个用户`,
+          }}
+          onChange={(nextPagination) =>
+            setPagination((current) => ({
+              ...current,
+              current: nextPagination.current,
+              pageSize: nextPagination.pageSize,
+            }))
+          }
           scroll={{ x: 1420 }}
-          locale={{ emptyText: <Empty description="暂无符合条件的用户" /> }}
+          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的用户'} /> }}
         />
       </Card>
 
