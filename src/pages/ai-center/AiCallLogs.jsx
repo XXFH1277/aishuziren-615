@@ -1,34 +1,58 @@
 import { EyeOutlined } from '@ant-design/icons';
-import { Button, Card, DatePicker, Descriptions, Input, Modal, Select, Space, Table, Tag } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Input, Modal, Select, Space, Table, Tag } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getAiCallLogs, getAiCallStatuses, getAiCallTypes, getModelProviders } from '../../services/aiService';
 
 const { RangePicker } = DatePicker;
-const aiCallLogs = getAiCallLogs();
 const aiCallStatuses = getAiCallStatuses();
 const aiCallTypes = getAiCallTypes();
-const modelProviders = getModelProviders();
 
 export default function AiCallLogs() {
+  const [logs, setLogs] = useState([]);
+  const [modelProviders, setModelProviders] = useState([]);
   const [selectedLog, setSelectedLog] = useState(null);
   const [filters, setFilters] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError('');
+      const [logsResult, modelsResult] = await Promise.all([
+        getAiCallLogs({ page: 1, pageSize: 100 }),
+        getModelProviders({}),
+      ]);
+      setLogs(logsResult.list || []);
+      setModelProviders(modelsResult.list || []);
+    } catch (requestError) {
+      setError(requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filteredLogs = useMemo(
     () =>
-      aiCallLogs.filter((item) => {
+      logs.filter((item) => {
+        const keyword = String(filters.keyword || '').toLowerCase();
         const matchKeyword =
-          !filters.keyword ||
-          item.page.toLowerCase().includes(filters.keyword.toLowerCase()) ||
-          item.inputSummary.toLowerCase().includes(filters.keyword.toLowerCase()) ||
-          item.outputSummary.toLowerCase().includes(filters.keyword.toLowerCase());
+          !keyword ||
+          item.page.toLowerCase().includes(keyword) ||
+          item.inputSummary.toLowerCase().includes(keyword) ||
+          item.outputSummary.toLowerCase().includes(keyword);
         const matchProvider = !filters.provider || item.provider === filters.provider;
         const matchType = !filters.type || item.type === filters.type;
         const matchStatus = !filters.status || item.status === filters.status;
         return matchKeyword && matchProvider && matchType && matchStatus;
       }),
-    [filters],
+    [filters, logs],
   );
 
   const columns = [
@@ -41,7 +65,7 @@ export default function AiCallLogs() {
     { title: '输出摘要', dataIndex: 'outputSummary', width: 220 },
     { title: '调用状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '耗时', dataIndex: 'duration', width: 90 },
-    { title: '估算费用', dataIndex: 'cost', width: 100, render: (value) => `¥${value.toFixed(2)}` },
+    { title: '估算费用', dataIndex: 'cost', width: 100, render: (value) => `¥${Number(value || 0).toFixed(2)}` },
     {
       title: '操作',
       fixed: 'right',
@@ -60,6 +84,8 @@ export default function AiCallLogs() {
         title="调用日志"
         description="查看 AI 调用记录 Mock，用于排查、审计和成本分析。本页不记录真实 API Key，也不代表真实模型调用。"
       />
+
+      {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
       <Card className="panel-card">
         <div className="toolbar-row">
@@ -92,19 +118,15 @@ export default function AiCallLogs() {
             options={aiCallStatuses.map((item) => ({ label: item, value: item }))}
             style={{ width: 130 }}
           />
-          <Select
-            allowClear
-            placeholder="用户"
-            options={['运营管理员', '直播助理', '系统任务'].map((item) => ({ label: item, value: item }))}
-            style={{ width: 130 }}
-          />
         </div>
         <Table
           rowKey="id"
           columns={columns}
           dataSource={filteredLogs}
+          loading={loading}
           pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 条日志` }}
           scroll={{ x: 1680 }}
+          locale={{ emptyText: <Empty description="暂无 AI 调用日志" /> }}
         />
       </Card>
 
@@ -114,10 +136,10 @@ export default function AiCallLogs() {
             <Descriptions.Item label="Prompt 摘要">{selectedLog.inputSummary}</Descriptions.Item>
             <Descriptions.Item label="返回内容摘要">{selectedLog.outputSummary}</Descriptions.Item>
             <Descriptions.Item label="错误信息 Mock">
-              {selectedLog.status === '成功' ? '无错误，仅为 Mock 成功记录。' : 'Mock 错误信息：连接未配置或内容被策略拦截。'}
+              {selectedLog.status === '成功' ? '无错误，仅为 Mock 成功记录。' : selectedLog.errorMessage || 'Mock 错误信息：连接未配置或内容被策略拦截。'}
             </Descriptions.Item>
             <Descriptions.Item label="token 数 Mock">{selectedLog.tokens}</Descriptions.Item>
-            <Descriptions.Item label="费用 Mock">¥{selectedLog.cost.toFixed(2)}</Descriptions.Item>
+            <Descriptions.Item label="费用 Mock">¥{Number(selectedLog.cost || 0).toFixed(2)}</Descriptions.Item>
           </Descriptions>
         ) : null}
       </Modal>

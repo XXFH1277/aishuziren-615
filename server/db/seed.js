@@ -1,5 +1,8 @@
 import { avatarActions } from '../../src/mock/avatarActions.js';
 import { avatars } from '../../src/mock/avatars.js';
+import { aiCallLogs } from '../../src/mock/aiCallLogs.js';
+import { aiCosts } from '../../src/mock/aiCosts.js';
+import { modelProviders, modelRoleSettings } from '../../src/mock/aiModels.js';
 import { changelog } from '../../src/mock/changelog.js';
 import { executorHeartbeats } from '../../src/mock/executorHeartbeats.js';
 import { executorObsList } from '../../src/mock/executorObs.js';
@@ -13,6 +16,7 @@ import { liveTasks } from '../../src/mock/liveTasks.js';
 import { manualTakeover } from '../../src/mock/manualTakeover.js';
 import { productGroups } from '../../src/mock/productGroups.js';
 import { products } from '../../src/mock/products.js';
+import { promptTemplates } from '../../src/mock/promptTemplates.js';
 import { questions } from '../../src/mock/questions.js';
 import { speechQueue } from '../../src/mock/speechQueue.js';
 import { basicSettings, operationLogs, roles, users } from '../../src/mock/settings.js';
@@ -91,6 +95,12 @@ function clearTables() {
     'subtitle_settings',
     'speech_queue',
     'delay_control_state',
+    'ai_cost_daily',
+    'ai_call_logs',
+    'prompt_templates',
+    'ai_model_role_settings',
+    'ai_model_providers',
+    'ai_assistant_settings',
     'manual_takeover_state',
     'questions',
     'comments',
@@ -616,6 +626,174 @@ function seedDelayControl() {
   });
 }
 
+function seedAiCenter() {
+  const assistantSettings = {
+    enabled: true,
+    assistantName: '直播运营 AI 助理',
+    defaultMode: '直播中控建议模式',
+    defaultTone: '专业',
+    allowReadPageContext: true,
+    allowFillForm: true,
+    enableComplianceReminder: true,
+    allowedContextScopes: [
+      '允许读取商品信息',
+      '允许读取数字人信息',
+      '允许读取直播间配置',
+      '允许读取弹幕问题',
+      '允许读取待播队列',
+    ],
+  };
+
+  db.prepare(
+    `INSERT INTO ai_assistant_settings (id, settings_json, updated_at)
+     VALUES ('default', @settingsJson, @updatedAt)`,
+  ).run({
+    settingsJson: toJson(assistantSettings),
+    updatedAt: timestamp,
+  });
+
+  const insertModel = db.prepare(
+    `INSERT INTO ai_model_providers (
+      id, name, provider, usage_json, status, official_base_url,
+      base_url_options_json, model_options_json, default_model,
+      api_key_configured, credential_ref, api_key_masked, last_test_status,
+      last_test_at, today_calls, today_cost, enabled, docs_note,
+      is_official_preset, description, max_tokens, temperature, updated_at
+    ) VALUES (
+      @id, @name, @provider, @usage, @status, @officialBaseUrl,
+      @baseUrlOptions, @modelOptions, @defaultModel,
+      @apiKeyConfigured, @credentialRef, @apiKeyMasked, @lastTestStatus,
+      @lastTestAt, @todayCalls, @todayCost, @enabled, @docsNote,
+      @isOfficialPreset, @description, @maxTokens, @temperature, @updatedAt
+    )`,
+  );
+
+  const insertRoleSetting = db.prepare(
+    `INSERT INTO ai_model_role_settings (
+      id, label, value, provider_id, model_name, updated_at
+    ) VALUES (
+      @id, @label, @value, @providerId, @modelName, @updatedAt
+    )`,
+  );
+
+  const insertPrompt = db.prepare(
+    `INSERT INTO prompt_templates (
+      id, name, category, target_page, default_model, status,
+      template_content, variables_json, updated_at
+    ) VALUES (
+      @id, @name, @category, @targetPage, @defaultModel, @status,
+      @templateContent, @variables, @updatedAt
+    )`,
+  );
+
+  const insertLog = db.prepare(
+    `INSERT INTO ai_call_logs (
+      id, call_time, source_page, type, provider, model_name,
+      input_summary, output_summary, status, duration, tokens, cost,
+      error_message, created_at
+    ) VALUES (
+      @id, @time, @sourcePage, @type, @provider, @modelName,
+      @inputSummary, @outputSummary, @status, @duration, @tokens, @cost,
+      @errorMessage, @createdAt
+    )`,
+  );
+
+  modelProviders.forEach((model) => {
+    insertModel.run({
+      id: model.id,
+      name: model.name,
+      provider: model.provider,
+      usage: toJson(model.usage || []),
+      status: model.status,
+      officialBaseUrl: model.officialBaseUrl || '',
+      baseUrlOptions: toJson(model.baseUrlOptions || []),
+      modelOptions: toJson(model.modelOptions || []),
+      defaultModel: model.defaultModel,
+      apiKeyConfigured: 0,
+      credentialRef: '',
+      apiKeyMasked: '',
+      lastTestStatus: '未测试',
+      lastTestAt: '',
+      todayCalls: Number(model.todayCalls || 0),
+      todayCost: Number(model.todayCost || 0),
+      enabled: model.enabled ? 1 : 0,
+      docsNote: model.docsNote,
+      isOfficialPreset: model.isOfficialPreset ? 1 : 0,
+      description: model.description,
+      maxTokens: 2048,
+      temperature: 0.7,
+      updatedAt: timestamp,
+    });
+  });
+
+  modelRoleSettings.forEach((item) => {
+    insertRoleSetting.run({
+      id: item.id,
+      label: item.label,
+      value: item.value,
+      providerId: '',
+      modelName: item.value,
+      updatedAt: timestamp,
+    });
+  });
+
+  promptTemplates.forEach((template) => {
+    insertPrompt.run({
+      id: template.id,
+      name: template.name,
+      category: template.category,
+      targetPage: template.targetPage,
+      defaultModel: template.defaultModel,
+      status: template.status,
+      templateContent: template.templateContent,
+      variables: toJson(template.variables || []),
+      updatedAt: template.updatedAt || timestamp,
+    });
+  });
+
+  aiCallLogs.forEach((log) => {
+    insertLog.run({
+      id: log.id,
+      time: log.time,
+      sourcePage: log.page,
+      type: log.type,
+      provider: log.provider,
+      modelName: log.modelName,
+      inputSummary: log.inputSummary,
+      outputSummary: log.outputSummary,
+      status: log.status,
+      duration: log.duration,
+      tokens: Number(log.tokens || 0),
+      cost: Number(log.cost || 0),
+      errorMessage: log.status === '成功' ? '' : 'Mock error summary only. No sensitive prompt or API key recorded.',
+      createdAt: log.time || timestamp,
+    });
+  });
+
+  db.prepare(
+    `INSERT INTO ai_cost_daily (
+      id, stat_date, today_calls, today_cost, month_cost, average_cost,
+      abnormal_calls, provider_breakdown_json, type_breakdown_json,
+      budget_settings_json, updated_at
+    ) VALUES (
+      'today', @statDate, @todayCalls, @todayCost, @monthCost, @averageCost,
+      @abnormalCalls, @providerBreakdown, @typeBreakdown,
+      @budgetSettings, @updatedAt
+    )`,
+  ).run({
+    statDate: '2026-05-27',
+    todayCalls: Number(aiCosts.todayCalls || 0),
+    todayCost: Number(aiCosts.todayCost || 0),
+    monthCost: Number(aiCosts.monthCost || 0),
+    averageCost: Number(aiCosts.averageCost || 0),
+    abnormalCalls: Number(aiCosts.abnormalCalls || 0),
+    providerBreakdown: toJson(aiCosts.providerBreakdown || []),
+    typeBreakdown: toJson(aiCosts.typeBreakdown || []),
+    budgetSettings: toJson(aiCosts.budgetSettings || {}),
+    updatedAt: timestamp,
+  });
+}
+
 function seedSettings() {
   const insertUser = db.prepare(
     `INSERT INTO users (
@@ -981,6 +1159,7 @@ const seed = db.transaction(() => {
   seedStudio();
   seedInteraction();
   seedDelayControl();
+  seedAiCenter();
   seedSettings();
   seedExecutors();
   seedHelp();
@@ -993,5 +1172,6 @@ console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live room
 console.log(`Studio backgrounds: ${studioBackgrounds.length}, Studio layouts: ${studioLayouts.length}, Studio output status: 1`);
 console.log(`Interaction comments: ${comments.length}, Questions: ${questions.length}, Manual takeover states: 1`);
 console.log(`Delay control states: 1, Speech queue: ${speechQueue.length}, Subtitle settings: 1, Delay settings: 1`);
+console.log(`AI models: ${modelProviders.length}, Prompt templates: ${promptTemplates.length}, AI call logs: ${aiCallLogs.length}, AI cost records: 1`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);

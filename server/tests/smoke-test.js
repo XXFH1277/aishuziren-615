@@ -225,6 +225,87 @@ async function run() {
   assert(deletedSpeech.id === delayQueue[delayQueue.length - 1].id, 'Delay Control API: delete speech item did not return deleted id');
   pass('Delay Control API: delete speech item', deletedSpeech.id);
 
+  const assistantSettings = await requestJson('AI 能力中心 API：AI 助理设置', '/api/ai/assistant');
+  assert(assistantSettings.assistant?.assistantName, 'AI 能力中心 API：AI 助理设置未返回 assistantName');
+  pass('AI 能力中心 API：AI 助理设置', assistantSettings.assistant.assistantName);
+  const savedAssistantSettings = await requestJson('AI 能力中心 API：保存 AI 助理设置', '/api/ai/assistant', {
+    method: 'PUT',
+    body: {
+      assistantName: 'Smoke Test AI Assistant',
+      defaultMode: '直播中控建议模式',
+      defaultTone: '专业',
+      enabled: true,
+      allowReadPageContext: true,
+      allowFillForm: true,
+      enableComplianceReminder: true,
+      allowedContextScopes: ['商品信息', '直播间配置'],
+    },
+  });
+  assert(savedAssistantSettings.assistant?.assistantName === 'Smoke Test AI Assistant', 'AI 能力中心 API：保存 AI 助理设置未生效');
+  pass('AI 能力中心 API：保存 AI 助理设置', savedAssistantSettings.assistant.assistantName);
+  const aiModels = await checkList('AI 能力中心 API：模型服务列表', '/api/ai/models');
+  const updatedAiModel = await requestJson('AI 能力中心 API：保存模型配置 Mock', `/api/ai/models/${aiModels[0].id}`, {
+    method: 'PUT',
+    body: {
+      baseUrl: aiModels[0].officialBaseUrl || '',
+      modelName: aiModels[0].defaultModel,
+      maxTokens: 1024,
+      temperature: 0.6,
+      enabled: true,
+    },
+  });
+  assert(updatedAiModel.model?.id === aiModels[0].id, 'AI 能力中心 API：保存模型配置未返回 model');
+  pass('AI 能力中心 API：保存模型配置 Mock', updatedAiModel.model.id);
+  const modelTestResult = await requestJson('AI 能力中心 API：测试模型连接 Mock', `/api/ai/models/${aiModels[0].id}/test`, {
+    method: 'POST',
+    body: { mock: true },
+  });
+  assert(modelTestResult.mock === true, 'AI 能力中心 API：测试模型连接不是 Mock 结果');
+  pass('AI 能力中心 API：测试模型连接 Mock', modelTestResult.status);
+  const aiDefaults = await checkList('AI 能力中心 API：默认模型设置', '/api/ai/models/defaults');
+  const savedAiDefault = await requestJson('AI 能力中心 API：保存默认模型设置', '/api/ai/models/defaults', {
+    method: 'PATCH',
+    body: {
+      role: aiDefaults[0].id,
+      providerId: aiModels[0].id,
+      modelName: aiModels[0].defaultModel,
+    },
+  });
+  assert(savedAiDefault.defaultModel?.id === aiDefaults[0].id, 'AI 能力中心 API：保存默认模型设置未返回 defaultModel');
+  pass('AI 能力中心 API：保存默认模型设置', savedAiDefault.defaultModel.id);
+  const promptList = await checkList('AI 能力中心 API：Prompt 模板列表', '/api/ai/prompts');
+  const updatedPrompt = await requestJson('AI 能力中心 API：更新 Prompt 模板', `/api/ai/prompts/${promptList[0].id}`, {
+    method: 'PUT',
+    body: {
+      name: promptList[0].name,
+      category: promptList[0].category,
+      status: promptList[0].status,
+      templateContent: `${promptList[0].templateContent}\n\nSmoke test update.`,
+    },
+  });
+  assert(updatedPrompt.prompt?.id === promptList[0].id, 'AI 能力中心 API：更新 Prompt 模板未返回 prompt');
+  pass('AI 能力中心 API：更新 Prompt 模板', updatedPrompt.prompt.id);
+  const copiedPrompt = await requestJson('AI 能力中心 API：复制 Prompt 模板', `/api/ai/prompts/${promptList[0].id}/copy`, {
+    method: 'POST',
+  });
+  assert(copiedPrompt.prompt?.id, 'AI 能力中心 API：复制 Prompt 模板未返回 prompt');
+  pass('AI 能力中心 API：复制 Prompt 模板', copiedPrompt.prompt.id);
+  await checkList('AI 能力中心 API：调用日志', '/api/ai/logs');
+  const aiCostData = await requestJson('AI 能力中心 API：成本监控', '/api/ai/costs');
+  assert(aiCostData.costs?.budgetSettings, 'AI 能力中心 API：成本监控未返回 budgetSettings');
+  pass('AI 能力中心 API：成本监控', `${aiCostData.costs.todayCalls} calls`);
+  const savedAiBudget = await requestJson('AI 能力中心 API：保存成本预算', '/api/ai/costs/budget', {
+    method: 'PATCH',
+    body: {
+      dailyBudget: 150,
+      monthlyBudget: 3200,
+      overBudgetAlert: true,
+      highCostModelAlert: true,
+    },
+  });
+  assert(savedAiBudget.budgetSettings?.dailyBudget === 150, 'AI 能力中心 API：保存成本预算未生效');
+  pass('AI 能力中心 API：保存成本预算', `daily=${savedAiBudget.budgetSettings.dailyBudget}`);
+
   await checkList('系统设置 API：用户列表', '/api/settings/users');
   await checkList('系统设置 API：角色列表', '/api/settings/roles');
   const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');

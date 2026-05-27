@@ -2,25 +2,79 @@ import { aiCallLogs, aiCallStatuses, aiCallTypes } from '../mock/aiCallLogs';
 import { aiCosts } from '../mock/aiCosts';
 import { modelProviders, modelRoleSettings, modelStatusOptions, modelUsageScenes } from '../mock/aiModels';
 import { promptCategories, promptTemplateStatuses, promptTemplates, promptVariables } from '../mock/promptTemplates';
+import { apiRequest } from './request';
 
-export function getModelProviders() {
-  return modelProviders;
+export async function getAiAssistantSettings() {
+  const result = await apiRequest.get('/api/ai/assistant');
+  return result.assistant;
+}
+
+export async function saveAiAssistantSettings(data = {}) {
+  const result = await apiRequest.put('/api/ai/assistant', data);
+  return result.assistant;
+}
+
+export function getModelProviders(params) {
+  if (params === undefined) {
+    return modelProviders;
+  }
+
+  return apiRequest.get('/api/ai/models', params);
+}
+
+export async function getAiModels(params = {}) {
+  return getModelProviders(params);
+}
+
+export async function updateAiModel(id, data = {}) {
+  const result = await apiRequest.put(`/api/ai/models/${id}`, data);
+  return result.model;
+}
+
+export async function testAiModel(id) {
+  return apiRequest.post(`/api/ai/models/${id}/test`, {});
+}
+
+export async function updateModelDefaults(data = {}) {
+  return apiRequest.patch('/api/ai/models/defaults', data);
 }
 
 export function getModelStatusOptions() {
   return modelStatusOptions;
 }
 
-export function getModelRoleSettings() {
-  return modelRoleSettings;
+export function getModelRoleSettings(params) {
+  if (params === undefined) {
+    return modelRoleSettings;
+  }
+
+  return apiRequest.get('/api/ai/models/defaults', params);
 }
 
 export function getModelUsageScenes() {
   return modelUsageScenes;
 }
 
-export function getPromptTemplates() {
-  return promptTemplates;
+export function getPromptTemplates(params) {
+  if (params === undefined) {
+    return promptTemplates;
+  }
+
+  return apiRequest.get('/api/ai/prompts', params);
+}
+
+export async function createPromptTemplate(data = {}) {
+  const result = await apiRequest.post('/api/ai/prompts', data);
+  return result.template;
+}
+
+export async function updatePromptTemplate(id, data = {}) {
+  const result = await apiRequest.put(`/api/ai/prompts/${id}`, data);
+  return result.template;
+}
+
+export async function copyPromptTemplate(id) {
+  return apiRequest.post(`/api/ai/prompts/${id}/copy`, {});
 }
 
 export function getPromptCategories() {
@@ -35,8 +89,12 @@ export function getPromptVariables() {
   return promptVariables;
 }
 
-export function getAiCallLogs() {
-  return aiCallLogs;
+export function getAiCallLogs(params) {
+  if (params === undefined) {
+    return aiCallLogs;
+  }
+
+  return apiRequest.get('/api/ai/logs', params);
 }
 
 export function getAiCallTypes() {
@@ -47,6 +105,14 @@ export function getAiCallStatuses() {
   return aiCallStatuses;
 }
 
-export function getAiCosts() {
-  return aiCosts;
+export function getAiCosts(params) {
+  if (params === undefined) {
+    return aiCosts;
+  }
+
+  return apiRequest.get('/api/ai/costs', params);
+}
+
+export async function saveAiBudgetSettings(data = {}) {
+  return apiRequest.patch('/api/ai/costs/budget', data);
 }

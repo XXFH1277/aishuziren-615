@@ -1,17 +1,48 @@
 import { ApiOutlined, ExperimentOutlined, SettingOutlined } from '@ant-design/icons';
-import { Alert, AutoComplete, Button, Card, Descriptions, Form, Input, List, Modal, Select, Slider, Space, Switch, Tag, message } from 'antd';
-import { useState } from 'react';
+import { Alert, AutoComplete, Button, Card, Descriptions, Empty, Form, Input, List, Modal, Slider, Space, Switch, Tag, message } from 'antd';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getModelProviders, getModelRoleSettings, getModelUsageScenes } from '../../services/aiService';
+import {
+  getModelProviders,
+  getModelRoleSettings,
+  getModelUsageScenes,
+  testAiModel,
+  updateAiModel,
+  updateModelDefaults,
+} from '../../services/aiService';
 
-const modelProviders = getModelProviders();
-const modelRoleSettings = getModelRoleSettings();
 const modelUsageScenes = getModelUsageScenes();
 
 export default function ModelServices() {
   const [form] = Form.useForm();
+  const [modelProviders, setModelProviders] = useState([]);
+  const [modelRoleSettings, setModelRoleSettings] = useState([]);
   const [configuring, setConfiguring] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError('');
+      const [modelsResult, defaultsResult] = await Promise.all([
+        getModelProviders({}),
+        getModelRoleSettings({}),
+      ]);
+      setModelProviders(modelsResult.list || []);
+      setModelRoleSettings(defaultsResult.list || []);
+    } catch (requestError) {
+      setError(requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const openConfig = (model) => {
     setConfiguring(model);
@@ -19,8 +50,8 @@ export default function ModelServices() {
       provider: model.name,
       baseUrl: model.officialBaseUrl || model.baseUrlOptions?.[0] || '',
       modelName: model.defaultModel,
-      maxTokens: 2048,
-      temperature: 0.7,
+      maxTokens: model.maxTokens || 2048,
+      temperature: model.temperature || 0.7,
       enabled: model.enabled,
     });
   };
@@ -30,16 +61,60 @@ export default function ModelServices() {
     form.resetFields();
   };
 
-  const saveConfig = () => {
-    message.success('模型服务配置已 Mock 保存，不读取或写入真实 API Key');
-    closeConfig();
+  const saveConfig = async () => {
+    if (!configuring) return;
+
+    try {
+      setSaving(true);
+      const values = form.getFieldsValue();
+      const updated = await updateAiModel(configuring.id, {
+        baseUrl: values.baseUrl,
+        modelName: values.modelName,
+        maxTokens: values.maxTokens,
+        temperature: values.temperature,
+        enabled: values.enabled,
+      });
+
+      setModelProviders((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      message.success('模型服务配置已保存到本地 API Mock，未保存任何 API Key');
+      closeConfig();
+    } catch (requestError) {
+      message.error(requestError.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async (model) => {
+    try {
+      const result = await testAiModel(model.id);
+      message.info(`${model.name} 测试连接：${result.status}，仅为 Mock`);
+      await loadData();
+    } catch (requestError) {
+      message.error(requestError.message || '测试失败');
+    }
+  };
+
+  const handleSetDefault = async (model) => {
+    try {
+      await updateModelDefaults({
+        role: 'copywriting',
+        providerId: model.id,
+        modelName: model.defaultModel,
+        value: `${model.name} / ${model.defaultModel}`,
+      });
+      message.success(`${model.name} 已设为普通文案默认模型 Mock`);
+      await loadData();
+    } catch (requestError) {
+      message.error(requestError.message || '设置失败');
+    }
   };
 
   return (
     <>
       <PageHeader
         title="模型服务配置"
-        description="统一管理模型服务商、默认模型和连接状态。当前为前端 Mock，不读取真实 Key，不调用 Kimi / Mimo。"
+        description="统一管理模型服务商、默认模型和连接状态。当前为本地 API Mock，不读取真实 Key，不调用 Kimi / Mimo。"
       />
 
       <Alert
@@ -49,16 +124,18 @@ export default function ModelServices() {
         message="当前为 Mock，不读取真实 Key"
         description="apiKey 输入框仅为占位输入，不会保存到文件、日志、Mock 数据或浏览器外部服务。"
       />
+      {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
       <div className="ai-model-grid">
         {modelProviders.map((model) => (
           <Card
             className="model-card"
             key={model.id}
+            loading={loading}
             actions={[
               <Button type="link" icon={<SettingOutlined />} onClick={() => openConfig(model)} key="config">配置</Button>,
-              <Button type="link" icon={<ApiOutlined />} onClick={() => message.info(`${model.name} 测试连接为 Mock 操作`)} key="test">测试连接</Button>,
-              <Button type="link" onClick={() => message.success(`${model.name} 已设为默认 Mock`)} key="default">设为默认</Button>,
+              <Button type="link" icon={<ApiOutlined />} onClick={() => handleTest(model)} key="test">测试连接</Button>,
+              <Button type="link" onClick={() => handleSetDefault(model)} key="default">设为默认</Button>,
             ]}
           >
             <div className="model-card-title">
@@ -77,18 +154,20 @@ export default function ModelServices() {
             <Space wrap className="ai-model-tags">
               {model.usage.map((item) => <Tag color="blue" key={item}>{item}</Tag>)}
               {model.isOfficialPreset ? <Tag color="green">官方预设</Tag> : <Tag>手动配置</Tag>}
+              {model.apiKeyConfigured ? <Tag color="green">Key 已配置</Tag> : <Tag>未保存 Key</Tag>}
             </Space>
             <p className="ai-card-description">{model.description}</p>
             <p className="ai-docs-note">{model.docsNote}</p>
           </Card>
         ))}
       </div>
+      {!loading && !modelProviders.length ? <Card className="panel-card"><Empty description="暂无模型服务配置" /></Card> : null}
 
-      <Card title="默认模型设置" className="panel-card">
+      <Card title="默认模型设置" className="panel-card" loading={loading}>
         <List
           dataSource={modelRoleSettings}
           renderItem={(item) => (
-            <List.Item actions={[<Button type="link" onClick={() => message.info('默认模型切换为 Mock 操作')} key="change">修改</Button>]}>
+            <List.Item actions={[<Button type="link" onClick={() => message.info('默认模型切换已通过卡片按钮做 Mock 演示')} key="change">修改</Button>]}>
               <List.Item.Meta title={item.label} description={item.value} />
             </List.Item>
           )}
@@ -100,6 +179,7 @@ export default function ModelServices() {
         open={Boolean(configuring)}
         onCancel={closeConfig}
         onOk={saveConfig}
+        confirmLoading={saving}
         okText="保存 Mock 配置"
       >
         <Alert

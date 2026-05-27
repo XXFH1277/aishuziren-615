@@ -285,6 +285,90 @@ CREATE TABLE IF NOT EXISTS delay_settings (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ai_assistant_settings (
+  id TEXT PRIMARY KEY,
+  settings_json TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  provider TEXT,
+  usage_json TEXT,
+  status TEXT,
+  official_base_url TEXT,
+  base_url_options_json TEXT,
+  model_options_json TEXT,
+  default_model TEXT,
+  api_key_configured INTEGER DEFAULT 0,
+  credential_ref TEXT,
+  api_key_masked TEXT,
+  last_test_status TEXT,
+  last_test_at TEXT,
+  today_calls INTEGER DEFAULT 0,
+  today_cost REAL DEFAULT 0,
+  enabled INTEGER DEFAULT 0,
+  docs_note TEXT,
+  is_official_preset INTEGER DEFAULT 0,
+  description TEXT,
+  max_tokens INTEGER DEFAULT 2048,
+  temperature REAL DEFAULT 0.7,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_role_settings (
+  id TEXT PRIMARY KEY,
+  label TEXT,
+  value TEXT,
+  provider_id TEXT,
+  model_name TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS prompt_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT,
+  target_page TEXT,
+  default_model TEXT,
+  status TEXT,
+  template_content TEXT,
+  variables_json TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ai_call_logs (
+  id TEXT PRIMARY KEY,
+  call_time TEXT,
+  source_page TEXT,
+  type TEXT,
+  provider TEXT,
+  model_name TEXT,
+  input_summary TEXT,
+  output_summary TEXT,
+  status TEXT,
+  duration TEXT,
+  tokens INTEGER DEFAULT 0,
+  cost REAL DEFAULT 0,
+  error_message TEXT,
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ai_cost_daily (
+  id TEXT PRIMARY KEY,
+  stat_date TEXT,
+  today_calls INTEGER DEFAULT 0,
+  today_cost REAL DEFAULT 0,
+  month_cost REAL DEFAULT 0,
+  average_cost REAL DEFAULT 0,
+  abnormal_calls INTEGER DEFAULT 0,
+  provider_breakdown_json TEXT,
+  type_breakdown_json TEXT,
+  budget_settings_json TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
@@ -490,6 +574,11 @@ CREATE INDEX IF NOT EXISTS idx_studio_backgrounds_category ON studio_backgrounds
 CREATE INDEX IF NOT EXISTS idx_studio_backgrounds_status ON studio_backgrounds(status);
 CREATE INDEX IF NOT EXISTS idx_studio_layouts_ratio ON studio_layouts(ratio);
 CREATE INDEX IF NOT EXISTS idx_studio_layouts_status ON studio_layouts(status);
+CREATE INDEX IF NOT EXISTS idx_ai_model_providers_status ON ai_model_providers(status);
+CREATE INDEX IF NOT EXISTS idx_prompt_templates_category ON prompt_templates(category);
+CREATE INDEX IF NOT EXISTS idx_prompt_templates_status ON prompt_templates(status);
+CREATE INDEX IF NOT EXISTS idx_ai_call_logs_time ON ai_call_logs(call_time);
+CREATE INDEX IF NOT EXISTS idx_ai_call_logs_provider ON ai_call_logs(provider);
 CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(time);
 CREATE INDEX IF NOT EXISTS idx_help_faq_category ON help_faq(category);
 CREATE INDEX IF NOT EXISTS idx_troubleshooting_category ON troubleshooting_guides(category);
