@@ -208,3 +208,25 @@ aiService -> fetch(`${API_BASE_URL}/api/ai/costs`)
 - 真实密钥后续必须走后端凭据接口和脱敏存储，前端只显示 `apiKeyConfigured`、`apiKeyMasked`、`credentialRef` 等安全状态。
 - `getModelStatusOptions()`、`getModelUsageScenes()`、`getPromptCategories()`、`getPromptTemplateStatuses()`、`getPromptVariables()` 仍使用前端静态选项。
 - 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+- 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+
+## Phase 12.16 直播中控台聚合 Service API 试点
+
+当前已切换：
+
+```text
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/overview`)
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/comments`)
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/questions`)
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/broadcast`)
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/manual-speech`)
+liveControlRoomService -> fetch(`${API_BASE_URL}/api/live/control-room/speech-queue/:id`)
+```
+
+说明：
+
+- `/live/control-room` 现在通过聚合 API 读取直播任务、直播间、OBS输出状态、弹幕、问题、当前播报、待播队列、字幕和风险提示。
+- 聚合 API 不新增业务表，复用已落地的 `live_tasks`、`live_rooms`、`comments`、`questions`、`manual_takeover_state`、`delay_control_state`、`speech_queue`、`subtitle_settings`、`studio_output_status`。
+- 人工播报和待播队列操作仍是本地 Mock API，不调用真实数字人、TTS、OBS、执行端或直播平台。
+- 弹幕模拟继续使用 dev-only `/api/dev/interaction/comments/simulate`，不接真实 WebSocket。
+- 互动播控、延迟播控的功能管理页继续走各自 service；中控台只作为运行态聚合页。

@@ -8,6 +8,7 @@ import executorRoutes from './routes/executors.js';
 import helpRoutes from './routes/help.js';
 import healthRoutes from './routes/health.js';
 import interactionRoutes from './routes/interaction.js';
+import liveControlRoomRoutes from './routes/liveControlRoom.js';
 import liveRoutes from './routes/liveRooms.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
@@ -45,6 +46,7 @@ app.use('/api', studioRoutes);
 app.use('/api', interactionRoutes);
 app.use('/api', delayControlRoutes);
 app.use('/api', aiRoutes);
+app.use('/api', liveControlRoomRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {

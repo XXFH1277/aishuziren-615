@@ -202,6 +202,12 @@ server/utils/operationLog.js
 - `PUT /api/delay-control/subtitles/settings`
 - `GET /api/delay-control/settings`
 - `PUT /api/delay-control/settings`
+- `GET /api/live/control-room/overview`
+- `GET /api/live/control-room/comments`
+- `GET /api/live/control-room/questions`
+- `GET /api/live/control-room/broadcast`
+- `POST /api/live/control-room/manual-speech`
+- `PATCH /api/live/control-room/speech-queue/:id`
 - `GET /api/ai/assistant`
 - `PUT /api/ai/assistant`
 - `GET /api/ai/models`

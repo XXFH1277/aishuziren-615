@@ -225,6 +225,44 @@ async function run() {
   assert(deletedSpeech.id === delayQueue[delayQueue.length - 1].id, 'Delay Control API: delete speech item did not return deleted id');
   pass('Delay Control API: delete speech item', deletedSpeech.id);
 
+  const controlOverview = await requestJson('Live Control Room API: overview', '/api/live/control-room/overview');
+  assert(controlOverview.task?.id, 'Live Control Room API: overview did not return task');
+  assert(controlOverview.statusBar?.currentLiveRoom, 'Live Control Room API: overview did not return statusBar');
+  pass('Live Control Room API: overview', controlOverview.task.id);
+  const controlComments = await requestJson('Live Control Room API: comments', `/api/live/control-room/comments?taskId=${controlOverview.task.id}`);
+  assert(Array.isArray(controlComments.list), 'Live Control Room API: comments did not return list');
+  assert(controlComments.list.length > 0, 'Live Control Room API: comments list is empty');
+  pass('Live Control Room API: comments', `${controlComments.list.length} 条`);
+  const controlQuestions = await requestJson('Live Control Room API: questions', `/api/live/control-room/questions?taskId=${controlOverview.task.id}`);
+  assert(Array.isArray(controlQuestions.list), 'Live Control Room API: questions did not return list');
+  assert(controlQuestions.list.length > 0, 'Live Control Room API: questions list is empty');
+  pass('Live Control Room API: questions', `${controlQuestions.list.length} 条`);
+  const controlBroadcast = await requestJson('Live Control Room API: broadcast', `/api/live/control-room/broadcast?taskId=${controlOverview.task.id}`);
+  assert(controlBroadcast.currentSpeech?.text, 'Live Control Room API: broadcast did not return currentSpeech');
+  assert(Array.isArray(controlBroadcast.speechQueue), 'Live Control Room API: broadcast did not return speechQueue');
+  pass('Live Control Room API: broadcast', controlBroadcast.currentSpeech.id);
+  const controlManualSpeech = await requestJson('Live Control Room API: manual speech mock', '/api/live/control-room/manual-speech', {
+    method: 'POST',
+    body: {
+      taskId: controlOverview.task.id,
+      text: 'Smoke test live control room manual speech. No real broadcast.',
+      tone: '专业',
+      action: '看评论区',
+      broadcastMode: '立即插队 Mock',
+    },
+  });
+  assert(controlManualSpeech.mock === true, 'Live Control Room API: manual speech mock did not return mock=true');
+  pass('Live Control Room API: manual speech mock', controlManualSpeech.status);
+  const controlSpeechItem = controlBroadcast.speechQueue[0];
+  const controlSpeechPatch = await requestJson('Live Control Room API: speech queue operation', `/api/live/control-room/speech-queue/${controlSpeechItem.id}`, {
+    method: 'PATCH',
+    body: {
+      operation: 'approve',
+    },
+  });
+  assert(controlSpeechPatch.speechItem?.id === controlSpeechItem.id, 'Live Control Room API: speech queue operation did not return speechItem');
+  pass('Live Control Room API: speech queue operation', controlSpeechPatch.reviewStatus);
+
   const assistantSettings = await requestJson('AI 能力中心 API：AI 助理设置', '/api/ai/assistant');
   assert(assistantSettings.assistant?.assistantName, 'AI 能力中心 API：AI 助理设置未返回 assistantName');
   pass('AI 能力中心 API：AI 助理设置', assistantSettings.assistant.assistantName);
