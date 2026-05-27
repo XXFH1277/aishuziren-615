@@ -121,6 +121,17 @@ npm run server:smoke
 response.js 已保留这些旧错误码到 HTTP 状态码的映射，避免大范围改动现有路由。
 ```
 
+## 前端错误态约定
+
+前端 `src/services/request.js` 已统一消费本地 API 响应：
+
+- `code === 0` 视为成功，返回 `data`。
+- `code !== 0` 或 HTTP 非 2xx 视为业务错误，优先展示后端 `message`，并附带 `error.field` / `error.reason`。
+- 本地 API 未启动、端口不可达或网络失败时，统一提示“本地 API 服务未连接，请先运行 npm run server:dev”。
+- 本地 API 返回非 JSON 时，前端提示“本地 API 返回格式异常：HTTP xxx”。
+
+当前所有接口仍为本地开发链路，不接真实 AI、真实登录、真实文件存储、OBS、执行端、WebSocket 或直播平台。
+
 ## 参数校验
 
 轻量校验工具位于：

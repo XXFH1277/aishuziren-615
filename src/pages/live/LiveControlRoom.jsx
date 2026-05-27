@@ -337,6 +337,14 @@ export default function LiveControlRoom() {
         }
       />
 
+      <Alert
+        className="page-alert"
+        type="info"
+        showIcon
+        message="当前为本地 Mock 占位，未接真实播报链路。"
+        description="人工接管、立即插队、加入待播、弹幕模拟和播控操作只写入本地 API / SQLite 或返回 Mock 成功，不调用真实数字人、TTS、OBS、执行端、WebSocket 或直播平台。"
+      />
+
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
       <Spin spinning={loading}>

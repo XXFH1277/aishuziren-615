@@ -196,8 +196,8 @@ export default function ExecutorList() {
         className="executor-alert"
         type="info"
         showIcon
-        message="执行端是未来安装在直播电脑上的本地程序"
-        description="本阶段只验证本地 API 与 SQLite 链路，不新增 Electron / Tauri / Python 客户端，不连接真实 OBS、虚拟摄像头、直播伴侣或 WebSocket 心跳。"
+        message="当前为本地 Mock 占位，未接真实执行端。"
+        description="执行端是未来安装在直播电脑上的本地程序；本阶段只验证本地 API 与 SQLite 链路，不新增 Electron / Tauri / Python 客户端，不连接真实 OBS、虚拟摄像头、直播伴侣或 WebSocket 心跳。"
       />
 
       <div className="executor-stat-grid">

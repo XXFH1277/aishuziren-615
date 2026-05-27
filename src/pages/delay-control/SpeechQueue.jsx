@@ -215,6 +215,14 @@ export default function SpeechQueue() {
         description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于管理待播话术、播出前审核、修改、插队和风险标记流程。"
       />
 
+      <Alert
+        className="page-alert"
+        type="info"
+        showIcon
+        message="当前为本地 Mock 占位，未接真实服务。"
+        description="通过、驳回、修改、删除、插队等操作只写入本地 API / SQLite 或返回 Mock 成功，不触发真实数字人播报、TTS、OBS 或执行端。"
+      />
+
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
       <div className="delay-stat-grid">

@@ -104,7 +104,7 @@ export default function StudioBackground() {
         className="studio-alert"
         type="info"
         showIcon
-        message="当前为本地 API 试点"
+        message="当前为本地 Mock 占位，未接真实图片生成服务。"
         description="生成、预览、应用、复制 Prompt 和删除均为 Mock 操作，不会上传素材，也不会请求任何 AI 图片生成接口。"
       />
 

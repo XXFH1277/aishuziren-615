@@ -77,7 +77,7 @@ export default function StudioOutput() {
         className="studio-alert"
         type="warning"
         showIcon
-        message="当前不连接真实 OBS"
+        message="当前为本地 Mock 占位，未接真实 OBS / 直播伴侣 / 执行端。"
         description="测试连接、刷新场景、发送预览画面、虚拟摄像头和配置说明均为 Mock，不访问 OBS WebSocket、直播伴侣或本地执行端。"
       />
 

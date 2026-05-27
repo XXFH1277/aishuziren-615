@@ -247,3 +247,15 @@ fileService -> fetch(`${API_BASE_URL}/api/files/upload`)
 - `authService` 当前只是 Mock 登录态契约占位，不做真实登录、不生成真实 token、不设置真实 Cookie、不校验密码。
 - `fileService.uploadFileMock()` 当前只发送 JSON Mock 请求，不解析 multipart、不保存真实文件、不上传云端。
 - 真实登录鉴权、真实文件上传、权限校验和文件资产存储后续必须由后端安全实现。
+
+## Phase 12.19 API 错误态与联调收口
+
+`src/services/request.js` 继续使用原生 `fetch`，并统一处理三类错误：
+
+- 网络不可达或本地后端未启动：统一抛出“本地 API 服务未连接，请先运行 npm run server:dev”。
+- 后端返回 `code !== 0`：优先展示后端 `message`，并补充 `error.field` / `error.reason` 作为排查线索。
+- 返回体不是统一 JSON：展示“本地 API 返回格式异常：HTTP xxx”。
+
+当前主要业务 service 已切到本地 API：`dashboardService`、`productService`、`avatarService`、`liveService`、`studioService`、`interactionService`、`delayControlService`、`liveControlRoomService`、`aiService`、`executorService`、`helpService`、`settingsService`、`authService`、`fileService`。
+
+仍然合理保留前端静态选项或 Mock 边界：下拉枚举、页面演示提示、真实 AI 调用、真实登录鉴权、真实文件上传、OBS / 执行端 / WebSocket / 直播平台接入、真实数字人播报、TTS 与口型同步。上述能力后续必须由后端或本地执行端安全实现，前端 service 不读取 `.env.local`、`模型api.txt` 或任何真实密钥。

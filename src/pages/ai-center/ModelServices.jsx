@@ -121,8 +121,8 @@ export default function ModelServices() {
         className="studio-alert"
         type="warning"
         showIcon
-        message="当前为 Mock，不读取真实 Key"
-        description="apiKey 输入框仅为占位输入，不会保存到文件、日志、Mock 数据或浏览器外部服务。"
+        message="当前为本地 Mock 占位，未接真实模型服务。"
+        description="apiKey 输入框仅为占位输入，不会保存到文件、日志、Mock 数据或浏览器外部服务；测试连接只返回 Mock，不调用 Kimi / Mimo / OpenAI / DeepSeek。"
       />
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
