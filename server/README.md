@@ -63,6 +63,27 @@ npm run server:start
 http://localhost:3000
 ```
 
+## Smoke Test
+
+先启动后端：
+
+```bash
+npm run server:dev
+```
+
+再在另一个终端运行：
+
+```bash
+npm run server:smoke
+```
+
+说明：
+
+- Smoke test 使用 Node 原生 `fetch`，不引入测试框架。
+- 默认检查 `http://localhost:3000`；如需指定地址，可设置 `SMOKE_BASE_URL=http://localhost:3000`。
+- 检查范围覆盖 health、商品、数字人、直播管理、系统设置、帮助中心、执行端管理的核心本地 API。
+- 测试只访问本地 API，不读取 `模型api.txt`，不读取 `.env.local`，不连接真实外部服务。
+
 ## 已实现 API
 
 - `GET /api/health`
