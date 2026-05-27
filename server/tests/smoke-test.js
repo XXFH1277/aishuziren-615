@@ -13,7 +13,7 @@ function assert(condition, message) {
   }
 }
 
-async function requestJson(name, path, options = {}) {
+async function requestPayload(name, path, options = {}) {
   if (typeof fetch !== 'function') {
     throw new Error('当前 Node 版本不支持原生 fetch，请使用 Node 18+ 后再运行 smoke test。');
   }
@@ -38,11 +38,7 @@ async function requestJson(name, path, options = {}) {
       throw new Error(`${name} 返回非 JSON 内容：HTTP ${response.status}`);
     }
 
-    if (!response.ok || payload.code !== 0) {
-      throw new Error(`${name} 失败：HTTP ${response.status} code=${payload.code} message=${payload.message || 'unknown'}`);
-    }
-
-    return payload.data || {};
+    return { payload, response };
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error(`${name} 超时：${timeoutMs}ms`);
@@ -52,6 +48,26 @@ async function requestJson(name, path, options = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function requestJson(name, path, options = {}) {
+  const { payload, response } = await requestPayload(name, path, options);
+
+  if (!response.ok || payload.code !== 0) {
+    throw new Error(`${name} 失败：HTTP ${response.status} code=${payload.code} message=${payload.message || 'unknown'}`);
+  }
+
+  return payload.data || {};
+}
+
+async function requestExpectedError(name, path, expectedCode, options = {}) {
+  const { payload } = await requestPayload(name, path, options);
+
+  assert(payload.code === expectedCode, `${name} 错误码不匹配，期望 ${expectedCode}，实际 ${payload.code}`);
+  assert(payload.message, `${name} 未返回错误 message`);
+  pass(name, `code=${payload.code}`);
+
+  return payload;
 }
 
 async function checkList(name, path) {
@@ -79,6 +95,10 @@ async function run() {
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);
   await checkList('商品 API：商品组列表', '/api/product-groups');
+  await requestExpectedError('商品 API：创建商品参数校验', '/api/products', 40001, {
+    method: 'POST',
+    body: { name: '' },
+  });
 
   const avatars = await checkList('数字人 API：数字人列表', '/api/avatars');
   await checkDetail('数字人 API：数字人详情', `/api/avatars/${avatars[0].id}`, 'avatar', avatars[0].id);
@@ -93,6 +113,12 @@ async function run() {
   const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');
   assert(basicSettings.settings && typeof basicSettings.settings === 'object', '系统设置 API：基础设置未返回 settings 对象');
   pass('系统设置 API：基础设置', '/api/settings/basic');
+  const basicSettingsValidation = await requestExpectedError('系统设置 API：基础设置参数校验', '/api/settings/basic', 40001, {
+    method: 'PUT',
+    body: { systemName: '' },
+  });
+  assert(basicSettingsValidation.error?.field === 'systemName', '系统设置 API：基础设置参数校验未返回 field=systemName');
+  assert(basicSettingsValidation.error?.reason === '系统名称不能为空', '系统设置 API：基础设置参数校验 reason 不匹配');
   await checkList('系统设置 API：操作日志', '/api/settings/logs');
 
   await checkList('帮助中心 API：FAQ', '/api/help/faq');

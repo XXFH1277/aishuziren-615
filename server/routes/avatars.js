@@ -1,6 +1,7 @@
 import express from 'express';
 import { db, fromJson, nextId, now, toJson } from '../db/database.js';
 import { fail, page, success } from '../utils/response.js';
+import { assertRequired, toValidationErrorPayload } from '../utils/validators.js';
 
 const router = express.Router();
 
@@ -117,8 +118,10 @@ router.get('/avatars/:id', (req, res) => {
 router.post('/avatars', (req, res) => {
   const payload = normalizeAvatarBody(req.body || {});
 
-  if (!payload.name || !String(payload.name).trim()) {
-    return fail(res, '数字人名称不能为空', 40001, { field: 'name', reason: '名称不能为空' });
+  try {
+    assertRequired(payload.name, 'name', '数字人名称不能为空');
+  } catch (error) {
+    return fail(res, '参数错误', error.code, toValidationErrorPayload(error));
   }
 
   const timestamp = now();

@@ -1,21 +1,27 @@
+import { FORBIDDEN, LEGACY_ERROR_CODES, NOT_FOUND, OK, PARAM_ERROR, SERVER_ERROR, UNAUTHORIZED } from './errorCodes.js';
+
 const statusCodeMap = {
-  40001: 400,
-  40100: 401,
-  40300: 403,
-  40400: 404,
-  40900: 409,
-  50000: 500,
+  [PARAM_ERROR]: 400,
+  [UNAUTHORIZED]: 401,
+  [FORBIDDEN]: 403,
+  [NOT_FOUND]: 404,
+  [SERVER_ERROR]: 500,
+  [LEGACY_ERROR_CODES.UNAUTHORIZED]: 401,
+  [LEGACY_ERROR_CODES.FORBIDDEN]: 403,
+  [LEGACY_ERROR_CODES.NOT_FOUND]: 404,
+  [LEGACY_ERROR_CODES.CONFLICT]: 409,
+  [LEGACY_ERROR_CODES.SERVER_ERROR]: 500,
 };
 
 export function success(res, data = {}, message = 'ok') {
   return res.json({
-    code: 0,
+    code: OK,
     message,
     data,
   });
 }
 
-export function fail(res, message = '参数错误', code = 40001, error = null) {
+export function fail(res, message = '参数错误', code = PARAM_ERROR, error = null) {
   const statusCode = statusCodeMap[code] || 400;
 
   return res.status(statusCode).json({

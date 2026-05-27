@@ -1,6 +1,8 @@
 import express from 'express';
 import { db, fromJson, now, toJson } from '../db/database.js';
-import { page, success } from '../utils/response.js';
+import { fail, page, success } from '../utils/response.js';
+import { recordOperationLog } from '../utils/operationLog.js';
+import { assertRequired, toValidationErrorPayload } from '../utils/validators.js';
 
 const router = express.Router();
 
@@ -122,7 +124,15 @@ router.get('/settings/basic', (req, res) => {
 });
 
 router.put('/settings/basic', (req, res) => {
-  const settingsJson = toJson(req.body || {});
+  const payload = req.body || {};
+
+  try {
+    assertRequired(payload.systemName, 'systemName', '系统名称不能为空');
+  } catch (error) {
+    return fail(res, '参数错误', error.code, toValidationErrorPayload(error));
+  }
+
+  const settingsJson = toJson(payload);
   const timestamp = now();
 
   db.prepare(
@@ -137,7 +147,17 @@ router.put('/settings/basic', (req, res) => {
     updatedAt: timestamp,
   });
 
-  return success(res, { settings: req.body || {} });
+  recordOperationLog(db, {
+    username: 'local-api-mock',
+    module: '系统设置',
+    action: '保存基础设置',
+    targetId: 'basic',
+    targetName: payload.systemName,
+    result: '成功',
+    description: '保存基础设置到本地 SQLite，操作日志为 Phase 12.12 占位示范。',
+  });
+
+  return success(res, { settings: payload });
 });
 
 router.get('/settings/logs', (req, res) => {
