@@ -1,14 +1,20 @@
 import { BellOutlined, PlusCircleOutlined, StopOutlined } from '@ant-design/icons';
-import { Badge, Button, Card, Empty, Input, Modal, Select, Space, Table, Tabs, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Badge, Button, Card, Empty, Input, Modal, Select, Space, Table, Tabs, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CommentTypeTag from '../../components/CommentTypeTag';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
-import { getCommentConnection, getCommentTypes, getComments, getInteractionLiveRooms, getRiskLevels } from '../../services/interactionService';
+import {
+  getCommentConnection,
+  getCommentTypes,
+  getComments,
+  getInteractionLiveRooms,
+  getRiskLevels,
+  simulateComment,
+} from '../../services/interactionService';
 
-const comments = getComments();
 const commentConnection = getCommentConnection();
 const commentTypes = getCommentTypes();
 const interactionLiveRooms = getInteractionLiveRooms();
@@ -19,27 +25,55 @@ function nowTime() {
 }
 
 export default function CommentCapture() {
-  const [commentList, setCommentList] = useState(comments);
-  const [currentRoom, setCurrentRoom] = useState(interactionLiveRooms[0].value);
+  const [commentList, setCommentList] = useState([]);
+  const [currentRoom, setCurrentRoom] = useState(interactionLiveRooms[0]?.value);
   const [keyword, setKeyword] = useState('');
   const [type, setType] = useState();
   const [riskLevel, setRiskLevel] = useState();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const currentRoomInfo = interactionLiveRooms.find((room) => room.value === currentRoom) || interactionLiveRooms[0];
+
+  const fetchComments = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getComments({
+        liveRoomId: currentRoom,
+        type,
+        riskLevel,
+        page: 1,
+        pageSize: 100,
+      });
+
+      setCommentList(data.list || []);
+    } catch (requestError) {
+      const messageText = requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentRoom, riskLevel, type]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const filteredComments = useMemo(
     () =>
       commentList.filter((item) => {
+        const keywordText = keyword.toLowerCase();
         const matchKeyword =
           !keyword ||
-          item.nickname.toLowerCase().includes(keyword.toLowerCase()) ||
-          item.content.toLowerCase().includes(keyword.toLowerCase()) ||
-          item.productName.toLowerCase().includes(keyword.toLowerCase());
-        const matchType = !type || item.type === type;
-        const matchRisk = !riskLevel || item.riskLevel === riskLevel;
-        return matchKeyword && matchType && matchRisk;
+          (item.nickname || '').toLowerCase().includes(keywordText) ||
+          (item.content || '').toLowerCase().includes(keywordText) ||
+          (item.productName || '').toLowerCase().includes(keywordText);
+        return matchKeyword;
       }),
-    [commentList, keyword, riskLevel, type],
+    [commentList, keyword],
   );
 
   const questionCount = commentList.filter((item) => !['闲聊互动', '恶意评论'].includes(item.type)).length;
@@ -49,17 +83,18 @@ export default function CommentCapture() {
     setCommentList((items) => items.map((item) => (item.id === id ? { ...item, replyStatus } : item)));
   };
 
-  const handleSimulateComment = () => {
-    const source = comments[commentList.length % comments.length];
-    const newComment = {
-      ...source,
-      id: `SIM${Date.now()}`,
-      nickname: `${source.nickname}-模拟`,
-      time: nowTime(),
-      replyStatus: '待处理',
-    };
-    setCommentList((items) => [newComment, ...items]);
-    message.success('已追加一条 Mock 弹幕，不连接真实 WebSocket');
+  const handleSimulateComment = async () => {
+    try {
+      const newComment = await simulateComment({
+        liveRoomId: currentRoom,
+        time: nowTime(),
+      });
+
+      setCommentList((items) => [newComment, ...items]);
+      message.success('已通过本地 API 追加 1 条 Mock 弹幕，不连接真实 WebSocket');
+    } catch (requestError) {
+      message.error(requestError.message || 'Mock 弹幕追加失败');
+    }
   };
 
   const columns = [
@@ -76,7 +111,7 @@ export default function CommentCapture() {
       render: (value, record) => (
         <div>
           <Typography.Text>{value}</Typography.Text>
-          <div className="table-subtext">关联：{record.productName}</div>
+          <div className="table-subtext">关联：{record.productName || '未关联商品'}</div>
         </div>
       ),
     },
@@ -119,7 +154,7 @@ export default function CommentCapture() {
             onClick={() =>
               Modal.confirm({
                 title: '拉黑用户 Mock',
-                content: `确认将「${record.nickname}」加入 Mock 黑名单？当前不会写入任何真实系统。`,
+                content: `确认将“${record.nickname}”加入 Mock 黑名单？当前不会写入任何真实系统。`,
                 okText: '确认',
                 cancelText: '取消',
                 onOk: () => message.warning('已触发拉黑 Mock 提示'),
@@ -138,9 +173,10 @@ export default function CommentCapture() {
       rowKey="id"
       columns={columns}
       dataSource={dataSource}
+      loading={loading}
       pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 条弹幕` }}
       scroll={{ x: 1280 }}
-      locale={{ emptyText: <Empty description="暂无符合条件的弹幕" /> }}
+      locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的弹幕'} /> }}
     />
   );
 
@@ -148,24 +184,21 @@ export default function CommentCapture() {
     <>
       <PageHeader
         title="弹幕捕获"
-        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。展示直播间实时弹幕捕获状态和评论流，当前使用 Mock 数据。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。当前弹幕列表通过本地 API 读取 SQLite，仍不连接真实直播平台或 WebSocket。"
         extra={
           <Space wrap>
-            <Select
-              value={currentRoom}
-              onChange={setCurrentRoom}
-              options={interactionLiveRooms}
-              style={{ width: 220 }}
-            />
+            <Select value={currentRoom} onChange={setCurrentRoom} options={interactionLiveRooms} style={{ width: 220 }} />
             <Badge status="success" text={`弹幕连接状态：${commentConnection.status}`} />
           </Space>
         }
       />
 
+      {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+
       <div className="interaction-stat-grid">
-        <DataCard title="当前直播间" value={currentRoomInfo.label} helper={`来源平台：${currentRoomInfo.platform}`} tone="blue" />
+        <DataCard title="当前直播间" value={currentRoomInfo?.label || '-'} helper={`来源平台：${currentRoomInfo?.platform || '-'}`} tone="blue" />
         <DataCard title="弹幕连接状态" value={commentConnection.status} helper={`心跳：${commentConnection.lastHeartbeatAt}`} tone="teal" status="已连接" />
-        <DataCard title="今日捕获弹幕数" value={commentList.length} helper="全部来自前端 Mock 数据" tone="amber" />
+        <DataCard title="今日捕获弹幕数" value={commentList.length} helper="来自本地 API + SQLite Mock 数据" tone="amber" />
         <DataCard title="已识别问题数" value={questionCount} helper="价格 / 物流 / 售后 / 优惠等" tone="blue" />
         <DataCard title="高风险评论数" value={highRiskCount} helper="需要人工确认后再处理" tone="rose" />
       </div>

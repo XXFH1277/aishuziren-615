@@ -158,6 +158,69 @@ CREATE TABLE IF NOT EXISTS studio_output_status (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS comments (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  live_room_id TEXT,
+  user_nickname TEXT,
+  content TEXT,
+  platform TEXT,
+  comment_time TEXT,
+  recognized_type TEXT,
+  risk_level TEXT,
+  reply_status TEXT,
+  handled_status TEXT,
+  product_id TEXT,
+  product_name TEXT,
+  created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_live_task_id ON comments(live_task_id);
+CREATE INDEX IF NOT EXISTS idx_comments_live_room_id ON comments(live_room_id);
+CREATE INDEX IF NOT EXISTS idx_comments_risk_level ON comments(risk_level);
+CREATE INDEX IF NOT EXISTS idx_comments_handled_status ON comments(handled_status);
+
+CREATE TABLE IF NOT EXISTS questions (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  live_room_id TEXT,
+  comment_id TEXT,
+  question TEXT,
+  nickname TEXT,
+  type TEXT,
+  product_id TEXT,
+  product_name TEXT,
+  risk_level TEXT,
+  ai_reply TEXT,
+  edited_reply TEXT,
+  status TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_questions_live_task_id ON questions(live_task_id);
+CREATE INDEX IF NOT EXISTS idx_questions_live_room_id ON questions(live_room_id);
+CREATE INDEX IF NOT EXISTS idx_questions_comment_id ON questions(comment_id);
+CREATE INDEX IF NOT EXISTS idx_questions_status ON questions(status);
+
+CREATE TABLE IF NOT EXISTS manual_takeover_state (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT,
+  live_room_id TEXT,
+  current_avatar_id TEXT,
+  current_avatar_name TEXT,
+  current_product_group_id TEXT,
+  current_product_group_name TEXT,
+  speech_status TEXT,
+  executor_status TEXT,
+  current_speech TEXT,
+  next_speech TEXT,
+  upcoming_speech_json TEXT,
+  recommended_replies_json TEXT,
+  risk_warnings_json TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,

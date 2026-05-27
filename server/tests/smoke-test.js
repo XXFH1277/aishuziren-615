@@ -126,6 +126,43 @@ async function run() {
   assert(generatedBackground.background?.id, '直播间搭建 API：Mock 背景生成未返回 background');
   pass('直播间搭建 API：Mock 背景生成', generatedBackground.background.id);
 
+  const interactionComments = await checkList('Interaction API: comments', '/api/interaction/comments');
+  const simulatedComment = await requestJson('Interaction API: simulate comment', '/api/dev/interaction/comments/simulate', {
+    method: 'POST',
+    body: {
+      liveRoomId: 'LR001',
+      content: 'Smoke test mock comment. No real live platform or WebSocket call.',
+      productName: 'Smoke Test Product',
+    },
+  });
+  assert(simulatedComment.comment?.id, 'Interaction API: simulate comment did not return comment');
+  pass('Interaction API: simulate comment', simulatedComment.comment.id);
+  const interactionQuestions = await checkList('Interaction API: questions', '/api/interaction/questions');
+  const replyResult = await requestJson('Interaction API: question reply', `/api/interaction/questions/${interactionQuestions[0].id}/reply`, {
+    method: 'POST',
+    body: { replyText: 'Smoke test mock reply. No real AI call.' },
+  });
+  assert(replyResult.question?.aiReply, 'Interaction API: question reply did not return aiReply');
+  pass('Interaction API: question reply', replyResult.question.id);
+  const queueResult = await requestJson('Interaction API: add question to queue', `/api/interaction/questions/${interactionQuestions[0].id}/add-to-queue`, {
+    method: 'POST',
+    body: { mock: true },
+  });
+  assert(queueResult.question?.status, 'Interaction API: add question to queue did not return status');
+  pass('Interaction API: add question to queue', queueResult.question.id);
+  const manualTakeoverState = await requestJson('Interaction API: manual takeover state', '/api/interaction/manual-takeover');
+  assert(manualTakeoverState.manualTakeover?.currentLiveRoom, 'Interaction API: manual takeover state did not return currentLiveRoom');
+  pass('Interaction API: manual takeover state', manualTakeoverState.manualTakeover.currentLiveRoom);
+  const manualSpeechResult = await requestJson('Interaction API: manual speech mock', '/api/interaction/manual-speech', {
+    method: 'POST',
+    body: {
+      speechText: 'Smoke test manual speech. No digital human broadcast.',
+      broadcastMode: '立即插队 Mock',
+    },
+  });
+  assert(manualSpeechResult.mock === true, 'Interaction API: manual speech mock did not return mock=true');
+  pass('Interaction API: manual speech mock', manualSpeechResult.status);
+
   await checkList('系统设置 API：用户列表', '/api/settings/users');
   await checkList('系统设置 API：角色列表', '/api/settings/roles');
   const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');

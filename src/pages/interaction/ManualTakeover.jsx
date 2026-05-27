@@ -1,31 +1,75 @@
 import { CheckOutlined, DeleteOutlined, EditOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Alert, Badge, Button, Card, Descriptions, Empty, Form, Input, List, Select, Space, Timeline, Typography, message } from 'antd';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
-import { getBroadcastModes, getManualTakeover, getTakeoverActions, getTakeoverTones } from '../../services/interactionService';
+import {
+  getBroadcastModes,
+  getManualTakeover,
+  getManualTakeoverState,
+  getTakeoverActions,
+  getTakeoverTones,
+  sendManualSpeech,
+} from '../../services/interactionService';
 
-const manualTakeover = getManualTakeover();
+const manualTakeoverFallback = getManualTakeover();
 const broadcastModes = getBroadcastModes();
 const takeoverActions = getTakeoverActions();
 const takeoverTones = getTakeoverTones();
 
 export default function ManualTakeover() {
   const [form] = Form.useForm();
+  const [manualTakeover, setManualTakeover] = useState(manualTakeoverFallback);
   const [suggestion, setSuggestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = ({ speechText, broadcastMode }) => {
+  const fetchManualTakeover = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getManualTakeoverState();
+      setManualTakeover(data || manualTakeoverFallback);
+    } catch (requestError) {
+      const messageText = requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchManualTakeover();
+  }, [fetchManualTakeover]);
+
+  const handleSubmit = async ({ speechText, broadcastMode, tone, action }) => {
     if (!speechText?.trim()) {
       message.warning('请先输入要让数字人播报的话术');
       return;
     }
-    if (broadcastMode === '仅生成建议 Mock') {
-      setSuggestion(`建议话术：${speechText}。请先确认价格、售后和绝对化表述风险。`);
-      message.success('已生成 Mock 建议，不调用真实 AI');
-      return;
+
+    try {
+      const result = await sendManualSpeech({
+        speechText,
+        broadcastMode,
+        tone,
+        action,
+      });
+
+      if (result.suggestion) {
+        setSuggestion(result.suggestion);
+        message.success('已通过本地 API 生成 Mock 建议，不调用真实 AI');
+        return;
+      }
+
+      setSuggestion('');
+      message.success(`${broadcastMode} 已触发，本地 API 仅返回 Mock 成功，不调用数字人播报`);
+    } catch (requestError) {
+      message.error(requestError.message || '人工接管 Mock 操作失败');
     }
-    message.success(`${broadcastMode} 已触发，仅为前端 Mock，不调用数字人播报`);
   };
 
   const fillReply = (reply) => {
@@ -38,13 +82,15 @@ export default function ManualTakeover() {
     <>
       <PageHeader
         title="人工接管台"
-        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于单独模拟人工接管输入、语气动作和播报方式。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。当前人工接管状态通过本地 API 读取 SQLite，播报动作仍为 Mock。"
         extra={<Badge status="processing" text="人工接管 Mock 已就绪" />}
       />
 
+      {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+
       <div className="manual-console-grid">
         <div className="takeover-card-stack">
-          <Card title="当前直播状态" className="panel-card">
+          <Card title="当前直播状态" className="panel-card" loading={loading}>
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="当前直播间">{manualTakeover.currentLiveRoom}</Descriptions.Item>
               <Descriptions.Item label="当前直播任务">{manualTakeover.currentLiveTask}</Descriptions.Item>
@@ -62,12 +108,12 @@ export default function ManualTakeover() {
             type="info"
             showIcon
             className="interaction-alert"
-            message="当前为 Mock 控制台"
-            description="插队、待播、建议生成和通过操作都只更新前端反馈，不会写入延迟播控模块。"
+            message="当前为本地 API Mock 控制台"
+            description="插队、待播、建议生成和通过操作都只返回本地 API Mock 反馈，不会写入延迟播控模块。"
           />
         </div>
 
-        <Card title="人工输入与控制" className="panel-card takeover-control-card">
+        <Card title="人工输入与控制" className="panel-card takeover-control-card" loading={loading}>
           <Form
             form={form}
             layout="vertical"
@@ -105,9 +151,9 @@ export default function ManualTakeover() {
         </Card>
 
         <div className="takeover-card-stack">
-          <Card title="推荐回复区" className="panel-card">
+          <Card title="推荐回复区" className="panel-card" loading={loading}>
             <List
-              dataSource={manualTakeover.recommendedReplies}
+              dataSource={manualTakeover.recommendedReplies || []}
               renderItem={(item) => (
                 <List.Item actions={[<Button type="link" onClick={() => fillReply(item)} key="fill">填入</Button>]}>
                   <Typography.Text>{item}</Typography.Text>
@@ -116,7 +162,7 @@ export default function ManualTakeover() {
             />
           </Card>
 
-          <Card title="待播预览" className="panel-card">
+          <Card title="待播预览" className="panel-card" loading={loading}>
             <Timeline
               items={[
                 {
@@ -137,7 +183,7 @@ export default function ManualTakeover() {
                     </div>
                   ),
                 },
-                ...manualTakeover.upcomingSpeech.map((item) => ({
+                ...(manualTakeover.upcomingSpeech || []).map((item) => ({
                   color: item.riskLevel === '中' ? 'orange' : 'gray',
                   children: (
                     <div className="speech-preview-item">
@@ -164,8 +210,8 @@ export default function ManualTakeover() {
             />
           </Card>
 
-          <Card title="风险提示" className="panel-card">
-            {manualTakeover.riskWarnings.length ? (
+          <Card title="风险提示" className="panel-card" loading={loading}>
+            {(manualTakeover.riskWarnings || []).length ? (
               <List
                 dataSource={manualTakeover.riskWarnings}
                 renderItem={(item) => (

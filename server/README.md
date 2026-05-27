@@ -183,6 +183,14 @@ server/utils/operationLog.js
 - `POST /api/studio/backgrounds/generate-mock`
 - `GET /api/studio/layouts`
 - `GET /api/studio/output-status`
+- `GET /api/interaction/comments`
+- `POST /api/dev/interaction/comments/simulate`
+- `GET /api/interaction/questions`
+- `POST /api/interaction/questions/:id/reply`
+- `POST /api/interaction/questions/:id/add-to-queue`
+- `POST /api/interaction/questions/:id/ignore`
+- `GET /api/interaction/manual-takeover`
+- `POST /api/interaction/manual-speech`
 - `GET /api/settings/users`
 - `GET /api/settings/roles`
 - `GET /api/settings/basic`

@@ -5,6 +5,7 @@ import avatarRoutes from './routes/avatars.js';
 import executorRoutes from './routes/executors.js';
 import helpRoutes from './routes/help.js';
 import healthRoutes from './routes/health.js';
+import interactionRoutes from './routes/interaction.js';
 import liveRoutes from './routes/liveRooms.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
@@ -39,6 +40,7 @@ app.use('/api', settingsRoutes);
 app.use('/api', helpRoutes);
 app.use('/api', executorRoutes);
 app.use('/api', studioRoutes);
+app.use('/api', interactionRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {

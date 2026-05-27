@@ -1,59 +1,95 @@
 import { EditOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
-import { Button, Card, Empty, Input, Modal, Select, Space, Table, Tabs, Typography, message } from 'antd';
-import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Empty, Input, Modal, Select, Space, Table, Tabs, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CommentTypeTag from '../../components/CommentTypeTag';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import RiskTag from '../../components/RiskTag';
 import StatusTag from '../../components/StatusTag';
 import {
+  addQuestionToSpeechQueue,
+  generateQuestionReply,
   getAiReplyTemplates,
   getCommentTypes,
   getInteractionLiveRooms,
   getQuestionStatuses,
   getQuestions,
   getRiskLevels,
+  ignoreQuestion,
 } from '../../services/interactionService';
 
 const commentTypes = getCommentTypes();
 const interactionLiveRooms = getInteractionLiveRooms();
 const riskLevels = getRiskLevels();
-const questions = getQuestions();
 const questionStatuses = getQuestionStatuses();
 const aiReplyTemplates = getAiReplyTemplates();
 
 export default function QuestionQueue() {
-  const [questionList, setQuestionList] = useState(questions);
-  const [currentRoom, setCurrentRoom] = useState(interactionLiveRooms[0].value);
+  const [questionList, setQuestionList] = useState([]);
+  const [currentRoom, setCurrentRoom] = useState(interactionLiveRooms[0]?.value);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState();
   const [riskLevel, setRiskLevel] = useState();
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editingReply, setEditingReply] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchQuestions = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getQuestions({
+        liveRoomId: currentRoom,
+        status,
+        riskLevel,
+        page: 1,
+        pageSize: 100,
+      });
+
+      setQuestionList(data.list || []);
+    } catch (requestError) {
+      const messageText = requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev';
+      setError(messageText);
+      message.error(messageText);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentRoom, riskLevel, status]);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   const filteredQuestions = useMemo(
     () =>
       questionList.filter((item) => {
-        const matchKeyword =
+        const keywordText = keyword.toLowerCase();
+        return (
           !keyword ||
-          item.question.toLowerCase().includes(keyword.toLowerCase()) ||
-          item.nickname.toLowerCase().includes(keyword.toLowerCase()) ||
-          item.relatedProduct.toLowerCase().includes(keyword.toLowerCase());
-        const matchStatus = !status || item.status === status;
-        const matchRisk = !riskLevel || item.riskLevel === riskLevel;
-        return matchKeyword && matchStatus && matchRisk;
+          (item.question || '').toLowerCase().includes(keywordText) ||
+          (item.nickname || '').toLowerCase().includes(keywordText) ||
+          (item.relatedProduct || item.productName || '').toLowerCase().includes(keywordText)
+        );
       }),
-    [keyword, questionList, riskLevel, status],
+    [keyword, questionList],
   );
 
   const updateQuestion = (id, patch) => {
     setQuestionList((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
-  const handleGenerateReply = (record) => {
-    const reply = aiReplyTemplates[record.type] || '这是 Mock 推荐回复，后续可接入真实 AI 服务前置审核。';
-    updateQuestion(record.id, { aiReply: reply, status: '已推荐' });
-    message.success('已生成 Mock 推荐回复，不调用 Kimi / Mimo');
+  const handleGenerateReply = async (record) => {
+    try {
+      const question = await generateQuestionReply(record.id, {
+        aiReply: aiReplyTemplates[record.type],
+      });
+      updateQuestion(record.id, question);
+      message.success('已通过本地 API 生成 Mock 推荐回复，不调用 Kimi / Mimo');
+    } catch (requestError) {
+      message.error(requestError.message || 'Mock 回复生成失败');
+    }
   };
 
   const handleOpenEdit = (record) => {
@@ -61,12 +97,38 @@ export default function QuestionQueue() {
     setEditingReply(record.aiReply || aiReplyTemplates[record.type] || '');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingQuestion) return;
-    updateQuestion(editingQuestion.id, { aiReply: editingReply, status: '已编辑' });
-    setEditingQuestion(null);
-    setEditingReply('');
-    message.success('已保存前端 Mock 回复内容');
+
+    try {
+      const question = await generateQuestionReply(editingQuestion.id, { replyText: editingReply });
+      updateQuestion(editingQuestion.id, question);
+      setEditingQuestion(null);
+      setEditingReply('');
+      message.success('已通过本地 API 保存 Mock 回复内容');
+    } catch (requestError) {
+      message.error(requestError.message || '回复保存失败');
+    }
+  };
+
+  const handleAddToQueue = async (record) => {
+    try {
+      const question = await addQuestionToSpeechQueue(record.id);
+      updateQuestion(record.id, question);
+      message.success('已模拟加入待播队列，不写入延迟播控模块');
+    } catch (requestError) {
+      message.error(requestError.message || '加入待播队列失败');
+    }
+  };
+
+  const handleIgnore = async (record) => {
+    try {
+      const question = await ignoreQuestion(record.id);
+      updateQuestion(record.id, question);
+      message.info('已通过本地 API 标记忽略 Mock');
+    } catch (requestError) {
+      message.error(requestError.message || '忽略问题失败');
+    }
   };
 
   const stats = {
@@ -112,25 +174,10 @@ export default function QuestionQueue() {
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>
             编辑回复
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<SendOutlined />}
-            onClick={() => {
-              updateQuestion(record.id, { status: '已加入待播' });
-              message.success('已加入待播队列 Mock，不写入延迟播控模块');
-            }}
-          >
+          <Button type="link" size="small" icon={<SendOutlined />} onClick={() => handleAddToQueue(record)}>
             加入待播队列
           </Button>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              updateQuestion(record.id, { status: '已忽略' });
-              message.info('已忽略该问题 Mock');
-            }}
-          >
+          <Button type="link" size="small" onClick={() => handleIgnore(record)}>
             忽略
           </Button>
         </Space>
@@ -143,9 +190,10 @@ export default function QuestionQueue() {
       rowKey="id"
       columns={columns}
       dataSource={dataSource}
+      loading={loading}
       pagination={{ pageSize: 6, showTotal: (total) => `共 ${total} 个问题` }}
       scroll={{ x: 1600 }}
-      locale={{ emptyText: <Empty description="暂无符合条件的问题" /> }}
+      locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无符合条件的问题'} /> }}
     />
   );
 
@@ -153,15 +201,17 @@ export default function QuestionQueue() {
     <>
       <PageHeader
         title="问题队列"
-        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。这里用于整理弹幕识别问题，并提供 Mock AI 推荐回复和人工编辑流程。"
+        description="本页用于互动播控能力的管理、调试、记录和复盘；直播进行中请优先使用直播管理 / 直播中控台。当前问题队列通过本地 API 读取 SQLite，AI 回复仍为 Mock。"
         extra={<Select value={currentRoom} onChange={setCurrentRoom} options={interactionLiveRooms} style={{ width: 220 }} />}
       />
+
+      {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
 
       <div className="interaction-stat-grid">
         <DataCard title="待处理问题" value={stats.pending} helper="等待生成或人工处理" tone="amber" />
         <DataCard title="AI已推荐回复" value={stats.recommended} helper="仅为 Mock 文案" tone="blue" />
         <DataCard title="已加入待播队列" value={stats.queued} helper="不写入延迟播控模块" tone="teal" />
-        <DataCard title="已忽略问题" value={stats.ignored} helper="仅前端状态变更" tone="blue" />
+        <DataCard title="已忽略问题" value={stats.ignored} helper="本地 API Mock 状态变更" tone="blue" />
         <DataCard title="高风险待人工处理" value={stats.highRisk} helper="需人工确认后再播报" tone="rose" />
       </div>
 

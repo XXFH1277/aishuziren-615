@@ -5,10 +5,13 @@ import { executorHeartbeats } from '../../src/mock/executorHeartbeats.js';
 import { executorObsList } from '../../src/mock/executorObs.js';
 import { executors } from '../../src/mock/executors.js';
 import { helpFaqList } from '../../src/mock/helpFaq.js';
+import { comments } from '../../src/mock/comments.js';
 import { liveRooms } from '../../src/mock/liveRooms.js';
 import { liveTasks } from '../../src/mock/liveTasks.js';
+import { manualTakeover } from '../../src/mock/manualTakeover.js';
 import { productGroups } from '../../src/mock/productGroups.js';
 import { products } from '../../src/mock/products.js';
+import { questions } from '../../src/mock/questions.js';
 import { basicSettings, operationLogs, roles, users } from '../../src/mock/settings.js';
 import { studioBackgrounds } from '../../src/mock/studioBackgrounds.js';
 import { studioLayouts } from '../../src/mock/studioLayouts.js';
@@ -30,6 +33,7 @@ const executorIdByName = new Map([
 ]);
 
 const liveRoomById = new Map(liveRooms.map((item) => [item.id, item]));
+const productIdByName = new Map(products.map((item) => [item.name, item.id]));
 const productGroupIdByName = new Map(productGroups.map((item) => [item.name, item.id]));
 const executorCommandMocks = [
   {
@@ -79,6 +83,9 @@ function clearTables() {
     'studio_output_status',
     'studio_layouts',
     'studio_backgrounds',
+    'manual_takeover_state',
+    'questions',
+    'comments',
     'users',
     'roles',
     'basic_settings',
@@ -393,6 +400,103 @@ function seedStudio() {
     sceneMappings: toJson(studioOutput.sceneMappings || []),
     checklist: toJson(studioOutput.checklist || []),
     updatedAt: studioOutput.updatedAt || studioOutput.lastHeartbeatAt || timestamp,
+  });
+}
+
+function seedInteraction() {
+  const insertComment = db.prepare(
+    `INSERT INTO comments (
+      id, live_task_id, live_room_id, user_nickname, content, platform,
+      comment_time, recognized_type, risk_level, reply_status, handled_status,
+      product_id, product_name, created_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @userNickname, @content, @platform,
+      @commentTime, @recognizedType, @riskLevel, @replyStatus, @handledStatus,
+      @productId, @productName, @createdAt
+    )`,
+  );
+
+  const insertQuestion = db.prepare(
+    `INSERT INTO questions (
+      id, live_task_id, live_room_id, comment_id, question, nickname, type,
+      product_id, product_name, risk_level, ai_reply, edited_reply, status,
+      created_at, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @commentId, @question, @nickname, @type,
+      @productId, @productName, @riskLevel, @aiReply, @editedReply, @status,
+      @createdAt, @updatedAt
+    )`,
+  );
+
+  const insertManualTakeover = db.prepare(
+    `INSERT INTO manual_takeover_state (
+      id, live_task_id, live_room_id, current_avatar_id, current_avatar_name,
+      current_product_group_id, current_product_group_name, speech_status,
+      executor_status, current_speech, next_speech, upcoming_speech_json,
+      recommended_replies_json, risk_warnings_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @currentAvatarId, @currentAvatarName,
+      @currentProductGroupId, @currentProductGroupName, @speechStatus,
+      @executorStatus, @currentSpeech, @nextSpeech, @upcomingSpeech,
+      @recommendedReplies, @riskWarnings, @updatedAt
+    )`,
+  );
+
+  comments.forEach((comment) => {
+    insertComment.run({
+      id: comment.id,
+      liveTaskId: 'LT001',
+      liveRoomId: 'LR001',
+      userNickname: comment.nickname,
+      content: comment.content,
+      platform: comment.platform,
+      commentTime: comment.time,
+      recognizedType: comment.type,
+      riskLevel: comment.riskLevel,
+      replyStatus: comment.replyStatus,
+      handledStatus: comment.replyStatus,
+      productId: productIdByName.get(comment.productName) || '',
+      productName: comment.productName,
+      createdAt: '2026-05-26 ' + comment.time,
+    });
+  });
+
+  questions.forEach((question, index) => {
+    insertQuestion.run({
+      id: question.id,
+      liveTaskId: 'LT001',
+      liveRoomId: 'LR001',
+      commentId: comments[index]?.id || '',
+      question: question.question,
+      nickname: question.nickname,
+      type: question.type,
+      productId: productIdByName.get(question.relatedProduct) || '',
+      productName: question.relatedProduct,
+      riskLevel: question.riskLevel,
+      aiReply: question.aiReply || '',
+      editedReply: '',
+      status: question.status,
+      createdAt: question.createdAt || timestamp,
+      updatedAt: question.createdAt || timestamp,
+    });
+  });
+
+  insertManualTakeover.run({
+    id: 'MTS001',
+    liveTaskId: 'LT001',
+    liveRoomId: 'LR001',
+    currentAvatarId: 'A001',
+    currentAvatarName: manualTakeover.currentAvatar,
+    currentProductGroupId: productGroupIdByName.get(manualTakeover.currentProductGroup) || 'G005',
+    currentProductGroupName: manualTakeover.currentProductGroup,
+    speechStatus: manualTakeover.speechStatus,
+    executorStatus: manualTakeover.executorStatus,
+    currentSpeech: manualTakeover.currentSpeech,
+    nextSpeech: manualTakeover.nextSpeech,
+    upcomingSpeech: toJson(manualTakeover.upcomingSpeech || []),
+    recommendedReplies: toJson(manualTakeover.recommendedReplies || []),
+    riskWarnings: toJson(manualTakeover.riskWarnings || []),
+    updatedAt: timestamp,
   });
 }
 
@@ -759,6 +863,7 @@ const seed = db.transaction(() => {
   seedAvatars();
   seedLive();
   seedStudio();
+  seedInteraction();
   seedSettings();
   seedExecutors();
   seedHelp();
@@ -769,5 +874,6 @@ seed();
 console.log('SQLite seed completed.');
 console.log(`Products: ${products.length}, Avatars: ${avatars.length}, Live rooms: ${liveRooms.length}, Live tasks: ${liveTasks.length}`);
 console.log(`Studio backgrounds: ${studioBackgrounds.length}, Studio layouts: ${studioLayouts.length}, Studio output status: 1`);
+console.log(`Interaction comments: ${comments.length}, Questions: ${questions.length}, Manual takeover states: 1`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);
