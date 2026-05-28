@@ -7,6 +7,7 @@ import {
   getModelCredentials,
   getModelProviders,
   getModelRoleSettings,
+  getAiRuntimePolicy,
   saveModelCredentials,
   getModelUsageScenes,
   testAiModel,
@@ -22,6 +23,7 @@ export default function ModelServices() {
   const [modelRoleSettings, setModelRoleSettings] = useState([]);
   const [configuring, setConfiguring] = useState(null);
   const [credentialInfo, setCredentialInfo] = useState(null);
+  const [runtimePolicy, setRuntimePolicy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -30,12 +32,14 @@ export default function ModelServices() {
     try {
       setLoading(true);
       setError('');
-      const [modelsResult, defaultsResult] = await Promise.all([
+      const [modelsResult, defaultsResult, policyResult] = await Promise.all([
         getModelProviders({}),
         getModelRoleSettings({}),
+        getAiRuntimePolicy(),
       ]);
       setModelProviders(modelsResult.list || []);
       setModelRoleSettings(defaultsResult.list || []);
+      setRuntimePolicy(policyResult.policy || null);
     } catch (requestError) {
       setError(requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev');
     } finally {
@@ -165,7 +169,7 @@ export default function ModelServices() {
         type="warning"
         showIcon
         message="当前默认使用 fake provider，不会调用真实模型。"
-        description="API Key 只会提交给本地后端保存脱敏状态；前端不保存明文，测试连接不调用 Kimi / Mimo / OpenAI / DeepSeek。真实模型调用需在后端环境变量和权限策略确认后开启。"
+        description={`API Key 只会提交给本地后端保存脱敏状态；前端不保存明文，测试连接不调用 Kimi / Mimo / OpenAI / DeepSeek。真实模型调用需在后端环境变量和权限策略确认后开启。当前运行模式：${runtimePolicy?.mode || 'fake_provider_only'}，单分钟上限：${runtimePolicy?.perMinuteCallLimit || 20} 次，单日上限：${runtimePolicy?.dailyCallLimit || 200} 次。`}
       />
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 

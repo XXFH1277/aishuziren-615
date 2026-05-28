@@ -1,4 +1,5 @@
 import express from 'express';
+import { evaluateAiProviderGuardrails, getAiProviderRuntimePolicy } from '../ai/providerGuardrails.js';
 import { runProviderGenerate } from '../ai/providerAdapter.js';
 import { db, fromJson, nextId, now, toJson } from '../db/database.js';
 import { requireAuth, requirePermission } from '../utils/auth.js';
@@ -195,6 +196,41 @@ function mapCredential(row, model) {
 
 function getCredentialRow(providerId) {
   return db.prepare('SELECT * FROM ai_model_credentials WHERE provider_id = ? LIMIT 1').get(providerId);
+}
+
+function getAiCostRow() {
+  return db.prepare('SELECT * FROM ai_cost_daily ORDER BY updated_at DESC LIMIT 1').get();
+}
+
+function getBudgetSettings(row = getAiCostRow()) {
+  return fromJson(row?.budget_settings_json, {});
+}
+
+function serializeGuardrail(guardrail) {
+  return {
+    allowed: guardrail.allowed,
+    blocked: guardrail.blocked,
+    requestedRealProvider: guardrail.requestedRealProvider,
+    realProviderEnabled: guardrail.realProviderEnabled,
+    reason: guardrail.reason,
+    message: guardrail.message,
+    failures: guardrail.failures || [],
+    minuteLimit: guardrail.minuteLimit,
+    policy: {
+      defaultProvider: guardrail.policy.defaultProvider,
+      realProviderEnabled: guardrail.policy.realProviderEnabled,
+      mode: guardrail.policy.mode,
+      frontendApiKeyAllowed: guardrail.policy.frontendApiKeyAllowed,
+      storesPlainApiKey: guardrail.policy.storesPlainApiKey,
+      requestTimeoutMs: guardrail.policy.requestTimeoutMs,
+      perMinuteCallLimit: guardrail.policy.perMinuteCallLimit,
+      dailyCallLimit: guardrail.policy.dailyCallLimit,
+      dailyBudgetLimit: guardrail.policy.dailyBudgetLimit,
+      maxEstimatedCostPerCall: guardrail.policy.maxEstimatedCostPerCall,
+      requiredServerEnv: guardrail.policy.requiredServerEnv,
+      note: guardrail.policy.note,
+    },
+  };
 }
 
 function parseStoredJson(value, fallback) {
@@ -482,6 +518,24 @@ router.put('/ai/assistant', (req, res) => {
   });
 });
 
+router.get('/ai/runtime-policy', requireAuth, requirePermission(PERMISSIONS.AI_MODEL_READ), (req, res) => {
+  const costRow = getAiCostRow();
+  const budgetSettings = getBudgetSettings(costRow);
+  const policy = getAiProviderRuntimePolicy({ budgetSettings });
+
+  return success(res, {
+    policy,
+    guardrails: {
+      realProviderRequiresBackendSwitch: true,
+      realProviderRequiresSafetyApproval: true,
+      realProviderRequiresCredentialRef: true,
+      rateLimitEnabled: true,
+      budgetGuardEnabled: true,
+      logsAreSanitized: true,
+    },
+  });
+});
+
 router.post('/ai/generate', requireAuth, async (req, res) => {
   const body = req.body || {};
   const scenario = body.scenario || '';
@@ -525,10 +579,88 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
   const sourcePage = body.sourcePage || '商品编辑';
   const options = body.options || {};
   const realProvider = body.realProvider === true;
-  const modelName = 'fake-model';
+  const requestedProviderId = body.providerId || '';
+  const requestedProvider = requestedProviderId
+    ? db.prepare('SELECT * FROM ai_model_providers WHERE id = ?').get(requestedProviderId)
+    : null;
+
+  if (requestedProviderId && !requestedProvider) {
+    return fail(res, 'AI model provider not found', 40400, { id: requestedProviderId });
+  }
+
+  const modelName = requestedProvider?.default_model || 'fake-model';
   const prompt = promptTemplate?.templateContent || `Generate ${productCopyTargets[target].label} for product_copy.`;
-  const result = await runProviderGenerate({
+  const costRow = getAiCostRow();
+  const guardrail = evaluateAiProviderGuardrails({
     realProvider,
+    providerId: requestedProvider?.id || 'fake',
+    credentialConfigured: Boolean(Number(requestedProvider?.api_key_configured || 0)),
+    currentDailyCalls: Number(costRow?.today_calls || 0),
+    currentDailyCost: Number(costRow?.today_cost || 0),
+    budgetSettings: getBudgetSettings(costRow),
+    estimatedCost: 0,
+  });
+
+  if (guardrail.blocked) {
+    const duration = `${Date.now() - startedAt}ms`;
+    const riskTips = [
+      {
+        level: 'info',
+        type: 'provider_guardrail',
+        message: guardrail.message,
+      },
+    ];
+    const logId = recordAiCallLog({
+      sourcePage,
+      type: '商品文案',
+      provider: 'guardrail',
+      modelName,
+      inputSummary: buildProductCopyInputSummary({
+        productId: product.id || productId,
+        target,
+        fieldCount: countFilledProductFields(product),
+        promptTemplate,
+      }),
+      outputSummary: `真实 provider 请求被 guardrails 拦截，reason=${guardrail.reason}，未调用外部模型。`,
+      status: '已拦截',
+      duration,
+      tokens: 0,
+      cost: 0,
+      errorType: guardrail.reason,
+      errorMessage: guardrail.message,
+    });
+    updateAiCostDaily({
+      provider: 'guardrail',
+      type: '商品文案',
+      cost: 0,
+    });
+
+    return success(res, {
+      scenario,
+      target,
+      content: guardrail.message,
+      structured: {},
+      riskTips,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      },
+      cost: 0,
+      provider: 'guardrail',
+      modelName,
+      providerRequestId: '',
+      logId,
+      mock: true,
+      blocked: true,
+      realProviderEnabled: false,
+      guardrail: serializeGuardrail(guardrail),
+      message: guardrail.message,
+    });
+  }
+
+  const result = await runProviderGenerate({
+    realProvider: realProvider && guardrail.allowed,
     scenario,
     prompt,
     input: {
@@ -541,6 +673,7 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
       modelName,
       defaultModel: modelName,
       target,
+      requestTimeoutMs: guardrail.policy.requestTimeoutMs,
     },
   });
   const content = result.content || '';
@@ -591,6 +724,7 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
     logId,
     mock: true,
     realProviderEnabled: false,
+    guardrail: serializeGuardrail(guardrail),
     message: result.message,
   });
 });
@@ -795,13 +929,72 @@ router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI
   const scenario = body.scenario || 'model_connection_test';
   const modelName = body.modelName || existing.default_model || 'fake-model';
   const realProvider = body.realProvider === true;
+  const costRow = getAiCostRow();
+  const guardrail = evaluateAiProviderGuardrails({
+    realProvider,
+    providerId: req.params.id,
+    credentialConfigured: Boolean(Number(existing.api_key_configured || 0)),
+    currentDailyCalls: Number(costRow?.today_calls || 0),
+    currentDailyCost: Number(costRow?.today_cost || 0),
+    budgetSettings: getBudgetSettings(costRow),
+    estimatedCost: 0,
+  });
   const modelConfig = {
     ...mapModel(existing),
     baseUrl: body.baseUrl || existing.official_base_url,
     modelName,
+    requestTimeoutMs: guardrail.policy.requestTimeoutMs,
   };
+
+  if (guardrail.blocked) {
+    const duration = `${Date.now() - startedAt}ms`;
+    const status = '真实调用已拦截';
+
+    db.prepare('UPDATE ai_model_providers SET last_test_status = ?, last_test_at = ?, updated_at = ? WHERE id = ?').run(
+      status,
+      now(),
+      now(),
+      req.params.id,
+    );
+
+    const logId = recordAiCallLog({
+      sourcePage,
+      type: '模型连接测试',
+      provider: existing.name,
+      modelName,
+      inputSummary: summarizeInput({ scenario, modelName, sourcePage }),
+      outputSummary: `真实 provider 测试请求被 guardrails 拦截，reason=${guardrail.reason}，未调用外部模型。`,
+      status: '已拦截',
+      duration,
+      tokens: 0,
+      cost: 0,
+      errorType: guardrail.reason,
+      errorMessage: guardrail.message,
+    });
+    updateAiCostDaily({
+      provider: existing.name,
+      type: '模型连接测试',
+      cost: 0,
+    });
+
+    return success(res, {
+      id: req.params.id,
+      status,
+      duration,
+      tokens: 0,
+      cost: 0,
+      logId,
+      providerRequestId: '',
+      realProviderEnabled: false,
+      mock: true,
+      blocked: true,
+      guardrail: serializeGuardrail(guardrail),
+      message: guardrail.message,
+    });
+  }
+
   const result = await runProviderGenerate({
-    realProvider,
+    realProvider: realProvider && guardrail.allowed,
     scenario,
     prompt: 'Sanitized local model connection test prompt.',
     input: {
@@ -859,6 +1052,7 @@ router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI
     providerRequestId: result.providerRequestId,
     realProviderEnabled: false,
     mock: true,
+    guardrail: serializeGuardrail(guardrail),
     message: result.message,
   });
 });

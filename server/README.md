@@ -210,6 +210,9 @@ Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
 - 模型测试会写入 `ai_call_logs` 和 `ai_cost_daily`，日志只记录脱敏摘要、token 数、耗时、状态和费用估算，不记录 API Key、Authorization header、完整 Prompt 或用户隐私。
 - `POST /api/ai/generate` 当前只支持 `scenario=product_copy`，默认使用 fake provider 打通商品文案生成闭环。
 - `product_copy` 支持 `description`、`selling_points`、`live_script`、`faq`、`compliance_rewrite` 五类 target，并写入脱敏调用日志。
+- Phase 18B-2 新增 `GET /api/ai/runtime-policy` 和 `server/ai/providerGuardrails.js`，用于展示真实 provider 灰度开关、频率限制、预算保护和脱敏策略。
+- 默认需要同时设置后端环境变量 `AI_REAL_PROVIDER_ENABLED=true` 与 `AI_REAL_PROVIDER_SAFETY_APPROVED=true` 才允许进入真实 provider 保护流程；当前适配器仍不会默认发起外部模型调用。
+- `realProvider=true` 的模型测试或商品文案生成请求会先经过 guardrails；默认会被拦截并写入脱敏日志，不记录 API Key、完整 Prompt 或完整商品草稿。
 
 后续进入真实模型前，必须先确认后端环境变量或密钥管理方案、限流、超时、费用保护和脱敏日志策略。前端不得使用任何 `VITE_` 模型 Key。
 
@@ -274,6 +277,7 @@ Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
 - `PUT /api/ai/assistant`
 - `POST /api/ai/generate`
 - `GET /api/ai/models`
+- `GET /api/ai/runtime-policy`
 - `PUT /api/ai/models/:id`
 - `GET /api/ai/models/:id/credentials`
 - `PUT /api/ai/models/:id/credentials`

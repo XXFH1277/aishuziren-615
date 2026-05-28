@@ -425,6 +425,11 @@ async function run() {
   assert(savedAssistantSettings.assistant?.assistantName === 'Smoke Test AI Assistant', 'AI 能力中心 API：保存 AI 助理设置未生效');
   pass('AI 能力中心 API：保存 AI 助理设置', savedAssistantSettings.assistant.assistantName);
   const aiModels = await checkList('AI 能力中心 API：模型服务列表', '/api/ai/models');
+  const runtimePolicy = await requestJson('AI 能力中心 API：运行策略', '/api/ai/runtime-policy', protectedOptions);
+  assert(runtimePolicy.policy?.defaultProvider === 'fake', 'AI 能力中心 API：运行策略 defaultProvider 不是 fake');
+  assert(runtimePolicy.policy.realProviderEnabled === false, 'AI 能力中心 API：运行策略不应默认开启真实 provider');
+  assert(runtimePolicy.guardrails?.budgetGuardEnabled === true, 'AI 能力中心 API：运行策略未返回预算保护状态');
+  pass('AI 能力中心 API：运行策略', runtimePolicy.policy.mode);
   const updatedAiModel = await requestJson('AI 能力中心 API：保存模型配置 Mock', `/api/ai/models/${aiModels[0].id}`, {
     method: 'PUT',
     body: {
@@ -465,6 +470,18 @@ async function run() {
   assert(modelTestResult.realProviderEnabled === false, 'AI 能力中心 API：测试模型连接不应开启真实 provider');
   assert(modelTestResult.tokens === 300, 'AI 能力中心 API：fake provider token 数不匹配');
   pass('AI 能力中心 API：fake provider 测试模型连接', modelTestResult.status);
+  const realModelBlocked = await requestJson('AI 能力中心 API：真实 provider 测试拦截', `/api/ai/models/${aiModels[0].id}/test`, {
+    method: 'POST',
+    body: {
+      sourcePage: 'Smoke Test',
+      realProvider: true,
+    },
+    ...protectedOptions,
+  });
+  assert(realModelBlocked.blocked === true, 'AI 能力中心 API：真实 provider 测试未被拦截');
+  assert(realModelBlocked.guardrail?.reason === 'real_provider_disabled', 'AI 能力中心 API：真实 provider 测试拦截原因不匹配');
+  assert(realModelBlocked.realProviderEnabled === false, 'AI 能力中心 API：真实 provider 测试不应开启真实调用');
+  pass('AI 能力中心 API：真实 provider 测试拦截', realModelBlocked.guardrail.reason);
   const productCopyGenerated = await requestJson('AI 能力中心 API：product_copy fake 生成', '/api/ai/generate', {
     method: 'POST',
     body: {
@@ -486,6 +503,22 @@ async function run() {
   assert(productCopyGenerated.provider === 'fake', 'AI 能力中心 API：product_copy fake 生成 provider 不是 fake');
   assert(productCopyGenerated.logId, 'AI 能力中心 API：product_copy fake 生成未返回 logId');
   pass('AI 能力中心 API：product_copy fake 生成', productCopyGenerated.logId);
+  const productCopyRealBlocked = await requestJson('AI 能力中心 API：product_copy 真实 provider 拦截', '/api/ai/generate', {
+    method: 'POST',
+    body: {
+      scenario: 'product_copy',
+      target: 'description',
+      sourcePage: 'Smoke Test',
+      productId: 'P001',
+      providerId: aiModels[0].id,
+      realProvider: true,
+    },
+    ...protectedOptions,
+  });
+  assert(productCopyRealBlocked.blocked === true, 'AI 能力中心 API：product_copy 真实 provider 未被拦截');
+  assert(productCopyRealBlocked.guardrail?.reason === 'real_provider_disabled', 'AI 能力中心 API：product_copy 真实 provider 拦截原因不匹配');
+  assert(productCopyRealBlocked.realProviderEnabled === false, 'AI 能力中心 API：product_copy 真实 provider 不应开启真实调用');
+  pass('AI 能力中心 API：product_copy 真实 provider 拦截', productCopyRealBlocked.guardrail.reason);
   await requestExpectedError('AI 能力中心 API：product_copy scenario 参数校验', '/api/ai/generate', 40001, {
     method: 'POST',
     body: {

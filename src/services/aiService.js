@@ -26,6 +26,10 @@ export async function getAiModels(params = {}) {
   return getModelProviders(params);
 }
 
+export async function getAiRuntimePolicy() {
+  return apiRequest.get('/api/ai/runtime-policy');
+}
+
 export async function updateAiModel(id, data = {}) {
   const result = await apiRequest.put(`/api/ai/models/${id}`, data);
   return result.model;
