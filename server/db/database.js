@@ -30,6 +30,7 @@ const allowedIdTables = new Set([
   'manual_takeover_state',
   'users',
   'roles',
+  'auth_sessions',
   'operation_logs',
   'tickets',
   'executors',
@@ -47,6 +48,21 @@ db.pragma('journal_mode = WAL');
 export function runSchema() {
   const schema = fs.readFileSync(schemaPath, 'utf8');
   db.exec(schema);
+  ensureAuthColumns();
+}
+
+function ensureColumn(tableName, columnName, columnDefinition) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  const exists = columns.some((column) => column.name === columnName);
+
+  if (!exists) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition}`);
+  }
+}
+
+function ensureAuthColumns() {
+  ensureColumn('users', 'password_hash', 'password_hash TEXT');
+  ensureColumn('roles', 'permission_keys', 'permission_keys TEXT');
 }
 
 export function now() {

@@ -109,6 +109,46 @@ export function flattenMenu(items = menuItems) {
   return items.flatMap((item) => [item, ...(item.children ? flattenMenu(item.children) : [])]);
 }
 
+export function canAccessMenuKey(key, menuPermissions = []) {
+  if (!menuPermissions.length) {
+    return false;
+  }
+
+  return menuPermissions.some((permission) => key === permission || key.startsWith(`${permission}/`));
+}
+
+export function filterMenuByPermissions(items = menuItems, menuPermissions = []) {
+  return items
+    .map((item) => {
+      const children = item.children ? filterMenuByPermissions(item.children, menuPermissions) : undefined;
+      const allowed = canAccessMenuKey(item.key, menuPermissions) || Boolean(children?.length);
+
+      if (!allowed) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children,
+      };
+    })
+    .filter(Boolean);
+}
+
+export function getFirstAccessiblePath(menuPermissions = []) {
+  const filtered = filterMenuByPermissions(menuItems, menuPermissions);
+  const firstLeaf = flattenMenu(filtered).find((item) => !item.children);
+  return firstLeaf?.key || '/dashboard';
+}
+
+export function canAccessPath(pathname, menuPermissions = []) {
+  if (pathname === '/') {
+    return true;
+  }
+
+  return canAccessMenuKey(pathname, menuPermissions);
+}
+
 export function findMenuItem(pathname) {
   const pages = flattenMenu().filter((item) => !item.children);
   return pages.find((item) => pathname === item.key) || pages.find((item) => pathname.startsWith(item.key));

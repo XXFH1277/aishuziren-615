@@ -244,9 +244,40 @@ fileService -> fetch(`${API_BASE_URL}/api/files/upload`)
 说明：
 
 - Dashboard 首页工作台不再直接读取 `src/mock/dashboard.js`，改为通过 `dashboardService` 读取本地 Express + SQLite 聚合数据。
-- `authService` 当前只是 Mock 登录态契约占位，不做真实登录、不生成真实 token、不设置真实 Cookie、不校验密码。
+- `authService` 在 Phase 13 已升级为本地 Auth / RBAC MVP：登录成功后保存后端返回的 Bearer token，后续 `apiRequest` 自动携带 `Authorization` 请求头。
 - `fileService.uploadFileMock()` 当前只发送 JSON Mock 请求，不解析 multipart、不保存真实文件、不上传云端。
-- 真实登录鉴权、真实文件上传、权限校验和文件资产存储后续必须由后端安全实现。
+- 真实文件上传、生产级登录安全、权限全量落地和文件资产存储后续必须由后端安全实现。
+
+## Phase 13 Auth / RBAC MVP
+
+当前前端 Auth 链路：
+
+```text
+Login 页面
+↓
+authService.login()
+↓
+POST /api/auth/login
+↓
+localStorage 保存本地 Bearer token
+↓
+apiRequest 自动附带 Authorization
+```
+
+当前已接入：
+
+- 登录页 `/login`
+- `AuthProvider` 登录态初始化
+- 未登录访问后台时跳转登录页
+- Header 展示当前用户并支持退出登录
+- Sidebar 按 `menuPermissions` 过滤菜单
+- 页面入口按菜单权限做 403 拦截
+
+当前边界：
+
+- 默认本地演示账号为 `admin / admin123456`，仅用于本地开发。
+- 前端只保存后端返回的本地 token，不保存密码。
+- 当前未做生产级 Cookie / CSRF 策略、密码重置、登录限流或全量接口权限拦截。
 
 ## Phase 12.19 API 错误态与联调收口
 
@@ -258,4 +289,4 @@ fileService -> fetch(`${API_BASE_URL}/api/files/upload`)
 
 当前主要业务 service 已切到本地 API：`dashboardService`、`productService`、`avatarService`、`liveService`、`studioService`、`interactionService`、`delayControlService`、`liveControlRoomService`、`aiService`、`executorService`、`helpService`、`settingsService`、`authService`、`fileService`。
 
-仍然合理保留前端静态选项或 Mock 边界：下拉枚举、页面演示提示、真实 AI 调用、真实登录鉴权、真实文件上传、OBS / 执行端 / WebSocket / 直播平台接入、真实数字人播报、TTS 与口型同步。上述能力后续必须由后端或本地执行端安全实现，前端 service 不读取 `.env.local`、`模型api.txt` 或任何真实密钥。
+仍然合理保留前端静态选项或 Mock 边界：下拉枚举、页面演示提示、真实 AI 调用、生产级登录安全、真实文件上传、OBS / 执行端 / WebSocket / 直播平台接入、真实数字人播报、TTS 与口型同步。上述能力后续必须由后端或本地执行端安全实现，前端 service 不读取 `.env.local`、`模型api.txt` 或任何真实密钥。

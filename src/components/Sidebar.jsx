@@ -15,7 +15,8 @@ import {
 import { Menu } from 'antd';
 import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { findMenuItem, findOpenKeys, menuItems } from '../mock/menu';
+import { useAuth } from '../hooks/useAuth';
+import { filterMenuByPermissions, findMenuItem, findOpenKeys, menuItems } from '../mock/menu';
 
 const iconMap = {
   dashboard: <DashboardOutlined />,
@@ -44,8 +45,10 @@ function toAntMenu(items) {
 export default function Sidebar({ collapsed }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { menuPermissions } = useAuth();
   const selectedItem = findMenuItem(pathname);
-  const menu = useMemo(() => toAntMenu(menuItems), []);
+  const allowedMenuItems = useMemo(() => filterMenuByPermissions(menuItems, menuPermissions), [menuPermissions]);
+  const menu = useMemo(() => toAntMenu(allowedMenuItems), [allowedMenuItems]);
   const defaultOpenKeys = useMemo(() => findOpenKeys(pathname), [pathname]);
 
   return (

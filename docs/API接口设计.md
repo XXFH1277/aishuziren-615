@@ -58,11 +58,11 @@ Phase：11
 | --- | --- | --- |
 | 0 | 成功 | 请求成功 |
 | 40001 | 参数错误 | Query / Body 不合法 |
-| 40100 | 未登录 | 缺少登录态 |
-| 40300 | 无权限 | 角色权限不足 |
-| 40400 | 资源不存在 | id 不存在 |
+| 40101 | 未登录 | 缺少登录态、token 失效或会话过期 |
+| 40301 | 无权限 | 角色权限不足 |
+| 40401 | 资源不存在 | id 不存在 |
 | 40900 | 状态冲突 | 重复提交、状态不允许 |
-| 50000 | 服务异常 | 后端未知错误 |
+| 50001 | 服务异常 | 后端未知错误 |
 
 ## 4. Phase 11 Review 修正规则
 
@@ -208,15 +208,15 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 ## 5. Auth API 登录态
 
-说明：Phase 12 可以先做 Mock 登录或暂不实现，但接口契约先定义。
-对应前端：后续登录页、Header 当前用户、RBAC 权限控制。
+说明：Phase 13 已落地本地 Auth / RBAC MVP，使用 SQLite 用户、密码 hash、Bearer token 和 `auth_sessions` 表。该能力用于本地开发闭环，仍未达到生产级登录安全要求。
+对应前端：登录页、Header 当前用户、菜单权限过滤、页面入口 403。
 
 | 接口名称 | Method | Path | 用途说明 | 请求参数 | 返回字段 | 成功示例 | 失败示例 | 登录 | 权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 登录 | POST | `/api/auth/login` | 后台账号登录 | Body: `username`, `password` | `user`, `roles`, `permissions`, `sessionExpiresAt` | `{"code":0,"data":{"user":{"id":"U001"},"permissions":["product:read"]}}` | `{"code":40100,"message":"账号或密码错误"}` | 否 | 无 |
-| 退出登录 | POST | `/api/auth/logout` | 清理登录态 | 无 | `success` | `{"code":0,"data":{"success":true}}` | `{"code":50000,"message":"退出失败"}` | 是 | 无 |
-| 当前用户 | GET | `/api/auth/me` | 获取当前用户、角色和权限 | 无 | `user`, `roles`, `permissions` | `{"code":0,"data":{"user":{"id":"U001"},"roles":[],"permissions":[]}}` | `{"code":40100,"message":"请先登录"}` | 是 | 无 |
-| 刷新登录状态 | POST | `/api/auth/refresh` | 延长登录会话，后续预留 | 无 | `sessionExpiresAt` | `{"code":0,"data":{"sessionExpiresAt":"2026-05-27 23:59:59"}}` | `{"code":40100,"message":"登录已过期"}` | 是 | 无 |
+| 登录 | POST | `/api/auth/login` | 后台账号登录 | Body: `username`, `password` | `user`, `roles`, `permissions`, `menuPermissions`, `token`, `sessionExpiresAt` | `{"code":0,"data":{"user":{"id":"U001"},"token":"...","permissions":["product:read"]}}` | `{"code":40101,"message":"账号或密码错误"}` | 否 | 无 |
+| 退出登录 | POST | `/api/auth/logout` | 清理登录态 | Header: `Authorization: Bearer <token>` | `success` | `{"code":0,"data":{"success":true}}` | `{"code":50001,"message":"退出失败"}` | 是 | 无 |
+| 当前用户 | GET | `/api/auth/me` | 获取当前用户、角色和权限 | Header: `Authorization: Bearer <token>` | `user`, `roles`, `permissions` | `{"code":0,"data":{"user":{"id":"U001"},"roles":[],"permissions":[]}}` | `{"code":40101,"message":"请先登录"}` | 是 | 无 |
+| 刷新登录状态 | POST | `/api/auth/refresh` | 延长登录会话 | Header: `Authorization: Bearer <token>` | `sessionExpiresAt` | `{"code":0,"data":{"sessionExpiresAt":"2026-05-27 23:59:59"}}` | `{"code":40101,"message":"登录已过期"}` | 是 | 无 |
 
 ## 6. Dashboard API 首页工作台
 
@@ -479,6 +479,6 @@ AI 调用日志中的“调用页面”字段统一命名为：
 ## 20. Phase 12.18 Dashboard / Auth / File 实现同步说明
 
 - Dashboard 已实现 `GET /api/dashboard/overview`，当前返回 `data.overview.stats`、`data.overview.aiCallStatus`、`data.overview.recentOperations`、`data.overview.liveTaskStatusStats`、`data.overview.executorStatusStats`、`data.overview.riskSummary`。首页工作台通过 `dashboardService.getDashboardOverview()` 读取，不再直接 import `src/mock/dashboard.js`。
-- Auth 已实现 Mock 占位接口：`POST /api/auth/login`、`POST /api/auth/logout`、`GET /api/auth/me`、`POST /api/auth/refresh`。当前不校验真实密码、不生成真实 token、不设置真实 Cookie、不做真实 RBAC，仅用于前后端契约占位。
+- Auth 已在 Phase 13 升级为本地 Auth / RBAC MVP：`POST /api/auth/login` 校验 SQLite 密码 hash，返回 Bearer token；`GET /api/auth/me`、`POST /api/auth/refresh` 需要登录；前端根据 `menuPermissions` 控制菜单和页面入口。
 - File 已实现 Mock 占位接口：`POST /api/files/upload`。Phase 12.18 暂时接受 JSON Body：`fileName`、`module`、`businessId`、`fileType`，返回 `data.file`；不解析 multipart、不保存真实文件、不上传云端。真实上传后续再接。
 - 当前实现路径已统一为 `/api/live-rooms`、`/api/live-tasks`、`/api/studio/output-status`、`/api/interaction/manual-takeover`、`/api/interaction/manual-speech`、`/api/dev/interaction/comments/simulate`。

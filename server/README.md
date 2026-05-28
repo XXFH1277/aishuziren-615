@@ -109,8 +109,8 @@ npm run server:smoke
 | --- | --- | --- |
 | `0` | 成功 | `success()` 默认返回 |
 | `40001` | 参数错误 | Query / Body 不合法 |
-| `40101` | 未登录 | 当前仅占位，未接真实登录 |
-| `40301` | 无权限 | 当前仅占位，未接真实 RBAC |
+| `40101` | 未登录 | 未提供 token、token 失效或会话过期 |
+| `40301` | 无权限 | 当前角色缺少对应权限 key |
 | `40401` | 资源不存在 | 后续新接口优先使用 |
 | `50001` | 服务异常 | 后端未知错误 |
 
@@ -130,7 +130,7 @@ response.js 已保留这些旧错误码到 HTTP 状态码的映射，避免大�
 - 本地 API 未启动、端口不可达或网络失败时，统一提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 - 本地 API 返回非 JSON 时，前端提示“本地 API 返回格式异常：HTTP xxx”。
 
-当前所有接口仍为本地开发链路，不接真实 AI、真实登录、真实文件存储、OBS、执行端、WebSocket 或直播平台。
+当前所有接口仍为本地开发链路，不接真实 AI、真实文件存储、OBS、执行端、WebSocket 或直播平台。
 
 ## 参数校验
 
@@ -148,7 +148,20 @@ server/utils/validators.js
 
 当前已在少量写接口中示范使用，例如商品创建、数字人创建、基础设置保存。`PUT /api/settings/basic` 会校验 `systemName` 不能为空。
 
-## 权限 Key 占位
+## Auth / RBAC MVP
+
+Phase 13 已将 `/api/auth/*` 从 Mock 登录态升级为本地 Auth / RBAC MVP：
+
+- `POST /api/auth/login` 使用 SQLite `users.password_hash` 校验密码。
+- 登录成功后创建 `auth_sessions` 会话，只返回一次明文 Bearer token，数据库只保存 token hash。
+- `GET /api/auth/me` 和 `POST /api/auth/refresh` 需要 `Authorization: Bearer <token>`。
+- `POST /api/auth/logout` 会作废当前会话 token。
+- Seed 默认本地演示账号为 `admin / admin123456`。
+- 系统设置接口已示范接入基础权限校验：用户列表、角色列表、基础设置和操作日志需要登录，其中部分接口需要对应权限 key。
+
+这仍不是生产级鉴权系统：暂未实现 Cookie 策略、CSRF 防护、密码重置、登录频率限制、多端会话管理、数据权限过滤或全量业务接口强制鉴权。
+
+## 权限 Key
 
 权限 key 常量位于：
 
@@ -156,7 +169,7 @@ server/utils/validators.js
 server/utils/permissions.js
 ```
 
-当前阶段未实现真实登录鉴权，也不会在路由中强制权限校验。`permissions.js` 仅作为后续 RBAC 的 key 约定，避免前后端继续扩展时命名发散。
+`permissions.js` 导出权限 key 常量和本地角色到权限 key 的 MVP 映射。当前只在少量接口中示范强制校验，后续接真实 File、AI、执行端、WebSocket 前，应继续把关键写接口接入 `requirePermission()`。
 
 ## 操作日志占位
 
@@ -266,7 +279,7 @@ server/utils/operationLog.js
 
 ## 当前未实现
 
-- 真实登录鉴权与权限校验（`/api/auth/*` 当前仅为 Mock 登录态占位）
+- 生产级登录鉴权、密码重置、登录限流、Cookie / CSRF 策略和全量接口权限校验
 - 真实文件上传（`POST /api/files/upload` 当前仅接受 JSON Mock 请求，不保存真实文件）
 - AI 模型真实调用
 - OBS / 执行端真实通信
@@ -283,5 +296,5 @@ server/utils/operationLog.js
 - 不写入任何真实 API Key。
 - 模型 API Key 只能作为后端环境变量读取，不能使用 `VITE_` 前缀进入浏览器 bundle。
 - `.env.example` 仅允许公开前端地址使用 `VITE_API_BASE_URL`。
-- 当前所有用户、邮箱、设备、IP 都是 Mock 数据。
+- 当前所有用户、邮箱、设备、IP 都是 Mock 数据；默认登录密码仅用于本地演示，不可作为生产密码。
 - 真实模型调用后续必须走后端代理，并按文档做脱敏、限流和费用保护。

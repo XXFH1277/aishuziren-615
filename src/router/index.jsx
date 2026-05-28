@@ -1,4 +1,6 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
+import AuthHomeRedirect from '../components/AuthHomeRedirect';
+import RequireAuth from '../components/RequireAuth';
 import AdminLayout from '../layouts/AdminLayout';
 import AiAssistant from '../pages/ai-center/AiAssistant';
 import AiCallLogs from '../pages/ai-center/AiCallLogs';
@@ -9,6 +11,7 @@ import ActionLibrary from '../pages/avatar/ActionLibrary';
 import AvatarList from '../pages/avatar/AvatarList';
 import CreateAvatar from '../pages/avatar/CreateAvatar';
 import EditAvatar from '../pages/avatar/EditAvatar';
+import Login from '../pages/auth/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import CurrentSpeech from '../pages/delay-control/CurrentSpeech';
 import DelaySettings from '../pages/delay-control/DelaySettings';
@@ -47,11 +50,20 @@ import StudioOutput from '../pages/studio/StudioOutput';
 
 const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <Login />,
+    handle: { label: '登录' },
+  },
+  {
     path: '/',
-    element: <AdminLayout />,
+    element: (
+      <RequireAuth>
+        <AdminLayout />
+      </RequireAuth>
+    ),
     handle: { label: '后台' },
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true, element: <AuthHomeRedirect /> },
       { path: 'dashboard', element: <Dashboard />, handle: { label: '首页工作台' } },
       { path: 'live/rooms', element: <LiveRoomList />, handle: { label: '直播间列表' } },
       { path: 'live/rooms/create', element: <CreateLiveRoom />, handle: { label: '创建直播间' } },

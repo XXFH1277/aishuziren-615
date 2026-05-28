@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const API_UNAVAILABLE_MESSAGE = '本地 API 服务未连接，请先运行 npm run server:dev';
+const AUTH_TOKEN_KEY = 'szr_live_auth_token';
 
 function buildUrl(path, params) {
   const url = new URL(path, API_BASE_URL);
@@ -27,11 +28,21 @@ function formatApiError(payload, response) {
 
 async function request(path, { method = 'GET', params, data } = {}) {
   let response;
+  const token = typeof localStorage === 'undefined' ? '' : localStorage.getItem(AUTH_TOKEN_KEY);
+  const headers = {};
+
+  if (data !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   try {
     response = await fetch(buildUrl(path, params), {
       method,
-      headers: data === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: Object.keys(headers).length ? headers : undefined,
       body: data === undefined ? undefined : JSON.stringify(data),
     });
   } catch {
@@ -71,4 +82,4 @@ export const apiRequest = {
   },
 };
 
-export { API_BASE_URL, API_UNAVAILABLE_MESSAGE };
+export { API_BASE_URL, API_UNAVAILABLE_MESSAGE, AUTH_TOKEN_KEY };

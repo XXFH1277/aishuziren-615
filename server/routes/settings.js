@@ -3,6 +3,8 @@ import { db, fromJson, now, toJson } from '../db/database.js';
 import { fail, page, success } from '../utils/response.js';
 import { recordOperationLog } from '../utils/operationLog.js';
 import { assertRequired, toValidationErrorPayload } from '../utils/validators.js';
+import { requireAuth, requirePermission } from '../utils/auth.js';
+import { PERMISSIONS } from '../utils/permissions.js';
 
 const router = express.Router();
 
@@ -68,7 +70,7 @@ function mapOperationLog(row) {
   };
 }
 
-router.get('/settings/users', (req, res) => {
+router.get('/settings/users', requireAuth, requirePermission(PERMISSIONS.SETTINGS_USER_READ), (req, res) => {
   const { pageNumber, pageSize, offset } = getPagination(req);
   const params = {
     limit: pageSize,
@@ -98,7 +100,7 @@ router.get('/settings/users', (req, res) => {
   return page(res, rows.map(mapUser), total, pageNumber, pageSize);
 });
 
-router.get('/settings/roles', (req, res) => {
+router.get('/settings/roles', requireAuth, requirePermission(PERMISSIONS.SETTINGS_ROLE_READ), (req, res) => {
   const { pageNumber, pageSize, offset } = getPagination(req);
   const params = {
     limit: pageSize,
@@ -118,12 +120,12 @@ router.get('/settings/roles', (req, res) => {
   return page(res, rows.map(mapRole), total, pageNumber, pageSize);
 });
 
-router.get('/settings/basic', (req, res) => {
+router.get('/settings/basic', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM basic_settings WHERE id = ?').get('basic');
   return success(res, { settings: fromJson(row?.settings_json, {}) });
 });
 
-router.put('/settings/basic', (req, res) => {
+router.put('/settings/basic', requireAuth, requirePermission(PERMISSIONS.SETTINGS_BASIC_WRITE), (req, res) => {
   const payload = req.body || {};
 
   try {
@@ -160,7 +162,7 @@ router.put('/settings/basic', (req, res) => {
   return success(res, { settings: payload });
 });
 
-router.get('/settings/logs', (req, res) => {
+router.get('/settings/logs', requireAuth, requirePermission(PERMISSIONS.SETTINGS_LOGS_READ), (req, res) => {
   const { pageNumber, pageSize, offset } = getPagination(req);
   const params = {
     limit: pageSize,

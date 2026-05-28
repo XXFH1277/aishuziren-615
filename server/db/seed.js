@@ -29,10 +29,13 @@ import { tickets } from '../../src/mock/tickets.js';
 import { troubleshootingList } from '../../src/mock/troubleshooting.js';
 import { tutorials } from '../../src/mock/tutorials.js';
 import { db, now, runSchema, toJson } from './database.js';
+import { createPasswordHash } from '../utils/password.js';
+import { getPermissionKeysForRole } from '../utils/permissions.js';
 
 runSchema();
 
 const timestamp = now();
+const DEFAULT_DEV_PASSWORD = 'admin123456';
 const executorIdByName = new Map([
   ['杭州执行端 01', 'EX001'],
   ['舟山直播电脑 02', 'EX002'],
@@ -104,6 +107,7 @@ function clearTables() {
     'manual_takeover_state',
     'questions',
     'comments',
+    'auth_sessions',
     'users',
     'roles',
     'basic_settings',
@@ -798,10 +802,10 @@ function seedAiCenter() {
 function seedSettings() {
   const insertUser = db.prepare(
     `INSERT INTO users (
-      id, username, nickname, email, phone, role, status, last_login_at,
+      id, username, password_hash, nickname, email, phone, role, status, last_login_at,
       recent_login, notes, created_at, updated_at
     ) VALUES (
-      @id, @username, @nickname, @email, @phone, @role, @status, @lastLoginAt,
+      @id, @username, @passwordHash, @nickname, @email, @phone, @role, @status, @lastLoginAt,
       @recentLogin, @notes, @createdAt, @updatedAt
     )`,
   );
@@ -809,10 +813,10 @@ function seedSettings() {
   const insertRole = db.prepare(
     `INSERT INTO roles (
       id, name, description, user_count, permission_scope, data_scope,
-      operation_permissions, menu_permissions, status, created_at, updated_at
+      permission_keys, operation_permissions, menu_permissions, status, created_at, updated_at
     ) VALUES (
       @id, @name, @description, @userCount, @permissionScope, @dataScope,
-      @operationPermissions, @menuPermissions, @status, @createdAt, @updatedAt
+      @permissionKeys, @operationPermissions, @menuPermissions, @status, @createdAt, @updatedAt
     )`,
   );
 
@@ -830,6 +834,7 @@ function seedSettings() {
     insertUser.run({
       id: user.id,
       username: user.username,
+      passwordHash: createPasswordHash(DEFAULT_DEV_PASSWORD),
       nickname: user.nickname,
       email: user.email,
       phone: user.phone,
@@ -851,6 +856,7 @@ function seedSettings() {
       userCount: Number(role.userCount || 0),
       permissionScope: role.permissionScope,
       dataScope: role.dataScope,
+      permissionKeys: toJson(getPermissionKeysForRole(role.name)),
       operationPermissions: toJson(role.operationPermissions || []),
       menuPermissions: toJson(role.menuPermissions || []),
       status: role.status,

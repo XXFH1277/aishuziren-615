@@ -372,6 +372,7 @@ CREATE TABLE IF NOT EXISTS ai_cost_daily (
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
+  password_hash TEXT,
   nickname TEXT,
   email TEXT,
   phone TEXT,
@@ -391,9 +392,20 @@ CREATE TABLE IF NOT EXISTS roles (
   user_count INTEGER DEFAULT 0,
   permission_scope TEXT,
   data_scope TEXT,
+  permission_keys TEXT,
   operation_permissions TEXT,
   menu_permissions TEXT,
   status TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
   created_at TEXT,
   updated_at TEXT
 );

@@ -25,7 +25,10 @@ async function requestPayload(name, path, options = {}) {
   try {
     const response = await fetch(url, {
       method: options.method || 'GET',
-      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
     });
@@ -70,16 +73,16 @@ async function requestExpectedError(name, path, expectedCode, options = {}) {
   return payload;
 }
 
-async function checkList(name, path) {
-  const data = await requestJson(name, path);
+async function checkList(name, path, options = {}) {
+  const data = await requestJson(name, path, options);
   assert(Array.isArray(data.list), `${name} 未返回 list 数组`);
   assert(data.list.length > 0, `${name} list 为空，请先运行 npm run server:seed`);
   pass(name, `${data.list.length} 条`);
   return data.list;
 }
 
-async function checkDetail(name, path, key, id) {
-  const data = await requestJson(name, path);
+async function checkDetail(name, path, key, id, options = {}) {
+  const data = await requestJson(name, path, options);
   assert(data[key]?.id === id, `${name} 返回详情 ID 不匹配，期望 ${id}`);
   pass(name, id);
   return data[key];
@@ -95,25 +98,43 @@ async function run() {
   const dashboard = await requestJson('Dashboard API: overview', '/api/dashboard/overview');
   assert(dashboard.overview?.stats?.length > 0, 'Dashboard API: overview did not return stats');
   pass('Dashboard API: overview', `${dashboard.overview.stats.length} stats`);
-  const currentUser = await requestJson('Auth API: current user', '/api/auth/me');
+  await requestExpectedError('Auth API: current user unauthorized', '/api/auth/me', 40101);
+  await requestExpectedError('Auth API: login invalid password', '/api/auth/login', 40101, {
+    method: 'POST',
+    body: { username: 'admin', password: 'wrong-password' },
+  });
+  const loginResult = await requestJson('Auth API: login', '/api/auth/login', {
+    method: 'POST',
+    body: { username: 'admin', password: 'admin123456' },
+  });
+  assert(loginResult.mock === false && loginResult.user?.id && loginResult.token, 'Auth API: login did not return real session');
+  assert(loginResult.permissions?.includes('settings:user:read'), 'Auth API: login did not return RBAC permissions');
+  pass('Auth API: login', loginResult.user.username);
+  const authOptions = {
+    headers: { Authorization: `Bearer ${loginResult.token}` },
+  };
+  const currentUser = await requestJson('Auth API: current user', '/api/auth/me', authOptions);
   assert(currentUser.user?.id, 'Auth API: current user did not return user');
   pass('Auth API: current user', currentUser.user.username);
-  const loginResult = await requestJson('Auth API: login mock', '/api/auth/login', {
+  const refreshResult = await requestJson('Auth API: refresh', '/api/auth/refresh', {
     method: 'POST',
-    body: { username: 'admin', password: 'mock-password' },
+    ...authOptions,
   });
-  assert(loginResult.mock === true && loginResult.user?.id, 'Auth API: login mock did not return mock user');
-  pass('Auth API: login mock', loginResult.user.username);
-  const logoutResult = await requestJson('Auth API: logout mock', '/api/auth/logout', {
+  assert(refreshResult.sessionExpiresAt, 'Auth API: refresh did not return sessionExpiresAt');
+  pass('Auth API: refresh', refreshResult.sessionExpiresAt);
+  const logoutResult = await requestJson('Auth API: logout', '/api/auth/logout', {
     method: 'POST',
+    ...authOptions,
   });
-  assert(logoutResult.success === true, 'Auth API: logout mock did not return success=true');
-  pass('Auth API: logout mock', logoutResult.loggedOutAt);
-  const refreshResult = await requestJson('Auth API: refresh mock', '/api/auth/refresh', {
+  assert(logoutResult.success === true, 'Auth API: logout did not return success=true');
+  pass('Auth API: logout', logoutResult.loggedOutAt);
+  const reloginResult = await requestJson('Auth API: relogin for protected APIs', '/api/auth/login', {
     method: 'POST',
+    body: { username: 'admin', password: 'admin123456' },
   });
-  assert(refreshResult.sessionExpiresAt, 'Auth API: refresh mock did not return sessionExpiresAt');
-  pass('Auth API: refresh mock', refreshResult.sessionExpiresAt);
+  const protectedOptions = {
+    headers: { Authorization: `Bearer ${reloginResult.token}` },
+  };
   const uploadResult = await requestJson('File API: mock upload', '/api/files/upload', {
     method: 'POST',
     body: {
@@ -378,18 +399,19 @@ async function run() {
   assert(savedAiBudget.budgetSettings?.dailyBudget === 150, 'AI 能力中心 API：保存成本预算未生效');
   pass('AI 能力中心 API：保存成本预算', `daily=${savedAiBudget.budgetSettings.dailyBudget}`);
 
-  await checkList('系统设置 API：用户列表', '/api/settings/users');
-  await checkList('系统设置 API：角色列表', '/api/settings/roles');
-  const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic');
+  await checkList('系统设置 API：用户列表', '/api/settings/users', protectedOptions);
+  await checkList('系统设置 API：角色列表', '/api/settings/roles', protectedOptions);
+  const basicSettings = await requestJson('系统设置 API：基础设置', '/api/settings/basic', protectedOptions);
   assert(basicSettings.settings && typeof basicSettings.settings === 'object', '系统设置 API：基础设置未返回 settings 对象');
   pass('系统设置 API：基础设置', '/api/settings/basic');
   const basicSettingsValidation = await requestExpectedError('系统设置 API：基础设置参数校验', '/api/settings/basic', 40001, {
     method: 'PUT',
     body: { systemName: '' },
+    ...protectedOptions,
   });
   assert(basicSettingsValidation.error?.field === 'systemName', '系统设置 API：基础设置参数校验未返回 field=systemName');
   assert(basicSettingsValidation.error?.reason === '系统名称不能为空', '系统设置 API：基础设置参数校验 reason 不匹配');
-  await checkList('系统设置 API：操作日志', '/api/settings/logs');
+  await checkList('系统设置 API：操作日志', '/api/settings/logs', protectedOptions);
 
   await checkList('帮助中心 API：FAQ', '/api/help/faq');
   await checkList('帮助中心 API：快速排查', '/api/help/troubleshooting');
