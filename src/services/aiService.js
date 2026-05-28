@@ -31,8 +31,23 @@ export async function updateAiModel(id, data = {}) {
   return result.model;
 }
 
-export async function testAiModel(id) {
-  return apiRequest.post(`/api/ai/models/${id}/test`, {});
+export async function saveModelCredentials(id, data = {}) {
+  const result = await apiRequest.put(`/api/ai/models/${id}/credentials`, data);
+  return result.credential;
+}
+
+export async function getModelCredentials(id) {
+  const result = await apiRequest.get(`/api/ai/models/${id}/credentials`);
+  return result.credential;
+}
+
+export async function deleteModelCredentials(id) {
+  const result = await apiRequest.delete(`/api/ai/models/${id}/credentials`);
+  return result.credential;
+}
+
+export async function testAiModel(id, data = {}) {
+  return apiRequest.post(`/api/ai/models/${id}/test`, data);
 }
 
 export async function updateModelDefaults(data = {}) {

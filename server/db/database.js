@@ -21,6 +21,7 @@ const allowedIdTables = new Set([
   'subtitle_settings',
   'delay_settings',
   'ai_model_providers',
+  'ai_model_credentials',
   'ai_model_role_settings',
   'prompt_templates',
   'ai_call_logs',
@@ -50,6 +51,7 @@ export function runSchema() {
   const schema = fs.readFileSync(schemaPath, 'utf8');
   db.exec(schema);
   ensureAuthColumns();
+  ensureAiColumns();
 }
 
 function ensureColumn(tableName, columnName, columnDefinition) {
@@ -64,6 +66,10 @@ function ensureColumn(tableName, columnName, columnDefinition) {
 function ensureAuthColumns() {
   ensureColumn('users', 'password_hash', 'password_hash TEXT');
   ensureColumn('roles', 'permission_keys', 'permission_keys TEXT');
+}
+
+function ensureAiColumns() {
+  ensureColumn('ai_call_logs', 'error_type', 'error_type TEXT');
 }
 
 export function now() {

@@ -102,6 +102,7 @@ function clearTables() {
     'ai_call_logs',
     'prompt_templates',
     'ai_model_role_settings',
+    'ai_model_credentials',
     'ai_model_providers',
     'ai_assistant_settings',
     'manual_takeover_state',
@@ -696,11 +697,11 @@ function seedAiCenter() {
     `INSERT INTO ai_call_logs (
       id, call_time, source_page, type, provider, model_name,
       input_summary, output_summary, status, duration, tokens, cost,
-      error_message, created_at
+      error_type, error_message, created_at
     ) VALUES (
       @id, @time, @sourcePage, @type, @provider, @modelName,
       @inputSummary, @outputSummary, @status, @duration, @tokens, @cost,
-      @errorMessage, @createdAt
+      @errorType, @errorMessage, @createdAt
     )`,
   );
 
@@ -771,6 +772,7 @@ function seedAiCenter() {
       duration: log.duration,
       tokens: Number(log.tokens || 0),
       cost: Number(log.cost || 0),
+      errorType: log.status === '成功' ? '' : 'mock_error',
       errorMessage: log.status === '成功' ? '' : 'Mock error summary only. No sensitive prompt or API key recorded.',
       createdAt: log.time || timestamp,
     });

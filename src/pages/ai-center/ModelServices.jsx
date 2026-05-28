@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import {
+  getModelCredentials,
   getModelProviders,
   getModelRoleSettings,
+  saveModelCredentials,
   getModelUsageScenes,
   testAiModel,
   updateAiModel,
@@ -19,6 +21,7 @@ export default function ModelServices() {
   const [modelProviders, setModelProviders] = useState([]);
   const [modelRoleSettings, setModelRoleSettings] = useState([]);
   const [configuring, setConfiguring] = useState(null);
+  const [credentialInfo, setCredentialInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -44,20 +47,38 @@ export default function ModelServices() {
     loadData();
   }, []);
 
-  const openConfig = (model) => {
+  const openConfig = async (model) => {
     setConfiguring(model);
+    setCredentialInfo({
+      apiKeyConfigured: model.apiKeyConfigured,
+      apiKeyMasked: model.apiKeyMasked,
+      credentialRef: model.credentialRef,
+    });
     form.setFieldsValue({
       provider: model.name,
       baseUrl: model.officialBaseUrl || model.baseUrlOptions?.[0] || '',
       modelName: model.defaultModel,
+      apiKey: '',
       maxTokens: model.maxTokens || 2048,
       temperature: model.temperature || 0.7,
       enabled: model.enabled,
     });
+
+    try {
+      const credential = await getModelCredentials(model.id);
+      setCredentialInfo(credential);
+      form.setFieldsValue({
+        baseUrl: credential.baseUrl || model.officialBaseUrl || model.baseUrlOptions?.[0] || '',
+        modelName: credential.modelName || model.defaultModel,
+      });
+    } catch (requestError) {
+      message.error(requestError.message || '读取凭证状态失败');
+    }
   };
 
   const closeConfig = () => {
     setConfiguring(null);
+    setCredentialInfo(null);
     form.resetFields();
   };
 
@@ -74,10 +95,30 @@ export default function ModelServices() {
         temperature: values.temperature,
         enabled: values.enabled,
       });
+      const apiKey = String(values.apiKey || '').trim();
+      let credential = null;
 
-      setModelProviders((items) => items.map((item) => (item.id === updated.id ? updated : item)));
-      message.success('模型服务配置已保存到本地 API Mock，未保存任何 API Key');
+      if (apiKey) {
+        credential = await saveModelCredentials(configuring.id, {
+          source: 'local_sqlite_masked',
+          apiKey,
+          baseUrl: values.baseUrl,
+          modelName: values.modelName,
+          remark: 'AI 模型配置页保存，仅保存脱敏状态',
+        });
+      }
+
+      setModelProviders((items) => items.map((item) => (
+        item.id === updated.id
+          ? {
+              ...updated,
+              ...(credential || {}),
+            }
+          : item
+      )));
+      message.success(apiKey ? '模型配置和脱敏凭证状态已保存，未保存明文 API Key' : '模型服务配置已保存');
       closeConfig();
+      await loadData();
     } catch (requestError) {
       message.error(requestError.message || '保存失败');
     } finally {
@@ -87,8 +128,10 @@ export default function ModelServices() {
 
   const handleTest = async (model) => {
     try {
-      const result = await testAiModel(model.id);
-      message.info(`${model.name} 测试连接：${result.status}，仅为 Mock`);
+      const result = await testAiModel(model.id, {
+        sourcePage: 'AI模型配置页',
+      });
+      message.info(`${model.name} 测试连接：${result.status}，默认 fake provider，不调用真实模型`);
       await loadData();
     } catch (requestError) {
       message.error(requestError.message || '测试失败');
@@ -114,15 +157,15 @@ export default function ModelServices() {
     <>
       <PageHeader
         title="模型服务配置"
-        description="统一管理模型服务商、默认模型和连接状态。当前为本地 API Mock，不读取真实 Key，不调用 Kimi / Mimo。"
+        description="统一管理模型服务商、默认模型和连接状态。当前默认使用 fake provider，不调用真实模型。"
       />
 
       <Alert
         className="studio-alert"
         type="warning"
         showIcon
-        message="当前为本地 Mock 占位，未接真实模型服务。"
-        description="apiKey 输入框仅为占位输入，不会保存到文件、日志、Mock 数据或浏览器外部服务；测试连接只返回 Mock，不调用 Kimi / Mimo / OpenAI / DeepSeek。"
+        message="当前默认使用 fake provider，不会调用真实模型。"
+        description="API Key 只会提交给本地后端保存脱敏状态；前端不保存明文，测试连接不调用 Kimi / Mimo / OpenAI / DeepSeek。真实模型调用需在后端环境变量和权限策略确认后开启。"
       />
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
@@ -154,7 +197,7 @@ export default function ModelServices() {
             <Space wrap className="ai-model-tags">
               {model.usage.map((item) => <Tag color="blue" key={item}>{item}</Tag>)}
               {model.isOfficialPreset ? <Tag color="green">官方预设</Tag> : <Tag>手动配置</Tag>}
-              {model.apiKeyConfigured ? <Tag color="green">Key 已配置</Tag> : <Tag>未保存 Key</Tag>}
+              {model.apiKeyConfigured ? <Tag color="green">Key 已配置：{model.apiKeyMasked || '已脱敏'}</Tag> : <Tag>未保存 Key</Tag>}
             </Space>
             <p className="ai-card-description">{model.description}</p>
             <p className="ai-docs-note">{model.docsNote}</p>
@@ -180,14 +223,14 @@ export default function ModelServices() {
         onCancel={closeConfig}
         onOk={saveConfig}
         confirmLoading={saving}
-        okText="保存 Mock 配置"
+        okText="保存配置"
       >
         <Alert
           className="ai-modal-alert"
           type="warning"
           showIcon
-          message="官方 URL 和模型名仅作为预设参考，请以服务商最新文档为准。API Key 不会在当前 Mock 阶段保存。"
-          description="本阶段仅验证表单交互，不读取模型api.txt 或 .env.local，不调用真实测试连接接口。"
+          message="官方 URL 和模型名仅作为预设参考，请以服务商最新文档为准。"
+          description="当前默认 fake provider，不调用真实模型；API Key 明文不会返回前端，也不会写入日志、Mock 或文档。"
         />
         <Form form={form} layout="vertical">
           <Form.Item label="服务商" name="provider">
@@ -215,8 +258,12 @@ export default function ModelServices() {
               filterOption={(inputValue, option) => option?.value?.toLowerCase().includes(inputValue.toLowerCase())}
             />
           </Form.Item>
-          <Form.Item label="apiKey 占位输入框" name="apiKey">
-            <Input.Password placeholder="仅占位，不要输入真实 API Key" autoComplete="new-password" />
+          <Form.Item
+            label="apiKey"
+            name="apiKey"
+            extra={credentialInfo?.apiKeyConfigured ? `当前脱敏状态：${credentialInfo.apiKeyMasked || '已配置'}` : '留空则只保存模型配置；输入后仅提交本地后端保存脱敏状态。'}
+          >
+            <Input.Password placeholder="本地联调可输入 fake key，不要输入真实 API Key" autoComplete="new-password" />
           </Form.Item>
           <Form.Item label="maxTokens" name="maxTokens">
             <Slider min={512} max={8192} step={256} />
@@ -228,6 +275,10 @@ export default function ModelServices() {
             <Switch />
           </Form.Item>
           <Descriptions size="small" column={1}>
+            <Descriptions.Item label="凭证状态">
+              {credentialInfo?.apiKeyConfigured ? `已配置（${credentialInfo.apiKeyMasked || '已脱敏'}）` : '未配置'}
+            </Descriptions.Item>
+            <Descriptions.Item label="凭证引用">{credentialInfo?.credentialRef || '-'}</Descriptions.Item>
             <Descriptions.Item label="预设说明">{configuring?.docsNote}</Descriptions.Item>
             <Descriptions.Item label="可选用途">{modelUsageScenes.join(' / ')}</Descriptions.Item>
           </Descriptions>

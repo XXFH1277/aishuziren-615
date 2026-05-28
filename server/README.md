@@ -197,6 +197,20 @@ Phase 14 已将 `POST /api/files/upload` 升级为本地真实上传 MVP：
 
 当前不接云存储、不做病毒扫描、不做生产级文件权限隔离。`server/uploads/*` 已加入 `.gitignore`，不要提交上传产物。
 
+## AI 后端代理基础
+
+Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
+
+- credentials 接口：`GET /api/ai/models/:id/credentials`、`PUT /api/ai/models/:id/credentials`、`DELETE /api/ai/models/:id/credentials`
+- 凭证接口需要本地登录 token 和 AI 模型配置权限。
+- `PUT /api/ai/models/:id/credentials` 接收 `source`、`apiKey`、`baseUrl`、`modelName`、`remark`，但不保存明文 `apiKey`。
+- SQLite 仅保存 `credential_ref`、`api_key_masked`、`api_key_configured` 和非密钥元信息。
+- `POST /api/ai/models/:id/test` 默认使用 `server/ai/fakeProvider.js`，不会调用 Kimi、Mimo、OpenAI、DeepSeek 或任何真实模型服务。
+- `server/ai/openaiCompatibleProvider.js` 当前只保留框架，真实调用默认未开启。
+- 模型测试会写入 `ai_call_logs` 和 `ai_cost_daily`，日志只记录脱敏摘要、token 数、耗时、状态和费用估算，不记录 API Key、Authorization header、完整 Prompt 或用户隐私。
+
+后续进入真实模型前，必须先确认后端环境变量或密钥管理方案、限流、超时、费用保护和脱敏日志策略。前端不得使用任何 `VITE_` 模型 Key。
+
 ## 已实现 API
 
 - `GET /api/health`
@@ -258,6 +272,9 @@ Phase 14 已将 `POST /api/files/upload` 升级为本地真实上传 MVP：
 - `PUT /api/ai/assistant`
 - `GET /api/ai/models`
 - `PUT /api/ai/models/:id`
+- `GET /api/ai/models/:id/credentials`
+- `PUT /api/ai/models/:id/credentials`
+- `DELETE /api/ai/models/:id/credentials`
 - `POST /api/ai/models/:id/test`
 - `GET /api/ai/models/defaults`
 - `PATCH /api/ai/models/defaults`

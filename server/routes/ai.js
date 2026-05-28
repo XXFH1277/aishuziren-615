@@ -1,5 +1,8 @@
 import express from 'express';
+import { runProviderGenerate } from '../ai/providerAdapter.js';
 import { db, fromJson, nextId, now, toJson } from '../db/database.js';
+import { requireAuth, requirePermission } from '../utils/auth.js';
+import { PERMISSIONS } from '../utils/permissions.js';
 import { fail, page, success } from '../utils/response.js';
 
 const router = express.Router();
@@ -82,6 +85,7 @@ function mapLog(row) {
     duration: row.duration,
     tokens: Number(row.tokens || 0),
     cost: Number(row.cost || 0),
+    errorType: row.error_type,
     errorMessage: row.error_message,
     createdAt: row.created_at,
   };
@@ -127,6 +131,175 @@ function getPromptOrFail(res, id) {
   }
 
   return row;
+}
+
+function maskApiKey(value) {
+  const secret = String(value || '').trim();
+
+  if (!secret) {
+    return '';
+  }
+
+  const head = secret.slice(0, Math.min(3, secret.length));
+  const tail = secret.slice(-Math.min(4, secret.length));
+
+  if (secret.length <= 7) {
+    return `${head}****`;
+  }
+
+  return `${head}-****${tail}`;
+}
+
+function credentialRefFor(providerId) {
+  const safeId = String(providerId || 'model').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `cred_${safeId}`;
+}
+
+function mapCredential(row, model) {
+  const configured = Boolean(Number(model?.api_key_configured || 0));
+
+  return {
+    apiKeyConfigured: configured,
+    apiKeyMasked: model?.api_key_masked || row?.api_key_masked || '',
+    credentialRef: model?.credential_ref || row?.credential_ref || '',
+    source: row?.source || '',
+    baseUrl: row?.base_url || model?.official_base_url || '',
+    modelName: row?.model_name || model?.default_model || '',
+    remark: row?.remark || '',
+    updatedAt: row?.updated_at || model?.updated_at || '',
+  };
+}
+
+function getCredentialRow(providerId) {
+  return db.prepare('SELECT * FROM ai_model_credentials WHERE provider_id = ? LIMIT 1').get(providerId);
+}
+
+function summarizeInput({ scenario, modelName, sourcePage }) {
+  return `${sourcePage} 发起 ${scenario}，模型 ${modelName}，未记录 Prompt 原文或 API Key。`;
+}
+
+function summarizeOutput({ status, providerRequestId }) {
+  return `AI 后端代理测试${status}，requestId=${providerRequestId || 'none'}，输出已脱敏。`;
+}
+
+function recordAiCallLog({
+  sourcePage = 'AI模型配置',
+  type = '模型连接测试',
+  provider = '',
+  modelName = '',
+  inputSummary = '',
+  outputSummary = '',
+  status = '成功',
+  duration = '0ms',
+  tokens = 0,
+  cost = 0,
+  errorType = '',
+  errorMessage = '',
+}) {
+  const createdAt = now();
+  const id = nextId('ai_call_logs', 'LOG');
+
+  db.prepare(
+    `INSERT INTO ai_call_logs (
+      id, call_time, source_page, type, provider, model_name,
+      input_summary, output_summary, status, duration, tokens, cost,
+      error_type, error_message, created_at
+    ) VALUES (
+      @id, @callTime, @sourcePage, @type, @provider, @modelName,
+      @inputSummary, @outputSummary, @status, @duration, @tokens, @cost,
+      @errorType, @errorMessage, @createdAt
+    )`,
+  ).run({
+    id,
+    callTime: createdAt,
+    sourcePage,
+    type,
+    provider,
+    modelName,
+    inputSummary,
+    outputSummary,
+    status,
+    duration,
+    tokens,
+    cost,
+    errorType,
+    errorMessage,
+    createdAt,
+  });
+
+  return id;
+}
+
+function incrementBreakdown(rawValue, name, cost = 0) {
+  const list = fromJson(rawValue, []);
+  const item = list.find((entry) => entry.name === name);
+
+  if (item) {
+    item.value = Number(item.value || 0) + 1;
+    item.cost = Number(item.cost || 0) + cost;
+    return list;
+  }
+
+  list.push({
+    name,
+    value: 1,
+    cost,
+  });
+
+  return list;
+}
+
+function updateAiCostDaily({ provider = 'Fake Provider', type = '模型连接测试', cost = 0 }) {
+  const updatedAt = now();
+  const statDate = updatedAt.slice(0, 10);
+  const row = db.prepare('SELECT * FROM ai_cost_daily WHERE id = ?').get('today');
+
+  if (!row) {
+    db.prepare(
+      `INSERT INTO ai_cost_daily (
+        id, stat_date, today_calls, today_cost, month_cost, average_cost,
+        abnormal_calls, provider_breakdown_json, type_breakdown_json,
+        budget_settings_json, updated_at
+      ) VALUES (
+        'today', @statDate, 1, @cost, @cost, @cost, 0,
+        @providerBreakdown, @typeBreakdown, @budgetSettings, @updatedAt
+      )`,
+    ).run({
+      statDate,
+      cost,
+      providerBreakdown: toJson([{ name: provider, value: 1, cost }]),
+      typeBreakdown: toJson([{ name: type, value: 1 }]),
+      budgetSettings: toJson({ dailyBudget: 120, monthlyBudget: 3000, overBudgetAlert: true }),
+      updatedAt,
+    });
+    return;
+  }
+
+  const todayCalls = Number(row.today_calls || 0) + 1;
+  const todayCost = Number(row.today_cost || 0) + cost;
+  const monthCost = Number(row.month_cost || 0) + cost;
+
+  db.prepare(
+    `UPDATE ai_cost_daily
+     SET stat_date = @statDate,
+         today_calls = @todayCalls,
+         today_cost = @todayCost,
+         month_cost = @monthCost,
+         average_cost = @averageCost,
+         provider_breakdown_json = @providerBreakdown,
+         type_breakdown_json = @typeBreakdown,
+         updated_at = @updatedAt
+     WHERE id = 'today'`,
+  ).run({
+    statDate,
+    todayCalls,
+    todayCost,
+    monthCost,
+    averageCost: todayCalls > 0 ? todayCost / todayCalls : 0,
+    providerBreakdown: toJson(incrementBreakdown(row.provider_breakdown_json, provider, cost)),
+    typeBreakdown: toJson(incrementBreakdown(row.type_breakdown_json, type, 0)),
+    updatedAt,
+  });
 }
 
 router.get('/ai/assistant', (req, res) => {
@@ -227,7 +400,100 @@ router.put('/ai/models/:id', (req, res) => {
   });
 });
 
-router.post('/ai/models/:id/test', (req, res) => {
+router.get('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSIONS.AI_MODEL_READ), (req, res) => {
+  const existing = getModelOrFail(res, req.params.id);
+
+  if (!existing) {
+    return null;
+  }
+
+  const credentialRow = getCredentialRow(req.params.id);
+
+  return success(res, {
+    credential: mapCredential(credentialRow, existing),
+  });
+});
+
+router.put('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSIONS.AI_MODEL_WRITE), (req, res) => {
+  const existing = getModelOrFail(res, req.params.id);
+
+  if (!existing) {
+    return null;
+  }
+
+  const body = req.body || {};
+  const apiKey = String(body.apiKey || '').trim();
+
+  if (!apiKey) {
+    return fail(res, '参数错误', 40001, {
+      field: 'apiKey',
+      reason: 'API Key 不能为空；后端只保存脱敏状态，不保存明文。',
+    });
+  }
+
+  const updatedAt = now();
+  const credentialRef = existing.credential_ref || credentialRefFor(req.params.id);
+  const apiKeyMasked = maskApiKey(apiKey);
+  const baseUrl = body.baseUrl ?? existing.official_base_url ?? '';
+  const modelName = body.modelName ?? existing.default_model ?? '';
+  const id = credentialRef;
+
+  db.prepare(
+    `INSERT INTO ai_model_credentials (
+      id, provider_id, credential_ref, source, api_key_masked,
+      base_url, model_name, remark, created_at, updated_at
+    ) VALUES (
+      @id, @providerId, @credentialRef, @source, @apiKeyMasked,
+      @baseUrl, @modelName, @remark, @createdAt, @updatedAt
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      source = excluded.source,
+      api_key_masked = excluded.api_key_masked,
+      base_url = excluded.base_url,
+      model_name = excluded.model_name,
+      remark = excluded.remark,
+      updated_at = excluded.updated_at`,
+  ).run({
+    id,
+    providerId: req.params.id,
+    credentialRef,
+    source: body.source || 'local_sqlite_masked',
+    apiKeyMasked,
+    baseUrl,
+    modelName,
+    remark: body.remark || '',
+    createdAt: updatedAt,
+    updatedAt,
+  });
+
+  db.prepare(
+    `UPDATE ai_model_providers
+     SET api_key_configured = 1,
+         credential_ref = @credentialRef,
+         api_key_masked = @apiKeyMasked,
+         official_base_url = @baseUrl,
+         default_model = @modelName,
+         status = '已配置',
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: req.params.id,
+    credentialRef,
+    apiKeyMasked,
+    baseUrl,
+    modelName,
+    updatedAt,
+  });
+
+  const credentialRow = getCredentialRow(req.params.id);
+  const modelRow = db.prepare('SELECT * FROM ai_model_providers WHERE id = ?').get(req.params.id);
+
+  return success(res, {
+    credential: mapCredential(credentialRow, modelRow),
+  });
+});
+
+router.delete('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSIONS.AI_MODEL_WRITE), (req, res) => {
   const existing = getModelOrFail(res, req.params.id);
 
   if (!existing) {
@@ -235,21 +501,106 @@ router.post('/ai/models/:id/test', (req, res) => {
   }
 
   const testedAt = now();
-  const status = Number(existing.enabled || 0) ? 'Mock通过' : 'Mock待配置';
+  db.prepare('DELETE FROM ai_model_credentials WHERE provider_id = ?').run(req.params.id);
+  db.prepare(
+    `UPDATE ai_model_providers
+     SET api_key_configured = 0,
+         credential_ref = '',
+         api_key_masked = '',
+         status = '未配置',
+         enabled = 0,
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: req.params.id,
+    updatedAt: testedAt,
+  });
+
+  const modelRow = db.prepare('SELECT * FROM ai_model_providers WHERE id = ?').get(req.params.id);
+
+  return success(res, {
+    credential: mapCredential(null, modelRow),
+  });
+});
+
+router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI_MODEL_TEST), async (req, res) => {
+  const existing = getModelOrFail(res, req.params.id);
+
+  if (!existing) {
+    return null;
+  }
+
+  const body = req.body || {};
+  const startedAt = Date.now();
+  const sourcePage = body.sourcePage || 'AI模型配置';
+  const scenario = body.scenario || 'model_connection_test';
+  const modelName = body.modelName || existing.default_model || 'fake-model';
+  const realProvider = body.realProvider === true;
+  const modelConfig = {
+    ...mapModel(existing),
+    baseUrl: body.baseUrl || existing.official_base_url,
+    modelName,
+  };
+  const result = await runProviderGenerate({
+    realProvider,
+    scenario,
+    prompt: 'Sanitized local model connection test prompt.',
+    input: {
+      providerId: req.params.id,
+      sourcePage,
+    },
+    modelConfig,
+  });
+  const duration = `${Date.now() - startedAt}ms`;
+  const tokens = Number(result.usage?.totalTokens || 0);
+  const cost = Number(result.cost || 0);
+  const status = result.skipped ? '真实调用未开启' : 'Fake通过';
+  const logStatus = result.skipped ? '已拦截' : '成功';
+  const errorType = result.skipped ? 'real_provider_disabled' : '';
+  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : '';
 
   db.prepare('UPDATE ai_model_providers SET last_test_status = ?, last_test_at = ?, updated_at = ? WHERE id = ?').run(
     status,
-    testedAt,
-    testedAt,
+    now(),
+    now(),
     req.params.id,
   );
+  db.prepare('UPDATE ai_model_providers SET today_calls = today_calls + 1, today_cost = today_cost + ? WHERE id = ?').run(
+    cost,
+    req.params.id,
+  );
+
+  const logId = recordAiCallLog({
+    sourcePage,
+    type: '模型连接测试',
+    provider: existing.name,
+    modelName,
+    inputSummary: summarizeInput({ scenario, modelName, sourcePage }),
+    outputSummary: summarizeOutput({ status, providerRequestId: result.providerRequestId }),
+    status: logStatus,
+    duration,
+    tokens,
+    cost,
+    errorType,
+    errorMessage,
+  });
+  updateAiCostDaily({
+    provider: existing.name,
+    type: '模型连接测试',
+    cost,
+  });
 
   return success(res, {
     id: req.params.id,
     status,
-    duration: '0.3s',
+    duration,
+    tokens,
+    cost,
+    logId,
+    providerRequestId: result.providerRequestId,
+    realProviderEnabled: false,
     mock: true,
-    message: 'Mock test only. No Kimi, Mimo, OpenAI, or any real model API was called.',
+    message: result.message,
   });
 });
 

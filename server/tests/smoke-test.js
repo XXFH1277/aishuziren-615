@@ -437,12 +437,40 @@ async function run() {
   });
   assert(updatedAiModel.model?.id === aiModels[0].id, 'AI 能力中心 API：保存模型配置未返回 model');
   pass('AI 能力中心 API：保存模型配置 Mock', updatedAiModel.model.id);
-  const modelTestResult = await requestJson('AI 能力中心 API：测试模型连接 Mock', `/api/ai/models/${aiModels[0].id}/test`, {
-    method: 'POST',
-    body: { mock: true },
+  const smokeFakeKey = 'fake-smoke-key-never-real-001';
+  const savedCredential = await requestJson('AI 能力中心 API：保存模型凭证脱敏状态', `/api/ai/models/${aiModels[0].id}/credentials`, {
+    method: 'PUT',
+    body: {
+      source: 'smoke_fake',
+      apiKey: smokeFakeKey,
+      baseUrl: aiModels[0].officialBaseUrl || '',
+      modelName: aiModels[0].defaultModel,
+      remark: 'Smoke test fake credential only',
+    },
+    ...protectedOptions,
   });
-  assert(modelTestResult.mock === true, 'AI 能力中心 API：测试模型连接不是 Mock 结果');
-  pass('AI 能力中心 API：测试模型连接 Mock', modelTestResult.status);
+  assert(savedCredential.credential?.apiKeyConfigured === true, 'AI 能力中心 API：保存模型凭证未返回已配置状态');
+  assert(savedCredential.credential.apiKeyMasked && savedCredential.credential.apiKeyMasked !== smokeFakeKey, 'AI 能力中心 API：模型凭证未脱敏');
+  pass('AI 能力中心 API：保存模型凭证脱敏状态', savedCredential.credential.credentialRef);
+  const credentialStatus = await requestJson('AI 能力中心 API：读取模型凭证脱敏状态', `/api/ai/models/${aiModels[0].id}/credentials`, protectedOptions);
+  assert(credentialStatus.credential?.apiKeyConfigured === true, 'AI 能力中心 API：读取模型凭证未返回已配置状态');
+  assert(credentialStatus.credential.apiKeyMasked === savedCredential.credential.apiKeyMasked, 'AI 能力中心 API：读取模型凭证脱敏状态不一致');
+  pass('AI 能力中心 API：读取模型凭证脱敏状态', credentialStatus.credential.credentialRef);
+  const modelTestResult = await requestJson('AI 能力中心 API：fake provider 测试模型连接', `/api/ai/models/${aiModels[0].id}/test`, {
+    method: 'POST',
+    body: { sourcePage: 'Smoke Test' },
+    ...protectedOptions,
+  });
+  assert(modelTestResult.mock === true, 'AI 能力中心 API：测试模型连接不是 fake provider 结果');
+  assert(modelTestResult.realProviderEnabled === false, 'AI 能力中心 API：测试模型连接不应开启真实 provider');
+  assert(modelTestResult.tokens === 300, 'AI 能力中心 API：fake provider token 数不匹配');
+  pass('AI 能力中心 API：fake provider 测试模型连接', modelTestResult.status);
+  const deletedCredential = await requestJson('AI 能力中心 API：删除模型凭证脱敏状态', `/api/ai/models/${aiModels[0].id}/credentials`, {
+    method: 'DELETE',
+    ...protectedOptions,
+  });
+  assert(deletedCredential.credential?.apiKeyConfigured === false, 'AI 能力中心 API：删除模型凭证未清除配置状态');
+  pass('AI 能力中心 API：删除模型凭证脱敏状态', aiModels[0].id);
   const aiDefaults = await checkList('AI 能力中心 API：默认模型设置', '/api/ai/models/defaults');
   const savedAiDefault = await requestJson('AI 能力中心 API：保存默认模型设置', '/api/ai/models/defaults', {
     method: 'PATCH',

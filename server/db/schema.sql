@@ -317,6 +317,19 @@ CREATE TABLE IF NOT EXISTS ai_model_providers (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ai_model_credentials (
+  id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL,
+  credential_ref TEXT,
+  source TEXT,
+  api_key_masked TEXT,
+  base_url TEXT,
+  model_name TEXT,
+  remark TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS ai_model_role_settings (
   id TEXT PRIMARY KEY,
   label TEXT,
@@ -351,6 +364,7 @@ CREATE TABLE IF NOT EXISTS ai_call_logs (
   duration TEXT,
   tokens INTEGER DEFAULT 0,
   cost REAL DEFAULT 0,
+  error_type TEXT,
   error_message TEXT,
   created_at TEXT
 );
