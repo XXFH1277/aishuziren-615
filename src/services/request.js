@@ -30,8 +30,9 @@ async function request(path, { method = 'GET', params, data } = {}) {
   let response;
   const token = typeof localStorage === 'undefined' ? '' : localStorage.getItem(AUTH_TOKEN_KEY);
   const headers = {};
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
 
-  if (data !== undefined) {
+  if (data !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -43,7 +44,7 @@ async function request(path, { method = 'GET', params, data } = {}) {
     response = await fetch(buildUrl(path, params), {
       method,
       headers: Object.keys(headers).length ? headers : undefined,
-      body: data === undefined ? undefined : JSON.stringify(data),
+      body: data === undefined ? undefined : isFormData ? data : JSON.stringify(data),
     });
   } catch {
     throw new Error(API_UNAVAILABLE_MESSAGE);
@@ -79,6 +80,9 @@ export const apiRequest = {
   },
   delete(path, data) {
     return request(path, { method: 'DELETE', data });
+  },
+  upload(path, formData) {
+    return request(path, { method: 'POST', data: formData });
   },
 };
 

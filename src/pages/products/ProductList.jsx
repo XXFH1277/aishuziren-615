@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
+import { resolveFileUrl } from '../../services/fileService';
 import { getProductCategories, getProductStatuses, getProducts, updateProductStatus } from '../../services/productService';
 
 const productCategories = getProductCategories();
@@ -15,6 +16,18 @@ const statusActionText = {
   已下架: '上架',
   待审核: '上架',
 };
+
+function ProductThumb({ record }) {
+  if (record.image?.startsWith('/uploads/')) {
+    return <img className="product-thumb product-thumb-image" src={resolveFileUrl(record.image)} alt={record.name} />;
+  }
+
+  return (
+    <div className={`product-thumb product-thumb-${record.image}`} aria-label={record.name}>
+      {record.name.slice(0, 2)}
+    </div>
+  );
+}
 
 export default function ProductList() {
   const navigate = useNavigate();
@@ -81,11 +94,7 @@ export default function ProductList() {
       title: '商品图片',
       dataIndex: 'image',
       width: 100,
-      render: (_, record) => (
-        <div className={`product-thumb product-thumb-${record.image}`} aria-label={record.name}>
-          {record.name.slice(0, 2)}
-        </div>
-      ),
+      render: (_, record) => <ProductThumb record={record} />,
     },
     {
       title: '商品名称',

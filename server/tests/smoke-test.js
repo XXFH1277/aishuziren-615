@@ -23,13 +23,14 @@ async function requestPayload(name, path, options = {}) {
   const url = new URL(path, `${baseUrl}/`).toString();
 
   try {
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const response = await fetch(url, {
       method: options.method || 'GET',
       headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...(options.headers || {}),
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: options.body ? (isFormData ? options.body : JSON.stringify(options.body)) : undefined,
       signal: controller.signal,
     });
     const responseText = await response.text();
@@ -135,17 +136,26 @@ async function run() {
   const protectedOptions = {
     headers: { Authorization: `Bearer ${reloginResult.token}` },
   };
-  const uploadResult = await requestJson('File API: mock upload', '/api/files/upload', {
+  await requestExpectedError('File API: upload unauthorized', '/api/files/upload', 40101, {
     method: 'POST',
-    body: {
-      fileName: 'smoke-demo.png',
-      module: 'product',
-      businessId: 'P001',
-      fileType: 'image',
-    },
+  });
+  const uploadFormData = new FormData();
+  uploadFormData.append('file', new Blob(['smoke test image placeholder'], { type: 'image/png' }), 'smoke-demo.png');
+  uploadFormData.append('module', 'product');
+  uploadFormData.append('businessId', 'P001');
+  uploadFormData.append('fileType', 'image');
+  const uploadResult = await requestJson('File API: real local upload', '/api/files/upload', {
+    method: 'POST',
+    body: uploadFormData,
+    ...protectedOptions,
   });
   assert(uploadResult.file?.fileId, 'File API: mock upload did not return fileId');
-  pass('File API: mock upload', uploadResult.file.fileId);
+  assert(uploadResult.mock === false, 'File API: real local upload did not return mock=false');
+  assert(uploadResult.file.fileUrl?.startsWith('/uploads/'), 'File API: real local upload did not return uploads URL');
+  pass('File API: real local upload', uploadResult.file.fileId);
+  const uploadedResponse = await fetch(new URL(uploadResult.file.fileUrl, `${baseUrl}/`).toString());
+  assert(uploadedResponse.ok, 'File API: uploaded file static URL is not accessible');
+  pass('File API: uploaded static file', uploadResult.file.fileUrl);
 
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);

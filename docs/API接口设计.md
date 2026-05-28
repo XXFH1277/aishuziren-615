@@ -230,12 +230,12 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 ## 7. File API 文件上传
 
-说明：Phase 12 可以先不实现真实上传，但文档预留。
+说明：Phase 14 已实现本地真实上传 MVP，文件保存到 `server/uploads`，元信息写入 `file_assets`。当前不接云存储、不做病毒扫描。
 适用场景：商品图片、数字人素材、授权文件、直播间背景、工单截图、系统 Logo。
 
 | 接口名称 | Method | Path | 用途说明 | 请求参数 | 返回字段 | 成功示例 | 失败示例 | 登录 | 权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 上传文件 | POST | `/api/files/upload` | 上传业务附件或素材 | `multipart/form-data`: `file`, `module`, `businessId`, `fileType` | `fileId`, `fileName`, `fileUrl`, `fileType`, `size`, `uploadedAt` | `{"code":0,"data":{"fileId":"FILE001","fileName":"demo.png","fileUrl":"/uploads/demo.png","fileType":"image","size":102400,"uploadedAt":"2026-05-26 23:30:00"}}` | `{"code":40001,"message":"文件类型不支持"}` | 是 | 按业务模块权限 |
+| 上传文件 | POST | `/api/files/upload` | 上传业务附件或素材 | `multipart/form-data`: `file`, `module`, `businessId`, `fileType` | `fileId`, `fileName`, `fileUrl`, `fileType`, `size`, `mimeType`, `uploadedAt` | `{"code":0,"data":{"file":{"fileId":"FILE001","fileName":"demo.png","fileUrl":"/uploads/product/FILE001-demo.png","fileType":"image","size":102400,"mimeType":"image/png","uploadedAt":"2026-05-26 23:30:00"},"mock":false}}` | `{"code":40001,"message":"文件类型不支持"}` | 是 | 当前仅校验登录 token |
 
 ## 8. Product API 商品管理
 
@@ -480,5 +480,5 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 - Dashboard 已实现 `GET /api/dashboard/overview`，当前返回 `data.overview.stats`、`data.overview.aiCallStatus`、`data.overview.recentOperations`、`data.overview.liveTaskStatusStats`、`data.overview.executorStatusStats`、`data.overview.riskSummary`。首页工作台通过 `dashboardService.getDashboardOverview()` 读取，不再直接 import `src/mock/dashboard.js`。
 - Auth 已在 Phase 13 升级为本地 Auth / RBAC MVP：`POST /api/auth/login` 校验 SQLite 密码 hash，返回 Bearer token；`GET /api/auth/me`、`POST /api/auth/refresh` 需要登录；前端根据 `menuPermissions` 控制菜单和页面入口。
-- File 已实现 Mock 占位接口：`POST /api/files/upload`。Phase 12.18 暂时接受 JSON Body：`fileName`、`module`、`businessId`、`fileType`，返回 `data.file`；不解析 multipart、不保存真实文件、不上传云端。真实上传后续再接。
+- File 已在 Phase 14 升级为本地上传 MVP：`POST /api/files/upload` 接受 `multipart/form-data`，保存到 `server/uploads`，返回 `data.file`，并记录 `file_assets`。当前不上传云端、不做病毒扫描。
 - 当前实现路径已统一为 `/api/live-rooms`、`/api/live-tasks`、`/api/studio/output-status`、`/api/interaction/manual-takeover`、`/api/interaction/manual-speech`、`/api/dev/interaction/comments/simulate`。

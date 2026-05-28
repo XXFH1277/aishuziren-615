@@ -181,6 +181,21 @@ server/utils/operationLog.js
 
 `recordOperationLog(db, payload)` 当前只是本地 SQLite 占位工具，用于后续审计日志接入前统一字段约定。本阶段不实现真实审计系统、不记录敏感 Prompt、不记录任何 API Key。
 
+## 本地文件上传
+
+Phase 14 已将 `POST /api/files/upload` 升级为本地真实上传 MVP：
+
+- 请求格式：`multipart/form-data`
+- 字段：`file`、`module`、`businessId`、`fileType`
+- 鉴权：需要 `Authorization: Bearer <token>`
+- 存储目录：`server/uploads`
+- 访问路径：`/uploads/*`
+- 元信息表：`file_assets`
+- 大小限制：单文件最大 5MB
+- 类型限制：PNG、JPG、WEBP、GIF、PDF、TXT
+
+当前不接云存储、不做病毒扫描、不做生产级文件权限隔离。`server/uploads/*` 已加入 `.gitignore`，不要提交上传产物。
+
 ## 已实现 API
 
 - `GET /api/health`
@@ -280,11 +295,11 @@ server/utils/operationLog.js
 ## 当前未实现
 
 - 生产级登录鉴权、密码重置、登录限流、Cookie / CSRF 策略和全量接口权限校验
-- 真实文件上传（`POST /api/files/upload` 当前仅接受 JSON Mock 请求，不保存真实文件）
+- 云存储、病毒扫描、文件内容识别和生产级文件访问权限
 - AI 模型真实调用
 - OBS / 执行端真实通信
 - WebSocket / 实时弹幕
-- 工单回复、工单附件和真实文件上传
+- 工单回复和工单附件页面接入真实上传
 - 真实外部工单系统或通知系统
 - 真实执行端绑定、重启、解绑、配置下发和 OBS WebSocket 控制
 - 全量 API 文档中的所有扩展接口

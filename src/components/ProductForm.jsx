@@ -1,6 +1,7 @@
 import { InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { Button, Card, Checkbox, Form, Input, Select, Space, Tabs, Upload, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { resolveFileUrl, uploadFile } from '../services/fileService';
 import { createProduct, getProductCategories, updateProduct } from '../services/productService';
 import AiGenerateButton from './AiGenerateButton';
 
@@ -44,10 +45,23 @@ export function mapProductToFormValues(product) {
     return { forbidden: forbiddenOptions };
   }
 
+  const mainImage = product.image
+    ? [
+        {
+          uid: product.image,
+          name: product.image.startsWith('/uploads/') ? product.image.split('/').pop() : product.image,
+          status: 'done',
+          url: product.image.startsWith('/uploads/') ? resolveFileUrl(product.image) : undefined,
+          response: { file: { fileUrl: product.image } },
+        },
+      ]
+    : [];
+
   return {
     name: product.name,
     category: product.category,
     brand: product.brand,
+    mainImage,
     link: `https://mock.local/products/${product.id}`,
     description: product.description,
     spec: {
@@ -94,11 +108,13 @@ function splitLines(value) {
 }
 
 function buildProductPayload(values, status) {
+  const mainImage = values.mainImage?.[0];
+
   return {
     name: values.name,
     category: values.category,
     brand: values.brand,
-    image: values.mainImage?.[0]?.name || 'api-product',
+    image: mainImage?.response?.file?.fileUrl || mainImage?.url || mainImage?.name || 'api-product',
     description: values.description,
     price: Number(values.spec?.price || 0),
     stock: Number(values.spec?.stock || 0),
@@ -114,6 +130,22 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
+
+  const handleMainImageUpload = async ({ file, onSuccess, onError }) => {
+    try {
+      const uploadedFile = await uploadFile({
+        file,
+        module: 'product',
+        businessId: productId || 'new-product',
+        fileType: 'image',
+      });
+      message.success('商品主图已上传到本地文件服务');
+      onSuccess({ file: uploadedFile });
+    } catch (error) {
+      message.error(error.message || '商品主图上传失败');
+      onError(error);
+    }
+  };
 
   const saveProduct = async ({ returnToList = false, status = '草稿' } = {}) => {
     if (returnToList) {
@@ -170,13 +202,13 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
             <TextInput name="brand" label="商品品牌" action="AI优化" />
             <TextInput name="link" label="商品链接" placeholder="https://example.com/product/demo" />
           </div>
-          <Form.Item label="商品主图上传占位" name="mainImage" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-            <Upload.Dragger beforeUpload={() => false} maxCount={1} accept="image/*">
+          <Form.Item label="商品主图" name="mainImage" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
+            <Upload.Dragger customRequest={handleMainImageUpload} maxCount={1} accept="image/png,image/jpeg,image/webp,image/gif">
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
               <p className="ant-upload-text">点击或拖拽上传商品主图</p>
-              <p className="ant-upload-hint">仅前端占位，不上传到服务器。</p>
+              <p className="ant-upload-hint">保存到本地 server/uploads，并记录到 SQLite file_assets。</p>
             </Upload.Dragger>
           </Form.Item>
           <TextInput name="description" label="商品简介" target="简介" action="AI改写" textarea />

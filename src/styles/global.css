@@ -357,6 +357,12 @@ body {
   border-radius: 8px;
 }
 
+.product-thumb-image {
+  display: block;
+  object-fit: cover;
+  background: #f8fafc;
+}
+
 .product-thumb-seafood-box,
 .product-thumb-fish-snack {
   background: linear-gradient(135deg, #0f766e, #38bdf8);

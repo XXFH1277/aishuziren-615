@@ -12,3 +12,6 @@ server/data/*.sqlite
 server/data/*.db
 server/data/*.sqlite-*
 server/data/*.db-*
+
+server/uploads/*
+!server/uploads/.gitkeep

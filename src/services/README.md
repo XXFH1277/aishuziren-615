@@ -245,8 +245,38 @@ fileService -> fetch(`${API_BASE_URL}/api/files/upload`)
 
 - Dashboard 首页工作台不再直接读取 `src/mock/dashboard.js`，改为通过 `dashboardService` 读取本地 Express + SQLite 聚合数据。
 - `authService` 在 Phase 13 已升级为本地 Auth / RBAC MVP：登录成功后保存后端返回的 Bearer token，后续 `apiRequest` 自动携带 `Authorization` 请求头。
-- `fileService.uploadFileMock()` 当前只发送 JSON Mock 请求，不解析 multipart、不保存真实文件、不上传云端。
-- 真实文件上传、生产级登录安全、权限全量落地和文件资产存储后续必须由后端安全实现。
+- `fileService.uploadFile()` 在 Phase 14 已切换为真实 `multipart/form-data` 上传，后端保存到 `server/uploads` 并写入 `file_assets`。
+- 生产级登录安全、权限全量落地、云存储和文件安全扫描后续必须由后端安全实现。
+
+## Phase 14 File Upload MVP
+
+当前前端文件上传链路：
+
+```text
+商品主图 Upload
+↓
+fileService.uploadFile()
+↓
+POST /api/files/upload
+↓
+server/uploads
+↓
+file_assets
+```
+
+当前已接入：
+
+- 商品创建 / 编辑页的商品主图上传
+- `request.js` 对 `FormData` 自动跳过 JSON `Content-Type`
+- `fileService.resolveFileUrl()` 将 `/uploads/*` 转为本地 API 绝对地址
+- 商品列表对 `/uploads/*` 图片显示真实缩略图
+
+当前边界：
+
+- 需要登录 token。
+- 单文件最大 5MB。
+- 允许 PNG、JPG、WEBP、GIF、PDF、TXT。
+- 不接云存储、不做病毒扫描、不处理真实数字人训练素材。
 
 ## Phase 13 Auth / RBAC MVP
 
