@@ -464,13 +464,12 @@ export const permissionTree = [
     ],
   },
   {
-    title: '互动播控',
+    title: '播控管理',
     key: '/interaction-control',
     children: [
       { title: '弹幕捕获', key: '/interaction/comments' },
       { title: '问题队列', key: '/interaction/questions' },
       { title: '人工接管', key: '/interaction/takeover' },
-      { title: '当前播报', key: '/delay-control/current' },
       { title: '待播队列', key: '/delay-control/queue' },
       { title: '字幕预览', key: '/delay-control/subtitles' },
       { title: '播控设置', key: '/delay-control/settings' },

@@ -44,13 +44,12 @@ export const menuItems = [
   },
   {
     key: '/interaction-control',
-    label: '互动播控',
+    label: '播控管理',
     icon: 'interaction',
     children: [
       { key: '/interaction/comments', label: '弹幕捕获' },
       { key: '/interaction/questions', label: '问题队列' },
       { key: '/interaction/takeover', label: '人工接管' },
-      { key: '/delay-control/current', label: '当前播报' },
       { key: '/delay-control/queue', label: '待播队列' },
       { key: '/delay-control/subtitles', label: '字幕预览' },
       { key: '/delay-control/settings', label: '播控设置' },
@@ -109,19 +108,27 @@ export function flattenMenu(items = menuItems) {
   return items.flatMap((item) => [item, ...(item.children ? flattenMenu(item.children) : [])]);
 }
 
+const permissionPathAliases = {
+  '/interaction-control': ['/interaction/', '/delay-control/'],
+};
+
 export function canAccessMenuKey(key, menuPermissions = []) {
   if (!menuPermissions.length) {
     return false;
   }
 
-  return menuPermissions.some((permission) => key === permission || key.startsWith(`${permission}/`));
+  return menuPermissions.some((permission) => {
+    const aliases = permissionPathAliases[permission] || [];
+    return key === permission || key.startsWith(`${permission}/`) || aliases.some((prefix) => key.startsWith(prefix));
+  });
 }
 
 export function filterMenuByPermissions(items = menuItems, menuPermissions = []) {
   return items
     .map((item) => {
-      const children = item.children ? filterMenuByPermissions(item.children, menuPermissions) : undefined;
-      const allowed = canAccessMenuKey(item.key, menuPermissions) || Boolean(children?.length);
+      const parentAllowed = canAccessMenuKey(item.key, menuPermissions);
+      const children = item.children ? (parentAllowed ? item.children : filterMenuByPermissions(item.children, menuPermissions)) : undefined;
+      const allowed = parentAllowed || Boolean(children?.length);
 
       if (!allowed) {
         return null;
@@ -146,7 +153,11 @@ export function canAccessPath(pathname, menuPermissions = []) {
     return true;
   }
 
-  return canAccessMenuKey(pathname, menuPermissions);
+  const accessiblePages = flattenMenu(filterMenuByPermissions(menuItems, menuPermissions)).filter((item) => !item.children);
+  return (
+    canAccessMenuKey(pathname, menuPermissions) ||
+    accessiblePages.some((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))
+  );
 }
 
 export function findMenuItem(pathname) {
