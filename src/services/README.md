@@ -127,7 +127,7 @@ helpService -> fetch(`${API_BASE_URL}/api/help/changelog`)
 - FAQ、快速排查、技术工单、操作教程、系统状态、更新日志读取本地 Express + SQLite。
 - `createTicket()` 会写入本地 SQLite，但不发送邮件、短信、企业微信、飞书、钉钉，也不接真实外部工单系统。
 - `getTicketTypes()`、`getTicketUrgencies()`、`getTicketStatuses()`、`getFaqCategories()`、`getTutorialCategories()` 仍使用前端静态选项。
-- 工单回复、工单附件、真实文件上传、真实通知推送暂不实现。
+- 工单附件在 Phase 15 已接入本地真实上传；工单回复、关闭工单、真实通知推送暂不实现。
 - 本阶段不做静默 Mock fallback；本地 API 未启动时页面会提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 
 ## Phase 12.10 执行端管理 Service API 试点

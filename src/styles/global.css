@@ -1600,6 +1600,10 @@ body {
   margin-top: 18px;
 }
 
+.help-ticket-attachments {
+  margin-top: 16px;
+}
+
 .help-tutorial-card {
   height: 100%;
   border-radius: 8px;

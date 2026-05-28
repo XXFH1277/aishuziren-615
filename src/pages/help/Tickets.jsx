@@ -1,8 +1,9 @@
 import { InboxOutlined, PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Empty, Form, Input, Modal, Select, Space, Table, Timeline, Upload, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, List, Modal, Select, Space, Table, Timeline, Upload, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
+import { resolveFileUrl, uploadFile } from '../../services/fileService';
 import { createTicket, getTicketStatuses, getTicketTypes, getTicketUrgencies, getTickets } from '../../services/helpService';
 
 const { TextArea } = Input;
@@ -63,11 +64,31 @@ export default function Tickets() {
     setPagination((current) => ({ ...current, current: 1 }));
   };
 
+  const handleAttachmentUpload = async ({ file, onSuccess, onError }) => {
+    try {
+      const uploadedFile = await uploadFile({
+        file,
+        module: 'ticket',
+        businessId: 'new-ticket',
+        fileType: file.type?.startsWith('image/') ? 'image' : 'document',
+      });
+      message.success('附件已上传到本地文件服务');
+      onSuccess({ file: uploadedFile });
+    } catch (uploadError) {
+      message.error(uploadError.message || '附件上传失败');
+      onError(uploadError);
+    }
+  };
+
   const handleCreate = async () => {
     setCreating(true);
 
     try {
       const values = await form.validateFields();
+
+      const attachments = (values.attachments || [])
+        .map((item) => item.response?.file)
+        .filter(Boolean);
 
       await createTicket({
         ...values,
@@ -75,9 +96,11 @@ export default function Tickets() {
         relatedAvatar: values.avatar,
         relatedProduct: values.product,
         relatedExecutor: values.executor,
+        attachmentIds: attachments.map((item) => item.fileId || item.id),
+        attachments,
       });
 
-      message.success('技术工单已写入本地 SQLite，不发送邮件或通知');
+      message.success('技术工单已写入本地 SQLite，附件已绑定到工单');
       form.resetFields();
       setCreateOpen(false);
       setPagination((current) => ({ ...current, current: 1 }));
@@ -225,13 +248,13 @@ export default function Tickets() {
           <Form.Item name="description" label="问题描述" rules={[{ required: true, message: '请填写问题描述' }]}>
             <TextArea rows={4} placeholder="请描述看到的现象、出现时间和已尝试的处理步骤" />
           </Form.Item>
-          <Form.Item label="截图上传占位">
-            <Upload.Dragger beforeUpload={() => false} maxCount={3}>
+          <Form.Item label="附件" name="attachments" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
+            <Upload.Dragger customRequest={handleAttachmentUpload} maxCount={3} accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain">
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
-              <p className="ant-upload-text">点击或拖拽截图到这里</p>
-              <p className="ant-upload-hint">仅 UI 占位，不上传到服务器。</p>
+              <p className="ant-upload-text">点击或拖拽截图、PDF 或日志文件到这里</p>
+              <p className="ant-upload-hint">保存到本地 server/uploads，并随工单写入 SQLite。</p>
             </Upload.Dragger>
           </Form.Item>
           <Form.Item name="contact" label="联系方式">
@@ -267,6 +290,27 @@ export default function Tickets() {
                 { color: 'gray', children: `解决记录 Mock：${detailRecord.resolution}` },
               ]}
             />
+            <Card size="small" title="附件" className="help-ticket-attachments">
+              <List
+                size="small"
+                dataSource={detailRecord.attachments || []}
+                locale={{ emptyText: '暂无附件' }}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={[
+                      <a key="open" href={resolveFileUrl(item.fileUrl)} target="_blank" rel="noreferrer">
+                        打开
+                      </a>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={item.fileName}
+                      description={`${item.fileType || 'file'} · ${Math.max(1, Math.round((item.size || 0) / 1024))} KB`}
+                    />
+                  </List.Item>
+                )}
+              />
+            </Card>
           </>
         ) : null}
       </Modal>

@@ -74,9 +74,40 @@ function mapTicket(row) {
     resolution: row.resolution_record,
     resolutionRecord: row.resolution_record,
     contact: row.contact,
+    attachments: getTicketAttachments(row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mapAttachment(row) {
+  return {
+    id: row.id,
+    fileId: row.file_id,
+    fileName: row.file_name,
+    fileUrl: row.file_url,
+    fileType: row.file_type,
+    size: Number(row.size || 0),
+    mimeType: row.mime_type,
+    uploadedBy: row.uploaded_by,
+    createdAt: row.created_at,
+  };
+}
+
+function getTicketAttachments(ticketId) {
+  return db
+    .prepare('SELECT * FROM ticket_attachments WHERE ticket_id = ? ORDER BY created_at ASC')
+    .all(ticketId)
+    .map(mapAttachment);
+}
+
+function normalizeAttachmentIds(body) {
+  const idsFromAttachments = Array.isArray(body.attachments)
+    ? body.attachments.map((item) => item.fileId || item.id).filter(Boolean)
+    : [];
+  const idsFromAttachmentIds = Array.isArray(body.attachmentIds) ? body.attachmentIds.filter(Boolean) : [];
+
+  return [...new Set([...idsFromAttachments, ...idsFromAttachmentIds])].slice(0, 3);
 }
 
 function mapTutorial(row) {
@@ -216,6 +247,7 @@ router.post('/help/tickets', (req, res) => {
   const timestamp = now();
   const id = nextId('tickets', 'TK');
   const title = body.title || `${body.type || '技术工单'}-${id}`;
+  const attachmentIds = normalizeAttachmentIds(body);
 
   db.prepare(
     `INSERT INTO tickets (
@@ -247,6 +279,37 @@ router.post('/help/tickets', (req, res) => {
     contact: body.contact || '',
     createdAt: timestamp,
     updatedAt: timestamp,
+  });
+
+  attachmentIds.forEach((fileId) => {
+    const file = db.prepare('SELECT * FROM file_assets WHERE id = ? LIMIT 1').get(fileId);
+
+    if (!file) {
+      return;
+    }
+
+    db.prepare(
+      `INSERT INTO ticket_attachments (
+        id, ticket_id, file_id, file_name, file_url, file_type,
+        size, mime_type, uploaded_by, created_at
+      ) VALUES (
+        @id, @ticketId, @fileId, @fileName, @fileUrl, @fileType,
+        @size, @mimeType, @uploadedBy, @createdAt
+      )`,
+    ).run({
+      id: nextId('ticket_attachments', 'TA'),
+      ticketId: id,
+      fileId: file.id,
+      fileName: file.file_name,
+      fileUrl: file.file_url,
+      fileType: file.file_type,
+      size: Number(file.size || 0),
+      mimeType: file.mime_type,
+      uploadedBy: file.uploaded_by,
+      createdAt: timestamp,
+    });
+
+    db.prepare('UPDATE file_assets SET business_id = ? WHERE id = ?').run(id, file.id);
   });
 
   const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);

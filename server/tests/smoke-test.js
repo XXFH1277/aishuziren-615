@@ -156,6 +156,18 @@ async function run() {
   const uploadedResponse = await fetch(new URL(uploadResult.file.fileUrl, `${baseUrl}/`).toString());
   assert(uploadedResponse.ok, 'File API: uploaded file static URL is not accessible');
   pass('File API: uploaded static file', uploadResult.file.fileUrl);
+  const ticketAttachmentFormData = new FormData();
+  ticketAttachmentFormData.append('file', new Blob(['smoke test ticket log'], { type: 'text/plain' }), 'ticket-log.txt');
+  ticketAttachmentFormData.append('module', 'ticket');
+  ticketAttachmentFormData.append('businessId', 'new-ticket');
+  ticketAttachmentFormData.append('fileType', 'document');
+  const ticketAttachmentUpload = await requestJson('File API: ticket attachment upload', '/api/files/upload', {
+    method: 'POST',
+    body: ticketAttachmentFormData,
+    ...protectedOptions,
+  });
+  assert(ticketAttachmentUpload.file?.fileId, 'File API: ticket attachment upload did not return fileId');
+  pass('File API: ticket attachment upload', ticketAttachmentUpload.file.fileId);
 
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);
@@ -426,6 +438,17 @@ async function run() {
   await checkList('帮助中心 API：FAQ', '/api/help/faq');
   await checkList('帮助中心 API：快速排查', '/api/help/troubleshooting');
   await checkList('帮助中心 API：工单列表', '/api/help/tickets');
+  const createdTicket = await requestJson('帮助中心 API：创建带附件工单', '/api/help/tickets', {
+    method: 'POST',
+    body: {
+      type: '执行端问题',
+      urgency: '高',
+      description: 'Smoke test ticket with local uploaded attachment.',
+      attachmentIds: [ticketAttachmentUpload.file.fileId],
+    },
+  });
+  assert(createdTicket.ticket?.attachments?.length === 1, '帮助中心 API：创建带附件工单未返回附件');
+  pass('帮助中心 API：创建带附件工单', createdTicket.ticket.id);
   await checkList('帮助中心 API：教程列表', '/api/help/tutorials');
   await checkList('帮助中心 API：系统状态', '/api/help/status');
   await checkList('帮助中心 API：更新日志', '/api/help/changelog');

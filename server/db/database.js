@@ -33,6 +33,7 @@ const allowedIdTables = new Set([
   'auth_sessions',
   'operation_logs',
   'tickets',
+  'ticket_attachments',
   'executors',
   'executor_commands',
   'file_assets',

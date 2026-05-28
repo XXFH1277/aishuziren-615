@@ -478,6 +478,19 @@ CREATE TABLE IF NOT EXISTS tickets (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+  id TEXT PRIMARY KEY,
+  ticket_id TEXT NOT NULL,
+  file_id TEXT NOT NULL,
+  file_name TEXT,
+  file_url TEXT,
+  file_type TEXT,
+  size INTEGER DEFAULT 0,
+  mime_type TEXT,
+  uploaded_by TEXT,
+  created_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS tutorials (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -609,6 +622,7 @@ CREATE INDEX IF NOT EXISTS idx_help_faq_category ON help_faq(category);
 CREATE INDEX IF NOT EXISTS idx_troubleshooting_category ON troubleshooting_guides(category);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_tutorials_category ON tutorials(category);
 CREATE INDEX IF NOT EXISTS idx_executors_status ON executors(status);
 CREATE INDEX IF NOT EXISTS idx_executor_obs_executor_id ON executor_obs_status(executor_id);

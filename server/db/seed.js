@@ -114,6 +114,7 @@ function clearTables() {
     'operation_logs',
     'help_faq',
     'troubleshooting_guides',
+    'ticket_attachments',
     'tickets',
     'tutorials',
     'system_status',
