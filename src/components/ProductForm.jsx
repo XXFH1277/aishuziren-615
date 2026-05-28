@@ -16,23 +16,40 @@ export const forbiddenOptions = [
   '不能说治疗功效',
 ];
 
-function aiLabel(label, target = '简介', action = 'AI生成') {
+function aiLabel(label, target = '简介', action = 'AI生成', aiProps = {}) {
   return (
     <Space size={4}>
       <span>{label}</span>
-      <AiGenerateButton fieldName={label} target={target}>
+      <AiGenerateButton fieldName={label} target={target} {...aiProps}>
         {action}
       </AiGenerateButton>
     </Space>
   );
 }
 
-function TextInput({ name, label, target = '简介', action, required = false, textarea = false, placeholder }) {
+function TextInput({
+  name,
+  label,
+  target = '简介',
+  action,
+  required = false,
+  textarea = false,
+  placeholder,
+  buildGeneratePayload,
+  onAiInsert,
+}) {
   const Component = textarea ? TextArea : Input;
+  const aiProps = buildGeneratePayload
+    ? {
+        buildGeneratePayload,
+        onInsert: (copy, meta) => onAiInsert?.(name, copy, meta),
+      }
+    : {};
+
   return (
     <Form.Item
       name={name}
-      label={aiLabel(label, target, action)}
+      label={aiLabel(label, target, action, aiProps)}
       rules={required ? [{ required: true, message: `请输入${label}` }] : []}
     >
       <Component rows={textarea ? 4 : undefined} placeholder={placeholder || `请输入${label}`} />
@@ -126,6 +143,21 @@ function buildProductPayload(values, status) {
   };
 }
 
+function buildDraftProduct(values) {
+  return {
+    name: values.name,
+    category: values.category,
+    brand: values.brand,
+    price: Number(values.spec?.price || 0),
+    stock: Number(values.spec?.stock || 0),
+    description: values.description,
+    sellingPoints: splitLines(values.selling?.core),
+    faq: splitLines(values.faq?.questions),
+    scripts: values.script || {},
+    forbiddenExpressions: values.compliance?.forbidden || forbiddenOptions,
+  };
+}
+
 export default function ProductForm({ mode = 'create', productId, initialValues, productName }) {
   const [form] = Form.useForm();
   const navigate = useNavigate();
@@ -146,6 +178,27 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
       onError(error);
     }
   };
+
+  const buildProductCopyPayload = () => ({
+    sourcePage: isEdit ? '商品编辑' : '商品创建',
+    productId: isEdit ? productId : undefined,
+    draftProduct: buildDraftProduct(form.getFieldsValue(true)),
+  });
+
+  const handleAiInsert = (name, copy) => {
+    form.setFields([
+      {
+        name: Array.isArray(name) ? name : [name],
+        value: copy,
+      },
+    ]);
+    message.success('AI 文案已插入当前字段，请人工确认后保存');
+  };
+
+  const aiTextProps = (name) => ({
+    buildGeneratePayload: buildProductCopyPayload,
+    onAiInsert: (_fieldName, copy) => handleAiInsert(name, copy),
+  });
 
   const saveProduct = async ({ returnToList = false, status = '草稿' } = {}) => {
     if (returnToList) {
@@ -195,12 +248,12 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
         <Card className="panel-card">
           <div className="form-section-intro">维护单个商品的基础资料，列表页只展示摘要，不在列表中编辑复杂字段。</div>
           <div className="form-grid">
-            <TextInput name="name" label="商品名称" required />
+            <TextInput name="name" label="商品名称" required {...aiTextProps('name')} />
             <Form.Item name="category" label={aiLabel('商品分类')} rules={[{ required: true, message: '请选择商品分类' }]}>
               <Select placeholder="请选择商品分类" options={productCategories.map((item) => ({ label: item, value: item }))} />
             </Form.Item>
-            <TextInput name="brand" label="商品品牌" action="AI优化" />
-            <TextInput name="link" label="商品链接" placeholder="https://example.com/product/demo" />
+            <TextInput name="brand" label="商品品牌" action="AI优化" {...aiTextProps('brand')} />
+            <TextInput name="link" label="商品链接" placeholder="https://example.com/product/demo" {...aiTextProps('link')} />
           </div>
           <Form.Item label="商品主图" name="mainImage" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
             <Upload.Dragger customRequest={handleMainImageUpload} maxCount={1} accept="image/png,image/jpeg,image/webp,image/gif">
@@ -211,7 +264,7 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
               <p className="ant-upload-hint">保存到本地 server/uploads，并记录到 SQLite file_assets。</p>
             </Upload.Dragger>
           </Form.Item>
-          <TextInput name="description" label="商品简介" target="简介" action="AI改写" textarea />
+          <TextInput name="description" label="商品简介" target="简介" action="AI改写" textarea {...aiTextProps('description')} />
         </Card>
       ),
     },
@@ -221,14 +274,14 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
       children: (
         <Card className="panel-card">
           <div className="form-grid">
-            <TextInput name={['spec', 'name']} label="规格名称" required />
+            <TextInput name={['spec', 'name']} label="规格名称" required {...aiTextProps(['spec', 'name'])} />
             <Form.Item name={['spec', 'price']} label={aiLabel('价格说明', '口播')} rules={[{ required: true, message: '请输入价格' }]}>
               <Input prefix="￥" placeholder="请输入价格" />
             </Form.Item>
             <Form.Item name={['spec', 'stock']} label="库存" rules={[{ required: true, message: '请输入库存' }]}>
               <Input placeholder="请输入库存" />
             </Form.Item>
-            <TextInput name={['spec', 'delivery']} label="发货说明" target="简介" action="AI优化" />
+            <TextInput name={['spec', 'delivery']} label="发货说明" target="简介" action="AI优化" {...aiTextProps(['spec', 'delivery'])} />
           </div>
         </Card>
       ),
@@ -239,11 +292,11 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
       children: (
         <Card className="panel-card">
           <div className="form-grid">
-            <TextInput name={['selling', 'core']} label="核心卖点" target="卖点" textarea />
-            <TextInput name={['selling', 'audience']} label="适用人群" target="卖点" action="AI优化" textarea />
-            <TextInput name={['selling', 'scene']} label="使用场景" target="卖点" action="AI生成" textarea />
-            <TextInput name={['selling', 'advantage']} label="对比优势" target="合规改写" action="AI改写" textarea />
-            <TextInput name={['selling', 'promotion']} label="促销利益点" target="卖点" action="AI优化" textarea />
+            <TextInput name={['selling', 'core']} label="核心卖点" target="卖点" textarea {...aiTextProps(['selling', 'core'])} />
+            <TextInput name={['selling', 'audience']} label="适用人群" target="卖点" action="AI优化" textarea {...aiTextProps(['selling', 'audience'])} />
+            <TextInput name={['selling', 'scene']} label="使用场景" target="卖点" action="AI生成" textarea {...aiTextProps(['selling', 'scene'])} />
+            <TextInput name={['selling', 'advantage']} label="对比优势" target="合规改写" action="AI改写" textarea {...aiTextProps(['selling', 'advantage'])} />
+            <TextInput name={['selling', 'promotion']} label="促销利益点" target="卖点" action="AI优化" textarea {...aiTextProps(['selling', 'promotion'])} />
           </div>
         </Card>
       ),
@@ -254,12 +307,12 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
       children: (
         <Card className="panel-card">
           <div className="form-grid">
-            <TextInput name={['script', 'opening']} label="开场介绍" target="口播" textarea />
-            <TextInput name={['script', 'sellingPoint']} label="卖点讲解" target="口播" action="AI优化" textarea />
-            <TextInput name={['script', 'price']} label="价格说明" target="口播" textarea />
-            <TextInput name={['script', 'benefit']} label="福利说明" target="口播" textarea />
-            <TextInput name={['script', 'urge']} label="催单话术" target="合规改写" action="AI改写" textarea />
-            <TextInput name={['script', 'afterSale']} label="售后说明" target="口播" action="AI优化" textarea />
+            <TextInput name={['script', 'opening']} label="开场介绍" target="口播" textarea {...aiTextProps(['script', 'opening'])} />
+            <TextInput name={['script', 'sellingPoint']} label="卖点讲解" target="口播" action="AI优化" textarea {...aiTextProps(['script', 'sellingPoint'])} />
+            <TextInput name={['script', 'price']} label="价格说明" target="口播" textarea {...aiTextProps(['script', 'price'])} />
+            <TextInput name={['script', 'benefit']} label="福利说明" target="口播" textarea {...aiTextProps(['script', 'benefit'])} />
+            <TextInput name={['script', 'urge']} label="催单话术" target="合规改写" action="AI改写" textarea {...aiTextProps(['script', 'urge'])} />
+            <TextInput name={['script', 'afterSale']} label="售后说明" target="口播" action="AI优化" textarea {...aiTextProps(['script', 'afterSale'])} />
           </div>
         </Card>
       ),
@@ -270,8 +323,8 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
       children: (
         <Card className="panel-card">
           <div className="form-grid">
-            <TextInput name={['faq', 'questions']} label="常见问题回答" target="FAQ" textarea />
-            <TextInput name={['faq', 'answerStrategy']} label="回答策略" target="FAQ" action="AI优化" textarea />
+            <TextInput name={['faq', 'questions']} label="常见问题回答" target="FAQ" textarea {...aiTextProps(['faq', 'questions'])} />
+            <TextInput name={['faq', 'answerStrategy']} label="回答策略" target="FAQ" action="AI优化" textarea {...aiTextProps(['faq', 'answerStrategy'])} />
           </div>
         </Card>
       ),
@@ -284,7 +337,7 @@ export default function ProductForm({ mode = 'create', productId, initialValues,
           <Form.Item name={['compliance', 'forbidden']} label="商品禁用表达" initialValue={forbiddenOptions}>
             <Checkbox.Group options={forbiddenOptions} />
           </Form.Item>
-          <TextInput name={['compliance', 'rewrite']} label="合规改写备注" target="合规改写" action="AI改写" textarea />
+          <TextInput name={['compliance', 'rewrite']} label="合规改写备注" target="合规改写" action="AI改写" textarea {...aiTextProps(['compliance', 'rewrite'])} />
         </Card>
       ),
     },

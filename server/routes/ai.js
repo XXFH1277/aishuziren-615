@@ -7,6 +7,29 @@ import { fail, page, success } from '../utils/response.js';
 
 const router = express.Router();
 
+const productCopyTargets = {
+  description: {
+    label: '商品简介',
+    promptCategory: '商品简介',
+  },
+  selling_points: {
+    label: '核心卖点',
+    promptCategory: '商品卖点',
+  },
+  live_script: {
+    label: '直播口播',
+    promptCategory: '直播口播',
+  },
+  faq: {
+    label: 'FAQ问答',
+    promptCategory: 'FAQ问答',
+  },
+  compliance_rewrite: {
+    label: '合规改写',
+    promptCategory: '合规改写',
+  },
+};
+
 function getPagination(req) {
   const pageNumber = Math.max(Number.parseInt(req.query.page || '1', 10), 1);
   const pageSize = Math.min(Math.max(Number.parseInt(req.query.pageSize || '20', 10), 1), 100);
@@ -174,6 +197,129 @@ function getCredentialRow(providerId) {
   return db.prepare('SELECT * FROM ai_model_credentials WHERE provider_id = ? LIMIT 1').get(providerId);
 }
 
+function parseStoredJson(value, fallback) {
+  if (Array.isArray(value) || (value && typeof value === 'object')) {
+    return value;
+  }
+
+  return fromJson(value, fallback);
+}
+
+function listFromValue(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split('\n')
+      .map((item) => item.replace(/^-\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function mapProductForAi(row = {}) {
+  if (!row) {
+    return {};
+  }
+
+  return {
+    id: row.id,
+    name: row.name || '',
+    category: row.category || '',
+    brand: row.brand || '',
+    price: Number(row.price || 0),
+    stock: Number(row.stock || 0),
+    description: row.description || '',
+    sellingPoints: listFromValue(parseStoredJson(row.selling_points, [])),
+    faq: listFromValue(parseStoredJson(row.faq, [])),
+    scripts: parseStoredJson(row.scripts, {}),
+    forbiddenExpressions: listFromValue(parseStoredJson(row.forbidden_expressions, [])),
+  };
+}
+
+function mapDraftProductForAi(draft = {}) {
+  const scripts = draft.scripts || draft.script || {};
+  const sellingPoints = draft.sellingPoints || draft.selling?.core || [];
+  const faq = draft.faq?.questions || draft.faq || [];
+
+  return {
+    id: draft.id || '',
+    name: draft.name || '',
+    category: draft.category || '',
+    brand: draft.brand || '',
+    price: Number(draft.price ?? draft.spec?.price ?? 0),
+    stock: Number(draft.stock ?? draft.spec?.stock ?? 0),
+    description: draft.description || '',
+    sellingPoints: listFromValue(sellingPoints),
+    faq: listFromValue(faq),
+    scripts,
+    forbiddenExpressions: listFromValue(draft.forbiddenExpressions || draft.compliance?.forbidden || []),
+  };
+}
+
+function mergeProductInput(baseProduct = {}, draftProduct = {}) {
+  const draft = mapDraftProductForAi(draftProduct);
+
+  return {
+    ...baseProduct,
+    ...Object.fromEntries(Object.entries(draft).filter(([, value]) => {
+      if (Array.isArray(value)) return value.length > 0;
+      if (value && typeof value === 'object') return Object.keys(value).length > 0;
+      return value !== '' && value !== 0;
+    })),
+    sellingPoints: draft.sellingPoints?.length ? draft.sellingPoints : baseProduct.sellingPoints || [],
+    faq: draft.faq?.length ? draft.faq : baseProduct.faq || [],
+    scripts: Object.keys(draft.scripts || {}).length ? draft.scripts : baseProduct.scripts || {},
+    forbiddenExpressions: draft.forbiddenExpressions?.length
+      ? draft.forbiddenExpressions
+      : baseProduct.forbiddenExpressions || [],
+  };
+}
+
+function countFilledProductFields(product = {}) {
+  return [
+    product.name,
+    product.category,
+    product.brand,
+    product.price,
+    product.stock,
+    product.description,
+    ...(product.sellingPoints || []),
+    ...(product.faq || []),
+    ...Object.values(product.scripts || {}),
+    ...(product.forbiddenExpressions || []),
+  ].filter((value) => String(value || '').trim()).length;
+}
+
+function getProductCopyPromptTemplate(target, promptTemplateId) {
+  if (promptTemplateId) {
+    const row = db.prepare('SELECT * FROM prompt_templates WHERE id = ?').get(promptTemplateId);
+    return row ? mapPrompt(row) : null;
+  }
+
+  const row = db
+    .prepare(
+      `SELECT * FROM prompt_templates
+       WHERE category = @category AND status = '启用中'
+       ORDER BY updated_at DESC, id ASC
+       LIMIT 1`,
+    )
+    .get({ category: productCopyTargets[target]?.promptCategory || '商品简介' });
+
+  return row ? mapPrompt(row) : null;
+}
+
+function buildProductCopyInputSummary({ productId, target, fieldCount, promptTemplate }) {
+  return `product_copy 商品=${productId || 'draft'}，target=${target}，字段数=${fieldCount}，模板=${promptTemplate?.id || 'default'}，未记录商品草稿原文。`;
+}
+
+function buildProductCopyOutputSummary({ target, content, riskTips }) {
+  return `生成 ${target}，长度=${String(content || '').length}，riskTips=${riskTips?.length || 0}，输出已脱敏摘要。`;
+}
+
 function summarizeInput({ scenario, modelName, sourcePage }) {
   return `${sourcePage} 发起 ${scenario}，模型 ${modelName}，未记录 Prompt 原文或 API Key。`;
 }
@@ -333,6 +479,119 @@ router.put('/ai/assistant', (req, res) => {
   return success(res, {
     assistant: payload,
     mock: true,
+  });
+});
+
+router.post('/ai/generate', requireAuth, async (req, res) => {
+  const body = req.body || {};
+  const scenario = body.scenario || '';
+  const target = body.target || '';
+
+  if (scenario !== 'product_copy') {
+    return fail(res, '参数错误', 40001, {
+      field: 'scenario',
+      reason: '当前阶段仅支持 product_copy',
+    });
+  }
+
+  if (!productCopyTargets[target]) {
+    return fail(res, '参数错误', 40001, {
+      field: 'target',
+      reason: 'target 仅支持 description / selling_points / live_script / faq / compliance_rewrite',
+    });
+  }
+
+  const startedAt = Date.now();
+  const productId = body.productId || '';
+  let product = {};
+
+  if (productId) {
+    const row = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+
+    if (!row) {
+      return fail(res, '商品不存在', 40400, { id: productId });
+    }
+
+    product = mapProductForAi(row);
+  }
+
+  product = mergeProductInput(product, body.draftProduct || {});
+  const promptTemplate = getProductCopyPromptTemplate(target, body.promptTemplateId);
+
+  if (body.promptTemplateId && !promptTemplate) {
+    return fail(res, 'Prompt template not found', 40400, { id: body.promptTemplateId });
+  }
+
+  const sourcePage = body.sourcePage || '商品编辑';
+  const options = body.options || {};
+  const realProvider = body.realProvider === true;
+  const modelName = 'fake-model';
+  const prompt = promptTemplate?.templateContent || `Generate ${productCopyTargets[target].label} for product_copy.`;
+  const result = await runProviderGenerate({
+    realProvider,
+    scenario,
+    prompt,
+    input: {
+      target,
+      product,
+      options,
+      promptTemplateId: promptTemplate?.id || '',
+    },
+    modelConfig: {
+      modelName,
+      defaultModel: modelName,
+      target,
+    },
+  });
+  const content = result.content || '';
+  const structured = result.structured || {};
+  const riskTips = result.riskTips || [];
+  const duration = `${Date.now() - startedAt}ms`;
+  const tokens = Number(result.usage?.totalTokens || 0);
+  const cost = Number(result.cost || 0);
+  const logStatus = result.skipped ? '已拦截' : '成功';
+  const errorType = result.skipped ? 'real_provider_disabled' : '';
+  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : '';
+  const logId = recordAiCallLog({
+    sourcePage,
+    type: '商品文案',
+    provider: result.providerId || 'fake',
+    modelName,
+    inputSummary: buildProductCopyInputSummary({
+      productId: product.id || productId,
+      target,
+      fieldCount: countFilledProductFields(product),
+      promptTemplate,
+    }),
+    outputSummary: buildProductCopyOutputSummary({ target, content, riskTips }),
+    status: logStatus,
+    duration,
+    tokens,
+    cost,
+    errorType,
+    errorMessage,
+  });
+  updateAiCostDaily({
+    provider: result.providerId || 'fake',
+    type: '商品文案',
+    cost,
+  });
+
+  return success(res, {
+    scenario,
+    target,
+    content,
+    structured,
+    riskTips,
+    usage: result.usage || {},
+    cost,
+    provider: result.providerId || 'fake',
+    modelName,
+    providerRequestId: result.providerRequestId || '',
+    logId,
+    mock: true,
+    realProviderEnabled: false,
+    message: result.message,
   });
 });
 

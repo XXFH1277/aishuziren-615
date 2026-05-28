@@ -193,6 +193,7 @@ delayControlService -> fetch(`${API_BASE_URL}/api/delay-control/settings`)
 
 ```text
 aiService -> fetch(`${API_BASE_URL}/api/ai/assistant`)
+aiService -> fetch(`${API_BASE_URL}/api/ai/generate`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/models`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/models/:id/credentials`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/models/defaults`)
@@ -206,11 +207,13 @@ aiService -> fetch(`${API_BASE_URL}/api/ai/costs`)
 - AI助理设置、模型服务配置、Prompt模板、调用日志、成本监控页面读取本地 Express + SQLite。
 - Phase 18A 起，模型凭证通过 `saveModelCredentials()`、`getModelCredentials()`、`deleteModelCredentials()` 调用后端 credentials 接口；前端只显示 `apiKeyConfigured`、`apiKeyMasked`、`credentialRef`。
 - 模型连接测试通过后端代理流程执行，默认使用 fake provider，不调用 Kimi、Mimo、OpenAI、DeepSeek 或任何真实模型服务。
+- Phase 18B-1 起，`generateAiContent()` / `generateProductCopy()` 调用 `POST /api/ai/generate`，当前仅支持 `scenario=product_copy`，默认 fake provider。
+- 商品表单和 AI 商品文案页的生成按钮会走本地 API，生成结果仍需人工确认后插入字段或保存商品。
 - `PUT /api/ai/models/:id` 会忽略 `apiKey` / `key` / `secret` 字段；当前不保存明文密钥。
 - 真实密钥后续必须走后端凭据接口和脱敏存储，前端只显示 `apiKeyConfigured`、`apiKeyMasked`、`credentialRef` 等安全状态。
 - `getModelStatusOptions()`、`getModelUsageScenes()`、`getPromptCategories()`、`getPromptTemplateStatuses()`、`getPromptVariables()` 仍使用前端静态选项。
 - 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。
-- 商品文案真实生成仍未接入，后续 product_copy 试点才会进入真实生成流程。
+- 商品文案已打通 fake provider 闭环；真实 provider 仍未开启，后续需手动进入真实生成试点。
 
 ## Phase 12.16 直播中控台聚合 Service API 试点
 

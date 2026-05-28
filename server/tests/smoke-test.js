@@ -465,6 +465,35 @@ async function run() {
   assert(modelTestResult.realProviderEnabled === false, 'AI 能力中心 API：测试模型连接不应开启真实 provider');
   assert(modelTestResult.tokens === 300, 'AI 能力中心 API：fake provider token 数不匹配');
   pass('AI 能力中心 API：fake provider 测试模型连接', modelTestResult.status);
+  const productCopyGenerated = await requestJson('AI 能力中心 API：product_copy fake 生成', '/api/ai/generate', {
+    method: 'POST',
+    body: {
+      scenario: 'product_copy',
+      target: 'description',
+      sourcePage: 'Smoke Test',
+      productId: 'P001',
+      options: {
+        style: '数字人自然口吻',
+        length: '中',
+        complianceCheck: true,
+      },
+      realProvider: false,
+    },
+    ...protectedOptions,
+  });
+  assert(productCopyGenerated.content, 'AI 能力中心 API：product_copy fake 生成未返回 content');
+  assert(productCopyGenerated.mock === true, 'AI 能力中心 API：product_copy fake 生成未返回 mock=true');
+  assert(productCopyGenerated.provider === 'fake', 'AI 能力中心 API：product_copy fake 生成 provider 不是 fake');
+  assert(productCopyGenerated.logId, 'AI 能力中心 API：product_copy fake 生成未返回 logId');
+  pass('AI 能力中心 API：product_copy fake 生成', productCopyGenerated.logId);
+  await requestExpectedError('AI 能力中心 API：product_copy scenario 参数校验', '/api/ai/generate', 40001, {
+    method: 'POST',
+    body: {
+      scenario: 'unknown',
+      target: 'description',
+    },
+    ...protectedOptions,
+  });
   const deletedCredential = await requestJson('AI 能力中心 API：删除模型凭证脱敏状态', `/api/ai/models/${aiModels[0].id}/credentials`, {
     method: 'DELETE',
     ...protectedOptions,

@@ -208,6 +208,8 @@ Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
 - `POST /api/ai/models/:id/test` 默认使用 `server/ai/fakeProvider.js`，不会调用 Kimi、Mimo、OpenAI、DeepSeek 或任何真实模型服务。
 - `server/ai/openaiCompatibleProvider.js` 当前只保留框架，真实调用默认未开启。
 - 模型测试会写入 `ai_call_logs` 和 `ai_cost_daily`，日志只记录脱敏摘要、token 数、耗时、状态和费用估算，不记录 API Key、Authorization header、完整 Prompt 或用户隐私。
+- `POST /api/ai/generate` 当前只支持 `scenario=product_copy`，默认使用 fake provider 打通商品文案生成闭环。
+- `product_copy` 支持 `description`、`selling_points`、`live_script`、`faq`、`compliance_rewrite` 五类 target，并写入脱敏调用日志。
 
 后续进入真实模型前，必须先确认后端环境变量或密钥管理方案、限流、超时、费用保护和脱敏日志策略。前端不得使用任何 `VITE_` 模型 Key。
 
@@ -270,6 +272,7 @@ Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
 - `PATCH /api/live/control-room/speech-queue/:id`
 - `GET /api/ai/assistant`
 - `PUT /api/ai/assistant`
+- `POST /api/ai/generate`
 - `GET /api/ai/models`
 - `PUT /api/ai/models/:id`
 - `GET /api/ai/models/:id/credentials`

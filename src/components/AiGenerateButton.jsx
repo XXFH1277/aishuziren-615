@@ -9,6 +9,8 @@ export default function AiGenerateButton({
   type = 'link',
   size = 'small',
   children = 'AI生成',
+  buildGeneratePayload,
+  onInsert,
 }) {
   const [open, setOpen] = useState(false);
 
@@ -21,10 +23,14 @@ export default function AiGenerateButton({
         open={open}
         target={target}
         fieldName={fieldName}
+        buildGeneratePayload={buildGeneratePayload}
         onCancel={() => setOpen(false)}
-        onInsert={(copy) => {
-          console.log('[Mock AI Insert]', fieldName || target, copy);
-          message.info('已触发插入占位，本阶段不自动写入字段');
+        onInsert={(copy, meta) => {
+          if (onInsert) {
+            onInsert(copy, meta);
+          } else {
+            message.info('已生成文案，请人工确认后使用');
+          }
           setOpen(false);
         }}
       />

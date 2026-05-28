@@ -50,6 +50,17 @@ export async function testAiModel(id, data = {}) {
   return apiRequest.post(`/api/ai/models/${id}/test`, data);
 }
 
+export async function generateAiContent(data = {}) {
+  return apiRequest.post('/api/ai/generate', data);
+}
+
+export async function generateProductCopy(data = {}) {
+  return generateAiContent({
+    ...data,
+    scenario: 'product_copy',
+  });
+}
+
 export async function updateModelDefaults(data = {}) {
   return apiRequest.patch('/api/ai/models/defaults', data);
 }

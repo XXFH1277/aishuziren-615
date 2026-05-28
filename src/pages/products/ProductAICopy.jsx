@@ -36,7 +36,18 @@ const copyScenes = [
   },
 ];
 
-function SceneCard({ scene }) {
+function SceneCard({ scene, selectedProduct }) {
+  const [extraInput, setExtraInput] = useState('');
+
+  const buildGeneratePayload = () => ({
+    sourcePage: 'AI商品文案',
+    productId: selectedProduct?.id,
+    draftProduct: {
+      ...(selectedProduct || {}),
+      description: extraInput || selectedProduct?.description,
+    },
+  });
+
   return (
     <Card className="copy-scene-card">
       <div className="copy-scene-title">
@@ -46,10 +57,15 @@ function SceneCard({ scene }) {
         <Tag color="default">Mock</Tag>
       </div>
       <p>{scene.description}</p>
-      <Input.TextArea rows={4} placeholder="可粘贴商品卖点、规格或已有话术，本阶段不会发送到外部服务。" />
+      <Input.TextArea
+        rows={4}
+        value={extraInput}
+        onChange={(event) => setExtraInput(event.target.value)}
+        placeholder="可粘贴商品卖点、规格或已有话术，仅发送到本地 fake provider。"
+      />
       <div className="copy-scene-actions">
-        <AiGenerateButton target={scene.target} fieldName={scene.title} type="primary">
-          生成 Mock 文案
+        <AiGenerateButton target={scene.target} fieldName={scene.title} type="primary" buildGeneratePayload={buildGeneratePayload}>
+          生成 fake 文案
         </AiGenerateButton>
       </div>
     </Card>
@@ -58,6 +74,8 @@ function SceneCard({ scene }) {
 
 export default function ProductAICopy() {
   const [products, setProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const selectedProduct = products.find((product) => product.id === selectedProductId) || null;
 
   useEffect(() => {
     async function fetchProducts() {
@@ -85,15 +103,17 @@ export default function ProductAICopy() {
                 showSearch
                 placeholder="请选择商品"
                 style={{ minWidth: 240 }}
+                value={selectedProductId || undefined}
+                onChange={setSelectedProductId}
                 options={products.map((product) => ({ label: product.name, value: product.id }))}
               />
-              <span className="table-subtext">选择项只影响前端展示流程，不发起请求。</span>
+              <span className="table-subtext">生成请求只访问本地 /api/ai/generate，不调用真实模型。</span>
             </Space>
           </Card>
           <Row gutter={[16, 16]}>
             {copyScenes.map((scene) => (
               <Col xs={24} lg={12} key={scene.key}>
-                <SceneCard scene={scene} />
+                <SceneCard scene={scene} selectedProduct={selectedProduct} />
               </Col>
             ))}
           </Row>
