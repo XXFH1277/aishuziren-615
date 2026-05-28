@@ -192,7 +192,8 @@ Phase 14 已将 `POST /api/files/upload` 升级为本地真实上传 MVP：
 - 访问路径：`/uploads/*`
 - 元信息表：`file_assets`
 - 大小限制：单文件最大 5MB
-- 类型限制：PNG、JPG、WEBP、GIF、PDF、TXT
+- 类型限制：PNG、JPG、WEBP、GIF、PDF、TXT、MP4、WEBM、MOV、MP3、WAV、M4A、AAC
+- 已接入入口：商品主图、工单附件、数字人素材、数字人授权文件、系统 Logo
 
 当前不接云存储、不做病毒扫描、不做生产级文件权限隔离。`server/uploads/*` 已加入 `.gitignore`，不要提交上传产物。
 

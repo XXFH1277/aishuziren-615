@@ -1,22 +1,55 @@
 import { ReloadOutlined, SaveOutlined, UploadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Form, Input, Select, Space, Switch, Upload, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Form, Input, Select, Space, Switch, Upload, message } from 'antd';
 import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
+import { resolveFileUrl, toFileAsset, uploadSystemLogo } from '../../services/fileService';
 import { getBasicSettings, getSettingsOptions, saveBasicSettings } from '../../services/settingsService';
 
 const settingsOptions = getSettingsOptions();
 
 const normalizeUpload = (event) => (Array.isArray(event) ? event : event?.fileList);
 
+function logoToUploadList(logo) {
+  if (!logo || typeof logo === 'string') {
+    return [];
+  }
+
+  if (Array.isArray(logo)) {
+    return logo;
+  }
+
+  const fileAsset = toFileAsset(logo);
+
+  if (!fileAsset?.fileName && !fileAsset?.fileUrl) {
+    return [];
+  }
+
+  return [
+    {
+      uid: fileAsset.fileId || fileAsset.fileUrl || fileAsset.fileName,
+      name: fileAsset.fileName || 'system-logo',
+      status: 'done',
+      url: fileAsset.fileUrl ? resolveFileUrl(fileAsset.fileUrl) : undefined,
+      response: { file: fileAsset },
+    },
+  ];
+}
+
+function getLogoAsset(value) {
+  const uploadItem = Array.isArray(value) ? value[0] : value;
+  return uploadItem ? toFileAsset(uploadItem) : undefined;
+}
+
+function mapBasicSettingsToFormValues(settings = {}) {
+  return {
+    ...settings,
+    logo: logoToUploadList(settings.logo),
+  };
+}
+
 const serializeBasicSettings = (values) => ({
   ...values,
-  logo: Array.isArray(values.logo)
-    ? values.logo.map((file) => ({
-        uid: file.uid,
-        name: file.name,
-        status: file.status,
-      }))
-    : values.logo,
+  logo: getLogoAsset(values.logo),
 });
 
 export default function BasicSettings() {
@@ -38,7 +71,7 @@ export default function BasicSettings() {
 
         if (!ignore) {
           setBasicSettings(data);
-          form.setFieldsValue(data);
+          form.setFieldsValue(mapBasicSettingsToFormValues(data));
         }
       } catch (requestError) {
         const messageText = requestError.message || '基础设置加载失败';
@@ -69,7 +102,7 @@ export default function BasicSettings() {
       const savedSettings = await saveBasicSettings(serializeBasicSettings(values));
 
       setBasicSettings(savedSettings);
-      form.setFieldsValue(savedSettings);
+      form.setFieldsValue(mapBasicSettingsToFormValues(savedSettings));
       message.success('基础设置已保存到本地 SQLite');
     } catch (requestError) {
       if (!requestError.errorFields) {
@@ -81,8 +114,19 @@ export default function BasicSettings() {
   };
 
   const handleReset = () => {
-    form.setFieldsValue(basicSettings);
+    form.setFieldsValue(mapBasicSettingsToFormValues(basicSettings));
     message.info('已恢复默认 Mock 设置');
+  };
+
+  const handleLogoUpload = async ({ file, onSuccess, onError }) => {
+    try {
+      const uploadedFile = await uploadSystemLogo(file);
+      message.success('系统 Logo 已上传到本地文件服务');
+      onSuccess({ file: uploadedFile });
+    } catch (uploadError) {
+      message.error(uploadError.message || '系统 Logo 上传失败');
+      onError(uploadError);
+    }
   };
 
   return (
@@ -112,16 +156,45 @@ export default function BasicSettings() {
 
       {error ? <Alert className="settings-alert" type="error" showIcon message={error} /> : null}
 
-      <Form form={form} layout="vertical" initialValues={basicSettings} disabled={loading}>
+      <Form form={form} layout="vertical" initialValues={mapBasicSettingsToFormValues(basicSettings)} disabled={loading}>
         <div className="settings-two-column">
           <Card title="系统信息" className="panel-card">
             <Form.Item label="系统名称" name="systemName">
               <Input placeholder="数字人直播带货中控系统" />
             </Form.Item>
-            <Form.Item label="系统 Logo 占位" name="logo" valuePropName="fileList" getValueFromEvent={normalizeUpload}>
-              <Upload beforeUpload={() => false} maxCount={1}>
-                <Button icon={<UploadOutlined />}>上传 Logo Mock</Button>
+            <Form.Item label="系统 Logo" name="logo" valuePropName="fileList" getValueFromEvent={normalizeUpload}>
+              <Upload customRequest={handleLogoUpload} maxCount={1} accept="image/png,image/jpeg,image/webp,image/gif" listType="picture">
+                <Button icon={<UploadOutlined />}>上传 Logo</Button>
               </Upload>
+            </Form.Item>
+            <Form.Item shouldUpdate noStyle>
+              {({ getFieldValue }) => {
+                const logo = getLogoAsset(getFieldValue('logo'));
+
+                if (!logo?.fileName) {
+                  return null;
+                }
+
+                return (
+                  <div className="settings-logo-preview">
+                    {logo.fileUrl ? <img src={resolveFileUrl(logo.fileUrl)} alt={logo.fileName} /> : null}
+                    <Descriptions size="small" column={1} bordered>
+                      <Descriptions.Item label="文件名">{logo.fileName}</Descriptions.Item>
+                      <Descriptions.Item label="文件类型">{logo.fileType || logo.mimeType || '-'}</Descriptions.Item>
+                      <Descriptions.Item label="上传时间">{logo.uploadedAt || '-'}</Descriptions.Item>
+                      <Descriptions.Item label="文件地址">
+                        {logo.fileUrl ? (
+                          <a href={resolveFileUrl(logo.fileUrl)} target="_blank" rel="noreferrer">
+                            打开文件
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                );
+              }}
             </Form.Item>
             <Form.Item label="系统副标题" name="systemSubtitle">
               <Input placeholder="Cloud Admin Mock Console" />

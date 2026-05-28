@@ -6,7 +6,7 @@ import { db, nextId, now } from '../db/database.js';
 import { requireAuth } from '../utils/auth.js';
 import { PARAM_ERROR } from '../utils/errorCodes.js';
 import { fail, success } from '../utils/response.js';
-import { allowedMimeTypes, maxUploadSize, uploadPublicPrefix, uploadRoot } from '../utils/uploadConfig.js';
+import { allowedMimeTypes, allowedUploadDescription, maxUploadSize, uploadPublicPrefix, uploadRoot } from '../utils/uploadConfig.js';
 
 const router = express.Router();
 
@@ -18,6 +18,15 @@ function sanitizeFileName(fileName = 'upload') {
     .slice(0, 80);
 
   return baseName || 'upload';
+}
+
+function sanitizePathSegment(value = 'common') {
+  const segment = String(value || 'common')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+
+  return segment || 'common';
 }
 
 function parseMultipartBody(buffer, boundary) {
@@ -173,12 +182,12 @@ router.post('/upload', requireAuth, async (req, res) => {
   if (!mimeConfig) {
     return fail(res, '文件类型不支持', PARAM_ERROR, {
       field: 'file',
-      reason: '仅支持 PNG、JPG、WEBP、GIF、PDF、TXT',
+      reason: `仅支持 ${allowedUploadDescription}`,
     });
   }
 
   const timestamp = now();
-  const moduleName = multipart.fields.module || 'common';
+  const moduleName = sanitizePathSegment(multipart.fields.module || 'common');
   const businessId = multipart.fields.businessId || '';
   const fileId = nextId('file_assets', 'FILE');
   const safeName = sanitizeFileName(multipart.file.originalName);

@@ -525,6 +525,27 @@ body {
   border-radius: 8px;
 }
 
+.uploaded-file-info {
+  margin: 10px 0 16px;
+}
+
+.settings-logo-preview {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin: 10px 0 18px;
+}
+
+.settings-logo-preview img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
 .avatar-preview-figure {
   display: grid;
   min-height: 150px;
@@ -1684,6 +1705,10 @@ body {
   }
 
   .avatar-preview-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-logo-preview {
     grid-template-columns: 1fr;
   }
 

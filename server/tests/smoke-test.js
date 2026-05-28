@@ -136,6 +136,27 @@ async function run() {
   const protectedOptions = {
     headers: { Authorization: `Bearer ${reloginResult.token}` },
   };
+  async function uploadSmokeFile(name, { content, mimeType, fileName, module, businessId, fileType }) {
+    const formData = new FormData();
+    formData.append('file', new Blob([content], { type: mimeType }), fileName);
+    formData.append('module', module);
+    formData.append('businessId', businessId);
+    formData.append('fileType', fileType);
+
+    const result = await requestJson(name, '/api/files/upload', {
+      method: 'POST',
+      body: formData,
+      ...protectedOptions,
+    });
+
+    assert(result.file?.fileId, `${name} did not return fileId`);
+    assert(result.mock === false, `${name} did not return mock=false`);
+    assert(result.file.fileUrl?.startsWith(`/uploads/${module}/`), `${name} did not return module uploads URL`);
+    pass(name, result.file.fileId);
+
+    return result;
+  }
+
   await requestExpectedError('File API: upload unauthorized', '/api/files/upload', 40101, {
     method: 'POST',
   });
@@ -168,6 +189,51 @@ async function run() {
   });
   assert(ticketAttachmentUpload.file?.fileId, 'File API: ticket attachment upload did not return fileId');
   pass('File API: ticket attachment upload', ticketAttachmentUpload.file.fileId);
+  const avatarImageUpload = await uploadSmokeFile('File API: avatar image upload', {
+    content: 'smoke avatar image',
+    mimeType: 'image/png',
+    fileName: 'avatar-photo.png',
+    module: 'avatar',
+    businessId: 'A001',
+    fileType: 'image',
+  });
+  const avatarVideoUpload = await uploadSmokeFile('File API: avatar video upload', {
+    content: 'smoke avatar video',
+    mimeType: 'video/mp4',
+    fileName: 'avatar-video.mp4',
+    module: 'avatar',
+    businessId: 'A001',
+    fileType: 'video',
+  });
+  assert(avatarVideoUpload.file.fileType === 'video', 'File API: avatar video upload fileType mismatch');
+  const avatarAudioUpload = await uploadSmokeFile('File API: avatar audio upload', {
+    content: 'smoke avatar audio',
+    mimeType: 'audio/mpeg',
+    fileName: 'avatar-audio.mp3',
+    module: 'avatar',
+    businessId: 'A001',
+    fileType: 'audio',
+  });
+  assert(avatarAudioUpload.file.fileType === 'audio', 'File API: avatar audio upload fileType mismatch');
+  const avatarAuthorizationUpload = await uploadSmokeFile('File API: avatar authorization upload', {
+    content: 'smoke avatar authorization',
+    mimeType: 'application/pdf',
+    fileName: 'avatar-authorization.pdf',
+    module: 'avatar_authorization',
+    businessId: 'A001',
+    fileType: 'document',
+  });
+  const systemLogoUpload = await uploadSmokeFile('File API: system logo upload', {
+    content: 'smoke system logo',
+    mimeType: 'image/png',
+    fileName: 'system-logo.png',
+    module: 'settings',
+    businessId: 'basic',
+    fileType: 'logo',
+  });
+  assert(avatarImageUpload.file.fileType === 'image', 'File API: avatar image upload fileType mismatch');
+  assert(avatarAuthorizationUpload.file.fileType === 'document', 'File API: avatar authorization upload fileType mismatch');
+  assert(systemLogoUpload.file.fileType === 'logo', 'File API: system logo upload fileType mismatch');
 
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);
@@ -433,6 +499,17 @@ async function run() {
   });
   assert(basicSettingsValidation.error?.field === 'systemName', '系统设置 API：基础设置参数校验未返回 field=systemName');
   assert(basicSettingsValidation.error?.reason === '系统名称不能为空', '系统设置 API：基础设置参数校验 reason 不匹配');
+  const savedLogoSettings = await requestJson('系统设置 API：保存 Logo 引用', '/api/settings/basic', {
+    method: 'PUT',
+    body: {
+      ...(basicSettings.settings || {}),
+      systemName: basicSettings.settings?.systemName || '数字人直播带货中控系统',
+      logo: systemLogoUpload.file,
+    },
+    ...protectedOptions,
+  });
+  assert(savedLogoSettings.settings?.logo?.fileId === systemLogoUpload.file.fileId, '系统设置 API：保存 Logo 引用未保留 fileId');
+  pass('系统设置 API：保存 Logo 引用', savedLogoSettings.settings.logo.fileId);
   await checkList('系统设置 API：操作日志', '/api/settings/logs', protectedOptions);
 
   await checkList('帮助中心 API：FAQ', '/api/help/faq');

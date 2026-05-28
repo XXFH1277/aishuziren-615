@@ -3,6 +3,7 @@ import { Button, Card, Checkbox, Descriptions, Empty, Form, Input, Select, Slide
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createAvatar, getAvatarActions, getAvatarCategories, getVoiceOptions, updateAvatar } from '../services/avatarService';
+import { resolveFileUrl, toFileAsset, uploadAvatarAsset, uploadAvatarAuthorization } from '../services/fileService';
 
 const { TextArea } = Input;
 const avatarCategories = getAvatarCategories();
@@ -16,15 +17,90 @@ const languageStyles = ['亲切自然', '热情直接', '温柔耐心', '专业�
 const emotions = ['亲切', '热情', '温柔', '专业', '兴奋', '平静'];
 const rhythms = ['自然停顿', '紧凑', '慢速停顿', '清晰停顿', '快节奏', '标准'];
 const authStatuses = ['已授权', '待确认', '未授权', '已确认', '未确认'];
+const imageAccept = 'image/png,image/jpeg,image/webp,image/gif';
+const videoAccept = 'video/mp4,video/webm,video/quicktime';
+const audioAccept = 'audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/x-wav,audio/webm,audio/x-m4a';
+const documentAccept = 'application/pdf,text/plain,image/png,image/jpeg,image/webp,image/gif';
 
-function uploadPlaceholder(label) {
+function normalizeUploadEvent(event) {
+  return Array.isArray(event) ? event : event?.fileList;
+}
+
+function assetToUploadList(asset) {
+  if (!asset || typeof asset === 'string') {
+    return [];
+  }
+
+  if (Array.isArray(asset)) {
+    return asset;
+  }
+
+  const fileAsset = toFileAsset(asset);
+
+  if (!fileAsset?.fileName && !fileAsset?.fileUrl) {
+    return [];
+  }
+
+  return [
+    {
+      uid: fileAsset.fileId || fileAsset.fileUrl || fileAsset.fileName,
+      name: fileAsset.fileName || 'uploaded-file',
+      status: 'done',
+      url: fileAsset.fileUrl ? resolveFileUrl(fileAsset.fileUrl) : undefined,
+      response: { file: fileAsset },
+    },
+  ];
+}
+
+function uploadValueToAsset(value) {
+  const uploadItem = Array.isArray(value) ? value[0] : value;
+
+  if (!uploadItem) {
+    return undefined;
+  }
+
+  return toFileAsset(uploadItem) || undefined;
+}
+
+function UploadedAssetInfo({ name }) {
   return (
-    <Upload.Dragger beforeUpload={() => false} maxCount={1}>
+    <Form.Item shouldUpdate noStyle>
+      {({ getFieldValue }) => {
+        const asset = uploadValueToAsset(getFieldValue(name));
+
+        if (!asset?.fileName) {
+          return null;
+        }
+
+        return (
+          <Descriptions className="uploaded-file-info" size="small" column={1} bordered>
+            <Descriptions.Item label="文件名">{asset.fileName}</Descriptions.Item>
+            <Descriptions.Item label="文件类型">{asset.fileType || asset.mimeType || '-'}</Descriptions.Item>
+            <Descriptions.Item label="上传时间">{asset.uploadedAt || '-'}</Descriptions.Item>
+            <Descriptions.Item label="文件地址">
+              {asset.fileUrl ? (
+                <a href={resolveFileUrl(asset.fileUrl)} target="_blank" rel="noreferrer">
+                  打开文件
+                </a>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+          </Descriptions>
+        );
+      }}
+    </Form.Item>
+  );
+}
+
+function uploadDragger({ label, hint, accept, customRequest }) {
+  return (
+    <Upload.Dragger customRequest={customRequest} maxCount={1} accept={accept}>
       <p className="ant-upload-drag-icon">
         <InboxOutlined />
       </p>
       <p className="ant-upload-text">{label}</p>
-      <p className="ant-upload-hint">仅 UI 占位，不上传到服务器。</p>
+      <p className="ant-upload-hint">{hint}</p>
     </Upload.Dragger>
   );
 }
@@ -41,10 +117,16 @@ export function mapAvatarToFormValues(avatar) {
     languageStyle: avatar.languageStyle,
     forbiddenScenes: ['医疗诊断', '承诺收益'],
     remark: 'Mock 编辑备注，后续可接入真实审核流。',
-    imageSettings: avatar.imageSettings,
+    imageSettings: {
+      ...avatar.imageSettings,
+      photo: assetToUploadList(avatar.imageSettings?.photo),
+      videoMaterial: assetToUploadList(avatar.imageSettings?.videoMaterial),
+      audioMaterial: assetToUploadList(avatar.imageSettings?.audioMaterial),
+    },
     voiceSettings: {
       voiceName: avatar.voiceName,
       ...avatar.voiceSettings,
+      sample: assetToUploadList(avatar.voiceSettings?.sample),
     },
     behaviorRules: avatar.behaviorRules,
     preview: {
@@ -53,25 +135,65 @@ export function mapAvatarToFormValues(avatar) {
       tone: avatar.voiceSettings.emotion,
       result: 'Mock 预览结果：等待点击预览按钮。',
     },
-    trainingAssets: avatar.trainingAssets,
-    authorizationStatus: avatar.authorizationStatus,
+    trainingAssets: {
+      ...avatar.trainingAssets,
+      videoFile: assetToUploadList(avatar.trainingAssets?.videoFile),
+      audioFile: assetToUploadList(avatar.trainingAssets?.audioFile),
+      imageFile: assetToUploadList(avatar.trainingAssets?.imageFile),
+    },
+    authorizationStatus: {
+      ...avatar.authorizationStatus,
+      portraitFile: assetToUploadList(avatar.authorizationStatus?.portraitFile),
+      voiceFile: assetToUploadList(avatar.authorizationStatus?.voiceFile),
+      commercialFile: assetToUploadList(avatar.authorizationStatus?.commercialFile),
+    },
+  };
+}
+
+function normalizeAvatarUploadFields(values) {
+  const imageSettings = { ...(values.imageSettings || {}) };
+  imageSettings.photo = uploadValueToAsset(imageSettings.photo);
+  imageSettings.videoMaterial = uploadValueToAsset(imageSettings.videoMaterial);
+  imageSettings.audioMaterial = uploadValueToAsset(imageSettings.audioMaterial);
+
+  const voiceSettings = { ...(values.voiceSettings || {}) };
+  voiceSettings.sample = uploadValueToAsset(voiceSettings.sample);
+
+  const trainingAssets = { ...(values.trainingAssets || {}) };
+  trainingAssets.videoFile = uploadValueToAsset(trainingAssets.videoFile);
+  trainingAssets.audioFile = uploadValueToAsset(trainingAssets.audioFile);
+  trainingAssets.imageFile = uploadValueToAsset(trainingAssets.imageFile);
+
+  const authorizationStatus = { ...(values.authorizationStatus || {}) };
+  authorizationStatus.portraitFile = uploadValueToAsset(authorizationStatus.portraitFile);
+  authorizationStatus.voiceFile = uploadValueToAsset(authorizationStatus.voiceFile);
+  authorizationStatus.commercialFile = uploadValueToAsset(authorizationStatus.commercialFile);
+
+  return {
+    ...values,
+    imageSettings,
+    voiceSettings,
+    trainingAssets,
+    authorizationStatus,
   };
 }
 
 function buildAvatarPayload(values, status) {
+  const normalizedValues = normalizeAvatarUploadFields(values);
+
   return {
-    name: values.name,
-    persona: values.persona,
-    suitableCategories: values.suitableCategories || [],
-    languageStyle: values.languageStyle || '',
-    avatarImage: values.imageSettings?.template || 'api-avatar',
-    voiceName: values.voiceSettings?.voiceName || '',
+    name: normalizedValues.name,
+    persona: normalizedValues.persona,
+    suitableCategories: normalizedValues.suitableCategories || [],
+    languageStyle: normalizedValues.languageStyle || '',
+    avatarImage: normalizedValues.imageSettings?.photo?.fileUrl || normalizedValues.imageSettings?.template || 'api-avatar',
+    voiceName: normalizedValues.voiceSettings?.voiceName || '',
     status,
-    behaviorRules: values.behaviorRules || {},
-    voiceSettings: values.voiceSettings || {},
-    imageSettings: values.imageSettings || {},
-    trainingAssets: values.trainingAssets || {},
-    authorizationStatus: values.authorizationStatus || {},
+    behaviorRules: normalizedValues.behaviorRules || {},
+    voiceSettings: normalizedValues.voiceSettings || {},
+    imageSettings: normalizedValues.imageSettings || {},
+    trainingAssets: normalizedValues.trainingAssets || {},
+    authorizationStatus: normalizedValues.authorizationStatus || {},
   };
 }
 
@@ -102,6 +224,40 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
     );
     message.success('已生成 Mock 预览结果，未调用真实数字人服务');
   };
+
+  const createAssetUploadRequest =
+    ({ fileType, successMessage }) =>
+    async ({ file, onSuccess, onError }) => {
+      try {
+        const uploadedFile = await uploadAvatarAsset(file, {
+          businessId: avatarId || 'new-avatar',
+          fileType,
+        });
+
+        message.success(successMessage);
+        onSuccess({ file: uploadedFile });
+      } catch (error) {
+        message.error(error.message || '数字人素材上传失败');
+        onError(error);
+      }
+    };
+
+  const createAuthorizationUploadRequest =
+    ({ fileType = 'document', successMessage }) =>
+    async ({ file, onSuccess, onError }) => {
+      try {
+        const uploadedFile = await uploadAvatarAuthorization(file, {
+          businessId: avatarId || 'new-avatar',
+          fileType,
+        });
+
+        message.success(successMessage);
+        onSuccess({ file: uploadedFile });
+      } catch (error) {
+        message.error(error.message || '授权文件上传失败');
+        onError(error);
+      }
+    };
 
   const saveAvatar = async ({ returnToList = false, status = '草稿' } = {}) => {
     if (returnToList) {
@@ -181,9 +337,37 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
       label: '形象设置',
       children: (
         <Card className="panel-card">
-          <Form.Item label="上传真人照片占位" name={['imageSettings', 'photo']} valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-            {uploadPlaceholder('上传真人照片占位')}
+          <Form.Item label="真人照片" name={['imageSettings', 'photo']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+            {uploadDragger({
+              label: '点击或拖拽上传真人照片',
+              hint: '保存到本地 server/uploads/avatar，并记录到 SQLite file_assets。',
+              accept: imageAccept,
+              customRequest: createAssetUploadRequest({ fileType: 'image', successMessage: '真人照片已上传到本地文件服务' }),
+            })}
           </Form.Item>
+          <UploadedAssetInfo name={['imageSettings', 'photo']} />
+          <div className="form-grid">
+            <Form.Item label="形象视频素材" name={['imageSettings', 'videoMaterial']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传形象视频素材',
+                hint: '仅保存素材文件，不触发真实数字人训练。',
+                accept: videoAccept,
+                customRequest: createAssetUploadRequest({ fileType: 'video', successMessage: '形象视频素材已上传到本地文件服务' }),
+              })}
+            </Form.Item>
+            <Form.Item label="形象音频素材" name={['imageSettings', 'audioMaterial']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传形象音频素材',
+                hint: '仅保存素材文件，不触发 TTS 或声音克隆。',
+                accept: audioAccept,
+                customRequest: createAssetUploadRequest({ fileType: 'audio', successMessage: '形象音频素材已上传到本地文件服务' }),
+              })}
+            </Form.Item>
+          </div>
+          <div className="form-grid">
+            <UploadedAssetInfo name={['imageSettings', 'videoMaterial']} />
+            <UploadedAssetInfo name={['imageSettings', 'audioMaterial']} />
+          </div>
           <div className="form-grid">
             <Form.Item name={['imageSettings', 'template']} label="选择模板形象">
               <Select options={imageTemplates.map((item) => ({ label: item, value: item }))} placeholder="请选择模板形象" />
@@ -216,9 +400,15 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
           <Form.Item name={['voiceSettings', 'voiceName']} label="选择系统音色">
             <Select options={voiceOptions.map((item) => ({ label: item, value: item }))} placeholder="请选择系统音色" />
           </Form.Item>
-          <Form.Item label="上传声音样本占位" name={['voiceSettings', 'sample']} valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-            {uploadPlaceholder('上传声音样本占位')}
+          <Form.Item label="声音样本" name={['voiceSettings', 'sample']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+            {uploadDragger({
+              label: '点击或拖拽上传声音样本',
+              hint: '保存到本地文件服务；不做真实声音克隆、TTS 或口型同步。',
+              accept: audioAccept,
+              customRequest: createAssetUploadRequest({ fileType: 'audio', successMessage: '声音样本已上传到本地文件服务' }),
+            })}
           </Form.Item>
+          <UploadedAssetInfo name={['voiceSettings', 'sample']} />
           <div className="form-grid">
             <Form.Item name={['voiceSettings', 'speed']} label="语速">
               <Slider min={20} max={90} />
@@ -306,14 +496,29 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
       children: (
         <Card className="panel-card">
           <div className="form-grid">
-            <Form.Item label="视频素材上传占位" name={['trainingAssets', 'videoFile']} valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-              {uploadPlaceholder('上传视频素材占位')}
+            <Form.Item label="视频素材" name={['trainingAssets', 'videoFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传视频素材',
+                hint: '保存到本地文件服务；不触发真实训练任务。',
+                accept: videoAccept,
+                customRequest: createAssetUploadRequest({ fileType: 'video', successMessage: '视频素材已上传到本地文件服务' }),
+              })}
             </Form.Item>
-            <Form.Item label="音频素材上传占位" name={['trainingAssets', 'audioFile']} valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-              {uploadPlaceholder('上传音频素材占位')}
+            <Form.Item label="音频素材" name={['trainingAssets', 'audioFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传音频素材',
+                hint: '保存到本地文件服务；不触发 TTS 或声音训练。',
+                accept: audioAccept,
+                customRequest: createAssetUploadRequest({ fileType: 'audio', successMessage: '音频素材已上传到本地文件服务' }),
+              })}
             </Form.Item>
-            <Form.Item label="图片素材上传占位" name={['trainingAssets', 'imageFile']} valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}>
-              {uploadPlaceholder('上传图片素材占位')}
+            <Form.Item label="图片素材" name={['trainingAssets', 'imageFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传图片素材',
+                hint: '保存到本地文件服务；只做素材管理记录。',
+                accept: imageAccept,
+                customRequest: createAssetUploadRequest({ fileType: 'image', successMessage: '图片素材已上传到本地文件服务' }),
+              })}
             </Form.Item>
             <Form.Item name={['trainingAssets', 'qualityStatus']} label="素材质量检测状态 Mock">
               <Select
@@ -321,6 +526,11 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
                 placeholder="请选择检测状态"
               />
             </Form.Item>
+          </div>
+          <div className="form-grid">
+            <UploadedAssetInfo name={['trainingAssets', 'videoFile']} />
+            <UploadedAssetInfo name={['trainingAssets', 'audioFile']} />
+            <UploadedAssetInfo name={['trainingAssets', 'imageFile']} />
           </div>
         </Card>
       ),
@@ -340,6 +550,37 @@ export default function AvatarForm({ mode = 'create', avatarId, initialValues, a
             <Form.Item name={['authorizationStatus', 'copyright']} label="素材版权状态">
               <Select options={authStatuses.map((item) => ({ label: item, value: item }))} placeholder="请选择素材版权状态" />
             </Form.Item>
+          </div>
+          <div className="form-grid">
+            <Form.Item label="肖像授权文件" name={['authorizationStatus', 'portraitFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传肖像授权文件',
+                hint: '支持图片、PDF、TXT；仅保存本地文件和引用。',
+                accept: documentAccept,
+                customRequest: createAuthorizationUploadRequest({ successMessage: '肖像授权文件已上传到本地文件服务' }),
+              })}
+            </Form.Item>
+            <Form.Item label="声音授权文件" name={['authorizationStatus', 'voiceFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传声音授权文件',
+                hint: '支持图片、PDF、TXT；不接真实声音授权系统。',
+                accept: documentAccept,
+                customRequest: createAuthorizationUploadRequest({ successMessage: '声音授权文件已上传到本地文件服务' }),
+              })}
+            </Form.Item>
+            <Form.Item label="商用授权文件" name={['authorizationStatus', 'commercialFile']} valuePropName="fileList" getValueFromEvent={normalizeUploadEvent}>
+              {uploadDragger({
+                label: '点击或拖拽上传商用授权文件',
+                hint: '支持图片、PDF、TXT；仅做本地开发记录。',
+                accept: documentAccept,
+                customRequest: createAuthorizationUploadRequest({ successMessage: '商用授权文件已上传到本地文件服务' }),
+              })}
+            </Form.Item>
+          </div>
+          <div className="form-grid">
+            <UploadedAssetInfo name={['authorizationStatus', 'portraitFile']} />
+            <UploadedAssetInfo name={['authorizationStatus', 'voiceFile']} />
+            <UploadedAssetInfo name={['authorizationStatus', 'commercialFile']} />
           </div>
           <Form.Item name={['authorizationStatus', 'note']} label="授权备注">
             <TextArea rows={4} placeholder="记录授权范围、到期时间和内部备注" />

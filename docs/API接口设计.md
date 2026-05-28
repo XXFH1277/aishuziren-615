@@ -230,12 +230,13 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 ## 7. File API 文件上传
 
-说明：Phase 14 已实现本地真实上传 MVP，文件保存到 `server/uploads`，元信息写入 `file_assets`。当前不接云存储、不做病毒扫描。
+说明：Phase 14 已实现本地真实上传 MVP，文件保存到 `server/uploads`，元信息写入 `file_assets`。Phase 17 已扩展到数字人素材、数字人授权文件和系统 Logo。当前不接云存储、不做病毒扫描。
 适用场景：商品图片、数字人素材、授权文件、直播间背景、工单截图、系统 Logo。
+当前允许类型：PNG、JPG、WEBP、GIF、PDF、TXT、MP4、WEBM、MOV、MP3、WAV、M4A、AAC；单文件最大 5MB。
 
 | 接口名称 | Method | Path | 用途说明 | 请求参数 | 返回字段 | 成功示例 | 失败示例 | 登录 | 权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 上传文件 | POST | `/api/files/upload` | 上传业务附件或素材 | `multipart/form-data`: `file`, `module`, `businessId`, `fileType` | `fileId`, `fileName`, `fileUrl`, `fileType`, `size`, `mimeType`, `uploadedAt` | `{"code":0,"data":{"file":{"fileId":"FILE001","fileName":"demo.png","fileUrl":"/uploads/product/FILE001-demo.png","fileType":"image","size":102400,"mimeType":"image/png","uploadedAt":"2026-05-26 23:30:00"},"mock":false}}` | `{"code":40001,"message":"文件类型不支持"}` | 是 | 当前仅校验登录 token |
+| 上传文件 | POST | `/api/files/upload` | 上传业务附件或素材 | `multipart/form-data`: `file`, `module`, `businessId`, `fileType`。常用 `module`: `product`、`ticket`、`avatar`、`avatar_authorization`、`settings`；常用 `fileType`: `image`、`video`、`audio`、`document`、`logo` | `fileId`, `fileName`, `fileUrl`, `fileType`, `size`, `mimeType`, `uploadedAt` | `{"code":0,"data":{"file":{"fileId":"FILE001","fileName":"demo.png","fileUrl":"/uploads/avatar/FILE001-demo.png","fileType":"image","size":102400,"mimeType":"image/png","uploadedAt":"2026-05-26 23:30:00"},"mock":false}}` | `{"code":40001,"message":"文件类型不支持"}` | 是 | 当前仅校验登录 token |
 
 ## 8. Product API 商品管理
 
