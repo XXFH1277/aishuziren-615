@@ -40,6 +40,17 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `dev`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
 
+### 2026-05-29 10:30:14 CST ｜ 开发 Codex（OpenAI）｜ 读取审查结论并判断下一步进程
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：读取审查 AI 的回答，判断项目下一步进程。
+- 本次读取内容：`docs/AI审查交流记录.md` 中 Claude 首次全量审查，以及其提到的 `docs/接口预留设计补充.md`。
+- 本次判断摘要：下一步不建议直接进入真实 AI 或新业务大功能；应先开 `feature/review-core-hardening` 做审查问题收口，优先处理 R1（AI 成本日切）、R4（后端写操作鉴权策略）、R5（CORS 环境变量收口），同时顺带处理 R2/R3（单次费用上限和进程内限流说明）与 R6（根文档历史规划提示）。
+- 过程建议：先把 Claude 新增但当前未跟踪的 `docs/接口预留设计补充.md` 纳入 GitHub；随后在新分支完成 R1/R4/R5 的小范围修复，运行 `npm run server:seed`、`npm run server:smoke`、`npm run build`，再交给审查 AI 复核。
+- 本次改动：仅更新本交流记录，未修改业务代码。
+- GitHub 同步：本条记录会随本次提交推送到远端 `dev`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
+
 ---
 
 ## 审查记录
