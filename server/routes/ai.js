@@ -198,8 +198,39 @@ function getCredentialRow(providerId) {
   return db.prepare('SELECT * FROM ai_model_credentials WHERE provider_id = ? LIMIT 1').get(providerId);
 }
 
+function getTodayStatDate() {
+  return now().slice(0, 10);
+}
+
+function isSameMonth(dateA = '', dateB = '') {
+  return String(dateA).slice(0, 7) === String(dateB).slice(0, 7);
+}
+
+function normalizeCostRowForToday(row) {
+  if (!row) {
+    return null;
+  }
+
+  const statDate = getTodayStatDate();
+
+  if (row.stat_date === statDate) {
+    return row;
+  }
+
+  return {
+    ...row,
+    stat_date: statDate,
+    today_calls: 0,
+    today_cost: 0,
+    average_cost: 0,
+    provider_breakdown_json: toJson([]),
+    type_breakdown_json: toJson([]),
+  };
+}
+
 function getAiCostRow() {
-  return db.prepare('SELECT * FROM ai_cost_daily ORDER BY updated_at DESC LIMIT 1').get();
+  const row = db.prepare('SELECT * FROM ai_cost_daily ORDER BY updated_at DESC LIMIT 1').get();
+  return normalizeCostRowForToday(row);
 }
 
 function getBudgetSettings(row = getAiCostRow()) {
@@ -457,9 +488,16 @@ function updateAiCostDaily({ provider = 'Fake Provider', type = '模型连接测
     return;
   }
 
-  const todayCalls = Number(row.today_calls || 0) + 1;
-  const todayCost = Number(row.today_cost || 0) + cost;
-  const monthCost = Number(row.month_cost || 0) + cost;
+  const shouldResetDaily = row.stat_date !== statDate;
+  const todayCalls = (shouldResetDaily ? 0 : Number(row.today_calls || 0)) + 1;
+  const todayCost = (shouldResetDaily ? 0 : Number(row.today_cost || 0)) + cost;
+  const monthCost = (isSameMonth(row.stat_date, statDate) ? Number(row.month_cost || 0) : 0) + cost;
+  const providerBreakdown = shouldResetDaily
+    ? [{ name: provider, value: 1, cost }]
+    : incrementBreakdown(row.provider_breakdown_json, provider, cost);
+  const typeBreakdown = shouldResetDaily
+    ? [{ name: type, value: 1, cost: 0 }]
+    : incrementBreakdown(row.type_breakdown_json, type, 0);
 
   db.prepare(
     `UPDATE ai_cost_daily
@@ -478,8 +516,8 @@ function updateAiCostDaily({ provider = 'Fake Provider', type = '模型连接测
     todayCost,
     monthCost,
     averageCost: todayCalls > 0 ? todayCost / todayCalls : 0,
-    providerBreakdown: toJson(incrementBreakdown(row.provider_breakdown_json, provider, cost)),
-    typeBreakdown: toJson(incrementBreakdown(row.type_breakdown_json, type, 0)),
+    providerBreakdown: toJson(providerBreakdown),
+    typeBreakdown: toJson(typeBreakdown),
     updatedAt,
   });
 }
@@ -1305,7 +1343,7 @@ router.get('/ai/logs', (req, res) => {
 });
 
 router.get('/ai/costs', (req, res) => {
-  const row = db.prepare('SELECT * FROM ai_cost_daily ORDER BY updated_at DESC LIMIT 1').get();
+  const row = getAiCostRow();
   const costs = mapCost(row);
 
   return success(res, {
@@ -1321,7 +1359,7 @@ router.patch('/ai/costs/budget', (req, res) => {
     return fail(res, 'AI cost summary not found', 40400);
   }
 
-  const current = mapCost(row);
+  const current = mapCost(normalizeCostRowForToday(row));
   const budgetSettings = {
     ...current.budgetSettings,
     ...(req.body || {}),

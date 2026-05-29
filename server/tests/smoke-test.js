@@ -238,9 +238,14 @@ async function run() {
   const products = await checkList('商品 API：商品列表', '/api/products');
   await checkDetail('商品 API：商品详情', `/api/products/${products[0].id}`, 'product', products[0].id);
   await checkList('商品 API：商品组列表', '/api/product-groups');
+  await requestExpectedError('商品 API：创建商品未登录拦截', '/api/products', 40101, {
+    method: 'POST',
+    body: { name: 'Smoke auth guard product' },
+  });
   await requestExpectedError('商品 API：创建商品参数校验', '/api/products', 40001, {
     method: 'POST',
     body: { name: '' },
+    ...protectedOptions,
   });
 
   const avatars = await checkList('数字人 API：数字人列表', '/api/avatars');
@@ -265,6 +270,7 @@ async function run() {
       mainColor: '#2563eb',
       prompt: 'Smoke test mock background generation. No external image API call.',
     },
+    ...protectedOptions,
   });
   assert(generatedBackground.background?.id, '直播间搭建 API：Mock 背景生成未返回 background');
   pass('直播间搭建 API：Mock 背景生成', generatedBackground.background.id);
@@ -277,6 +283,7 @@ async function run() {
       content: 'Smoke test mock comment. No real live platform or WebSocket call.',
       productName: 'Smoke Test Product',
     },
+    ...protectedOptions,
   });
   assert(simulatedComment.comment?.id, 'Interaction API: simulate comment did not return comment');
   pass('Interaction API: simulate comment', simulatedComment.comment.id);
@@ -284,12 +291,14 @@ async function run() {
   const replyResult = await requestJson('Interaction API: question reply', `/api/interaction/questions/${interactionQuestions[0].id}/reply`, {
     method: 'POST',
     body: { replyText: 'Smoke test mock reply. No real AI call.' },
+    ...protectedOptions,
   });
   assert(replyResult.question?.aiReply, 'Interaction API: question reply did not return aiReply');
   pass('Interaction API: question reply', replyResult.question.id);
   const queueResult = await requestJson('Interaction API: add question to queue', `/api/interaction/questions/${interactionQuestions[0].id}/add-to-queue`, {
     method: 'POST',
     body: { mock: true },
+    ...protectedOptions,
   });
   assert(queueResult.question?.status, 'Interaction API: add question to queue did not return status');
   pass('Interaction API: add question to queue', queueResult.question.id);
@@ -302,6 +311,7 @@ async function run() {
       speechText: 'Smoke test manual speech. No digital human broadcast.',
       broadcastMode: '立即插队 Mock',
     },
+    ...protectedOptions,
   });
   assert(manualSpeechResult.mock === true, 'Interaction API: manual speech mock did not return mock=true');
   pass('Interaction API: manual speech mock', manualSpeechResult.status);
@@ -317,24 +327,28 @@ async function run() {
       reviewStatus: '待审核',
       scheduledTime: '20:30:00',
     },
+    ...protectedOptions,
   });
   assert(patchedSpeech.speechItem?.id === delayQueue[0].id, 'Delay Control API: patch speech queue item did not return speechItem');
   pass('Delay Control API: patch speech queue item', patchedSpeech.speechItem.id);
   const approvedSpeech = await requestJson('Delay Control API: approve speech item', `/api/delay-control/queue/${delayQueue[0].id}/approve`, {
     method: 'POST',
     body: { approvedBy: 'smoke-test' },
+    ...protectedOptions,
   });
   assert(approvedSpeech.reviewStatus, 'Delay Control API: approve speech item did not return reviewStatus');
   pass('Delay Control API: approve speech item', approvedSpeech.reviewStatus);
   const rejectedSpeech = await requestJson('Delay Control API: reject speech item', `/api/delay-control/queue/${delayQueue[0].id}/reject`, {
     method: 'POST',
     body: { reason: 'smoke test mock reject' },
+    ...protectedOptions,
   });
   assert(rejectedSpeech.reviewStatus, 'Delay Control API: reject speech item did not return reviewStatus');
   pass('Delay Control API: reject speech item', rejectedSpeech.reviewStatus);
   const insertedSpeech = await requestJson('Delay Control API: insert speech item', `/api/delay-control/queue/${delayQueue[0].id}/insert`, {
     method: 'POST',
     body: { position: 1 },
+    ...protectedOptions,
   });
   assert(insertedSpeech.reviewStatus, 'Delay Control API: insert speech item did not return reviewStatus');
   pass('Delay Control API: insert speech item', insertedSpeech.reviewStatus);
@@ -344,6 +358,7 @@ async function run() {
   const savedSubtitleStyle = await requestJson('Delay Control API: save subtitle settings', '/api/delay-control/subtitles/settings', {
     method: 'PUT',
     body: { fontSize: 30, position: '底部' },
+    ...protectedOptions,
   });
   assert(savedSubtitleStyle.subtitleStyle?.fontSize === 30, 'Delay Control API: save subtitle settings did not persist fontSize');
   pass('Delay Control API: save subtitle settings', `${savedSubtitleStyle.subtitleStyle.fontSize}px`);
@@ -358,12 +373,14 @@ async function run() {
       reviewRules: { smokeTestReviewRule: true },
       queueRules: { smokeTestQueueRule: true },
     },
+    ...protectedOptions,
   });
   assert(savedDelaySettings.settings?.delaySeconds === 6, 'Delay Control API: save settings did not persist delaySeconds');
   pass('Delay Control API: save settings', `${savedDelaySettings.settings.delaySeconds}s`);
   const deletedSpeech = await requestJson('Delay Control API: delete speech item', `/api/delay-control/queue/${delayQueue[delayQueue.length - 1].id}`, {
     method: 'DELETE',
     body: { reason: 'smoke test mock delete' },
+    ...protectedOptions,
   });
   assert(deletedSpeech.id === delayQueue[delayQueue.length - 1].id, 'Delay Control API: delete speech item did not return deleted id');
   pass('Delay Control API: delete speech item', deletedSpeech.id);
@@ -393,6 +410,7 @@ async function run() {
       action: '看评论区',
       broadcastMode: '立即插队 Mock',
     },
+    ...protectedOptions,
   });
   assert(controlManualSpeech.mock === true, 'Live Control Room API: manual speech mock did not return mock=true');
   pass('Live Control Room API: manual speech mock', controlManualSpeech.status);
@@ -402,6 +420,7 @@ async function run() {
     body: {
       operation: 'approve',
     },
+    ...protectedOptions,
   });
   assert(controlSpeechPatch.speechItem?.id === controlSpeechItem.id, 'Live Control Room API: speech queue operation did not return speechItem');
   pass('Live Control Room API: speech queue operation', controlSpeechPatch.reviewStatus);
@@ -421,6 +440,7 @@ async function run() {
       enableComplianceReminder: true,
       allowedContextScopes: ['商品信息', '直播间配置'],
     },
+    ...protectedOptions,
   });
   assert(savedAssistantSettings.assistant?.assistantName === 'Smoke Test AI Assistant', 'AI 能力中心 API：保存 AI 助理设置未生效');
   pass('AI 能力中心 API：保存 AI 助理设置', savedAssistantSettings.assistant.assistantName);
@@ -439,6 +459,7 @@ async function run() {
       temperature: 0.6,
       enabled: true,
     },
+    ...protectedOptions,
   });
   assert(updatedAiModel.model?.id === aiModels[0].id, 'AI 能力中心 API：保存模型配置未返回 model');
   pass('AI 能力中心 API：保存模型配置 Mock', updatedAiModel.model.id);
@@ -541,6 +562,7 @@ async function run() {
       providerId: aiModels[0].id,
       modelName: aiModels[0].defaultModel,
     },
+    ...protectedOptions,
   });
   assert(savedAiDefault.defaultModel?.id === aiDefaults[0].id, 'AI 能力中心 API：保存默认模型设置未返回 defaultModel');
   pass('AI 能力中心 API：保存默认模型设置', savedAiDefault.defaultModel.id);
@@ -553,11 +575,13 @@ async function run() {
       status: promptList[0].status,
       templateContent: `${promptList[0].templateContent}\n\nSmoke test update.`,
     },
+    ...protectedOptions,
   });
   assert(updatedPrompt.prompt?.id === promptList[0].id, 'AI 能力中心 API：更新 Prompt 模板未返回 prompt');
   pass('AI 能力中心 API：更新 Prompt 模板', updatedPrompt.prompt.id);
   const copiedPrompt = await requestJson('AI 能力中心 API：复制 Prompt 模板', `/api/ai/prompts/${promptList[0].id}/copy`, {
     method: 'POST',
+    ...protectedOptions,
   });
   assert(copiedPrompt.prompt?.id, 'AI 能力中心 API：复制 Prompt 模板未返回 prompt');
   pass('AI 能力中心 API：复制 Prompt 模板', copiedPrompt.prompt.id);
@@ -573,6 +597,7 @@ async function run() {
       overBudgetAlert: true,
       highCostModelAlert: true,
     },
+    ...protectedOptions,
   });
   assert(savedAiBudget.budgetSettings?.dailyBudget === 150, 'AI 能力中心 API：保存成本预算未生效');
   pass('AI 能力中心 API：保存成本预算', `daily=${savedAiBudget.budgetSettings.dailyBudget}`);
@@ -613,6 +638,7 @@ async function run() {
       description: 'Smoke test ticket with local uploaded attachment.',
       attachmentIds: [ticketAttachmentUpload.file.fileId],
     },
+    ...protectedOptions,
   });
   assert(createdTicket.ticket?.attachments?.length === 1, '帮助中心 API：创建带附件工单未返回附件');
   pass('帮助中心 API：创建带附件工单', createdTicket.ticket.id);
@@ -632,6 +658,7 @@ async function run() {
   const bindResult = await requestJson('执行端 API：绑定信息 Mock', '/api/executors/bind', {
     method: 'POST',
     body: { expiresInMinutes: 10 },
+    ...protectedOptions,
   });
   assert(bindResult.code && bindResult.bindUrl, '执行端 API：绑定信息 Mock 未返回 code 或 bindUrl');
   pass('执行端 API：绑定信息 Mock', bindResult.code);

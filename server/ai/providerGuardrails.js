@@ -118,6 +118,16 @@ export function evaluateAiProviderGuardrails({
     });
   }
 
+  if (
+    policy.maxEstimatedCostPerCall > 0
+    && Number(estimatedCost || 0) > policy.maxEstimatedCostPerCall
+  ) {
+    failures.push({
+      type: 'estimated_cost_per_call_exceeded',
+      message: '预计单次费用超过真实模型调用上限。',
+    });
+  }
+
   let minuteLimit = {
     allowed: true,
     remaining: policy.perMinuteCallLimit,

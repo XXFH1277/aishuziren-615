@@ -16,17 +16,70 @@ import liveRoutes from './routes/liveRooms.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
 import studioRoutes from './routes/studio.js';
+import { requireAuth } from './utils/auth.js';
 import { fail, success } from './utils/response.js';
 import { uploadPublicPrefix, uploadRoot } from './utils/uploadConfig.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 runSchema();
 
+function parseCorsOrigins(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isLocalDevOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function createCorsOriginChecker() {
+  const configuredOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
+  const allowLocalhost = process.env.CORS_ALLOW_LOCALHOST !== 'false';
+
+  return (origin, callback) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (configuredOrigins.includes(origin) || (allowLocalhost && isLocalDevOrigin(origin))) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS origin not allowed: ${origin}`));
+  };
+}
+
+function shouldSkipMutationAuth(req) {
+  if (!req.path.startsWith('/api') || !mutatingMethods.has(req.method)) {
+    return true;
+  }
+
+  return req.method === 'POST' && req.path === '/api/auth/login';
+}
+
+function requireAuthForMutations(req, res, next) {
+  if (shouldSkipMutationAuth(req)) {
+    return next();
+  }
+
+  return requireAuth(req, res, next);
+}
+
 app.use(
   cors({
-    origin: true,
+    origin: createCorsOriginChecker(),
     credentials: true,
   }),
 );
@@ -39,6 +92,8 @@ app.get('/', (req, res) => {
     health: '/api/health',
   });
 });
+
+app.use(requireAuthForMutations);
 
 app.use('/api/health', healthRoutes);
 app.use('/api/dashboard', dashboardRoutes);

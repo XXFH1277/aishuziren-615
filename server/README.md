@@ -158,8 +158,20 @@ Phase 13 已将 `/api/auth/*` 从 Mock 登录态升级为本地 Auth / RBAC MVP�
 - `POST /api/auth/logout` 会作废当前会话 token。
 - Seed 默认本地演示账号为 `admin / admin123456`。
 - 系统设置接口已示范接入基础权限校验：用户列表、角色列表、基础设置和操作日志需要登录，其中部分接口需要对应权限 key。
+- Phase 18B-3 起，所有 `/api` 下的写操作（`POST` / `PUT` / `PATCH` / `DELETE`）默认需要 `Authorization: Bearer <token>`；当前白名单仅保留 `POST /api/auth/login`。读接口仍按现阶段本地原型策略保持开放或由路由自行校验。
 
-这仍不是生产级鉴权系统：暂未实现 Cookie 策略、CSRF 防护、密码重置、登录频率限制、多端会话管理、数据权限过滤或全量业务接口强制鉴权。
+这仍不是生产级鉴权系统：暂未实现 Cookie 策略、CSRF 防护、密码重置、登录频率限制、多端会话管理、数据权限过滤或全量读接口强制鉴权。
+
+## CORS 本地安全边界
+
+Phase 18B-3 起，后端不再使用无条件 `origin: true`。默认策略：
+
+- 无 `Origin` 的本机脚本请求允许通过。
+- `localhost` / `127.0.0.1` / `::1` 本地开发源默认允许。
+- 可通过 `CORS_ORIGINS` 配置逗号分隔的明确来源。
+- 如需关闭本地来源自动放行，可设置 `CORS_ALLOW_LOCALHOST=false`。
+
+这仍是本地开发策略，不等同于生产部署策略。生产环境应显式配置固定域名来源，并配合真实会话、CSRF、HTTPS 和审计策略。
 
 ## 权限 Key
 
@@ -213,6 +225,9 @@ Phase 18A 增加 AI 后端代理基础框架，但默认不调用真实模型：
 - Phase 18B-2 新增 `GET /api/ai/runtime-policy` 和 `server/ai/providerGuardrails.js`，用于展示真实 provider 灰度开关、频率限制、预算保护和脱敏策略。
 - 默认需要同时设置后端环境变量 `AI_REAL_PROVIDER_ENABLED=true` 与 `AI_REAL_PROVIDER_SAFETY_APPROVED=true` 才允许进入真实 provider 保护流程；当前适配器仍不会默认发起外部模型调用。
 - `realProvider=true` 的模型测试或商品文案生成请求会先经过 guardrails；默认会被拦截并写入脱敏日志，不记录 API Key、完整 Prompt 或完整商品草稿。
+- Phase 18B-3 起，`ai_cost_daily` 会按 `stat_date` 做日切；真实 provider guardrails 读取的是当前日期调用量和费用，避免历史 mock 统计永久触发日预算或日调用上限。
+- `AI_PROVIDER_MAX_COST_PER_CALL` 已接入单次预计费用保护；当前预计费用仍为后端估算值，不读取真实账单。
+- 真实 provider 频率限制当前使用进程内 `Map`，只适合本地单实例开发。多实例或生产环境需要迁移到 Redis / 数据库 / API 网关级限流。
 
 后续进入真实模型前，必须先确认后端环境变量或密钥管理方案、限流、超时、费用保护和脱敏日志策略。前端不得使用任何 `VITE_` 模型 Key。
 
