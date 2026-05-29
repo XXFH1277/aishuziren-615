@@ -411,6 +411,8 @@ AI 调用日志中的“调用页面”字段统一命名为：
 
 当前对应 Service 函数：`getModelProviders()`、`getModelStatusOptions()`、`getModelRoleSettings()`、`getModelUsageScenes()`、`getPromptTemplates()`、`getPromptCategories()`、`getPromptTemplateStatuses()`、`getPromptVariables()`、`getAiCallLogs()`、`getAiCallTypes()`、`getAiCallStatuses()`、`getAiCosts()`
 
+Phase 18C 真实 provider 手动试点不新增接口，继续复用以上 AI Center API。真实调用必须经过 `/api/ai/runtime-policy` 和后端 guardrails；首个可试点范围限定为 `POST /api/ai/generate` 的 `scenario=product_copy`，首批 target 为 `description`、`selling_points`。详细开闸、日志、费用和回滚标准见 `docs/AI真实Provider手动试点方案.md`。
+
 ## 16. Executor API 执行端管理
 
 对应 Service：`src/services/executorService.js`  

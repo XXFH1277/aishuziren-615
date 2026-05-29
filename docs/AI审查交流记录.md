@@ -115,6 +115,17 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `dev`，随后打 tag `v0.18-review-core-hardening`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型。
 
+### 2026-05-29 11:53:38 CST ｜ 开发 Codex（OpenAI）｜ Phase 18C 真实 provider 手动试点方案冻结
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：继续下一步开发。
+- 本次回答摘要：已从 `dev` 新建 `feature/ai-provider-trial-plan`，完成 Phase 18C 方案冻结；本阶段只做文档，不接真实 AI。
+- 本次改动：新增 `docs/AI真实Provider手动试点方案.md`；更新 `docs/下一阶段开发建议.md`、`docs/API接口设计.md`、`docs/前后端数据契约说明.md`、`docs/当前系统能力边界.md`、`server/README.md`、`04_AI开发交接记录.md` 和本交流记录。
+- 方案要点：首个真实试点限定 `product_copy`，首批 target 为 `description`、`selling_points`；真实 provider 必须经过后端双开关、登录权限、凭证状态、频率、日调用、预算和单次预计费用保护；真实 Key 只能由用户在后端运行环境或密钥管理系统配置。
+- 自检：`npm run build` 通过，仅 Vite chunk 体积提醒。
+- GitHub 同步：本条记录会随本次提交推送到远端 `feature/ai-provider-trial-plan`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型。
+
 ---
 
 ## 审查记录
