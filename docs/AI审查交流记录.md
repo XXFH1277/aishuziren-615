@@ -67,6 +67,19 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `dev`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
 
+### 2026-05-29 11:35:32 CST ｜ 开发 Codex（OpenAI）｜ review-core-hardening 后续计划
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：在 `feature/review-core-hardening` 已完成并推送后，给出下一步计划。
+- 当前状态：`feature/review-core-hardening` 已完成 R1-R7 收口并推送到 GitHub，提交为 `992f3ae chore: harden reviewed backend basics`；验证结果为 `npm run server:seed` 通过、`npm run server:smoke` 通过 97 项、`npm run build` 通过。
+- 第 1 步：请审查 AI（Claude）复核 `feature/review-core-hardening`，重点核对 R1 日切、R4 写操作默认鉴权、R5 CORS 白名单、R7 接口预留文档入库是否真实成立。
+- 第 2 步：若复核通过，执行 `git checkout dev && git pull origin dev && git merge feature/review-core-hardening`，再运行 `npm run server:seed`、`npm run server:smoke`、`npm run build`。
+- 第 3 步：测试通过后推送 `dev`，并打稳定 tag，建议 tag 名：`v0.18-review-core-hardening`。
+- 第 4 步：合并后再决定是否进入 Phase 18C。建议优先做“真实 provider 手动试点方案冻结”，仍先不调用真实模型；如果要继续功能路线，则优先全局合规/敏感词中心或异步任务中心契约。
+- 本次改动：仅更新本交流记录，未修改业务代码。
+- GitHub 同步：本条记录会随本次提交推送到远端 `feature/review-core-hardening`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
+
 ---
 
 ## 审查记录
