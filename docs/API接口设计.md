@@ -194,6 +194,8 @@ AI 调用日志中的“调用页面”字段统一命名为：
 | AI | `ai:prompt:write` | 新增、编辑、复制、停用 Prompt 模板 |
 | AI | `ai:logs:read` | 查看 AI 调用日志 |
 | AI | `ai:costs:read` | 查看 AI 成本监控 |
+| AI | `ai:compliance:read` | 查看合规词库、执行文本合规检查 |
+| AI | `ai:compliance:write` | 新增、编辑、启停合规词条 |
 | 系统设置 | `settings:user:read` | 查看用户 |
 | 系统设置 | `settings:user:write` | 新增、编辑、启禁用户 |
 | 系统设置 | `settings:user:reset-password` | 重置用户密码 |
@@ -405,6 +407,10 @@ AI 调用日志中的“调用页面”字段统一命名为：
 | 创建 Prompt 模板 | POST | `/api/ai/prompts` | 新建模板 | Body: `name`, `category`, `templateContent`, `variables` | `id`, `template` | `{"code":0,"data":{"id":"PT011"}}` | `{"code":40001,"message":"模板内容不能为空"}` | 是 | Prompt新增 |
 | 更新 Prompt 模板 | PUT | `/api/ai/prompts/:id` | 编辑模板内容 | Params: `id`; Body: 模板字段 | `template` | `{"code":0,"data":{"id":"PT001"}}` | `{"code":40400,"message":"模板不存在"}` | 是 | Prompt编辑 |
 | 复制 Prompt 模板 | POST | `/api/ai/prompts/:id/copy` | 复制模板 | Params: `id` | `id`, `sourceId` | `{"code":0,"data":{"id":"PT012"}}` | `{"code":40400,"message":"模板不存在"}` | 是 | Prompt新增 |
+| 获取合规词库 | GET | `/api/compliance/keywords` | 获取全局敏感词、禁用表达和建议改写规则 | Query: `keyword`, `category`, `riskLevel`, `action`, `enabled`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":8}}` | `{"code":40101,"message":"请先登录"}` | 是 | `ai:compliance:read` |
+| 新增合规词条 | POST | `/api/compliance/keywords` | 新增全局合规词条 | Body: `text`, `category`, `riskLevel`, `action`, `matchType`, `enabled`, `description` | `keyword` | `{"code":0,"data":{"keyword":{"id":"CK009"}}}` | `{"code":40001,"message":"参数错误"}` | 是 | `ai:compliance:write` |
+| 更新合规词条 | PUT | `/api/compliance/keywords/:id` | 更新全局合规词条 | Params: `id`; Body: 词条字段 | `keyword` | `{"code":0,"data":{"keyword":{"id":"CK001"}}}` | `{"code":40400,"message":"合规词条不存在"}` | 是 | `ai:compliance:write` |
+| 合规文本检查 | POST | `/api/compliance/check` | 使用本地词库检查商品文案、直播口播或待播话术，记录脱敏摘要 | Body: `text`, `sourcePage`, `scenario`, `target` | `result`, `logId`, `mock` | `{"code":0,"data":{"result":{"riskLevel":"高","action":"block"}}}` | `{"code":40001,"message":"参数错误"}` | 是 | `ai:compliance:read` |
 | 获取调用日志 | GET | `/api/ai/logs` | 查询 AI 调用记录 | Query: `startTime`, `endTime`, `sourcePage`, `provider`, `type`, `status`, `user`, `page`, `pageSize` | `list`, `total`, `page`, `pageSize` | `{"code":0,"data":{"list":[],"total":12,"page":1,"pageSize":20}}` | `{"code":40001,"message":"时间范围错误"}` | 是 | AI日志查看 |
 | 获取成本监控 | GET | `/api/ai/costs` | 获取调用次数、费用、占比和预算设置 | Query: `startTime`, `endTime` | `summary`, `providerBreakdown`, `typeBreakdown`, `budgetSettings` | `{"code":0,"data":{"todayCalls":128}}` | `{"code":40001,"message":"时间范围错误"}` | 是 | AI成本查看 |
 | 更新成本预算 | PATCH | `/api/ai/costs/budget` | 更新日预算、月预算和提醒开关 | Body: `dailyBudget`, `monthlyBudget`, `alerts` | `budgetSettings` | `{"code":0,"data":{"dailyBudget":100}}` | `{"code":40001,"message":"预算必须大于0"}` | 是 | AI成本设置 |

@@ -126,6 +126,16 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `feature/ai-provider-trial-plan`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型。
 
+### 2026-05-29 12:14:32 CST ｜ 开发 Codex（OpenAI）｜ Phase 18D 全局合规 / 敏感词中心 MVP
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：进行下一步工作。
+- 本次回答摘要：已将 `feature/ai-provider-trial-plan` 合并回 `dev` 并推送，打 tag `v0.18-ai-provider-trial-plan`；随后从 `dev` 新建 `feature/compliance-center-mvp`，完成全局合规 / 敏感词中心 MVP。
+- 本次改动：新增 `server/routes/compliance.js`、`server/utils/compliance.js`、`src/pages/ai-center/ComplianceCenter.jsx`；新增 SQLite 合规词库和检查日志表；新增合规 API 和 AI 能力中心页面；`product_copy` fake provider 输出后会执行本地合规检查。
+- 自检：`node --check` 相关后端文件通过；`npm run server:seed` 通过；`npm run server:smoke` 通过 101 项；`npm run build` 通过，仅 Vite chunk 体积提醒。
+- GitHub 同步：本条记录会随本次提交推送到远端 `feature/compliance-center-mvp`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型，未接真实平台风控。
+
 ---
 
 ## 审查记录

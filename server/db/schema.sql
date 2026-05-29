@@ -383,6 +383,43 @@ CREATE TABLE IF NOT EXISTS ai_cost_daily (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS compliance_keywords (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  category TEXT,
+  risk_level TEXT,
+  action TEXT,
+  match_type TEXT DEFAULT 'contains',
+  enabled INTEGER DEFAULT 1,
+  description TEXT,
+  created_by TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_keywords_category ON compliance_keywords(category);
+CREATE INDEX IF NOT EXISTS idx_compliance_keywords_risk_level ON compliance_keywords(risk_level);
+CREATE INDEX IF NOT EXISTS idx_compliance_keywords_action ON compliance_keywords(action);
+CREATE INDEX IF NOT EXISTS idx_compliance_keywords_enabled ON compliance_keywords(enabled);
+
+CREATE TABLE IF NOT EXISTS compliance_check_logs (
+  id TEXT PRIMARY KEY,
+  checked_at TEXT,
+  source_page TEXT,
+  scenario TEXT,
+  target TEXT,
+  input_summary TEXT,
+  result_summary TEXT,
+  risk_level TEXT,
+  action TEXT,
+  match_count INTEGER DEFAULT 0,
+  created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_check_logs_checked_at ON compliance_check_logs(checked_at);
+CREATE INDEX IF NOT EXISTS idx_compliance_check_logs_scenario ON compliance_check_logs(scenario);
+CREATE INDEX IF NOT EXISTS idx_compliance_check_logs_risk_level ON compliance_check_logs(risk_level);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,

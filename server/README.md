@@ -307,6 +307,10 @@ Phase 18C 已冻结真实 provider 手动试点方案，详见 `docs/AI真实Pro
 - `GET /api/ai/logs`
 - `GET /api/ai/costs`
 - `PATCH /api/ai/costs/budget`
+- `GET /api/compliance/keywords`
+- `POST /api/compliance/keywords`
+- `PUT /api/compliance/keywords/:id`
+- `POST /api/compliance/check`
 - `GET /api/settings/users`
 - `GET /api/settings/roles`
 - `GET /api/settings/basic`
@@ -337,6 +341,7 @@ Phase 18C 已冻结真实 provider 手动试点方案，详见 `docs/AI真实Pro
 - 生产级登录鉴权、密码重置、登录限流、Cookie / CSRF 策略和全量接口权限校验
 - 云存储、病毒扫描、文件内容识别和生产级文件访问权限
 - AI 模型真实调用
+- 生产级合规审核、平台规则实时同步和内容风控服务
 - OBS / 执行端真实通信
 - WebSocket / 实时弹幕
 - 工单回复和关闭工单真实处理

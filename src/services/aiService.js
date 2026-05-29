@@ -146,3 +146,21 @@ export function getAiCosts(params) {
 export async function saveAiBudgetSettings(data = {}) {
   return apiRequest.patch('/api/ai/costs/budget', data);
 }
+
+export function getComplianceKeywords(params = {}) {
+  return apiRequest.get('/api/compliance/keywords', params);
+}
+
+export async function createComplianceKeyword(data = {}) {
+  const result = await apiRequest.post('/api/compliance/keywords', data);
+  return result.keyword;
+}
+
+export async function updateComplianceKeyword(id, data = {}) {
+  const result = await apiRequest.put(`/api/compliance/keywords/${id}`, data);
+  return result.keyword;
+}
+
+export async function checkComplianceText(data = {}) {
+  return apiRequest.post('/api/compliance/check', data);
+}

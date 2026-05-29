@@ -2,6 +2,7 @@ import express from 'express';
 import { evaluateAiProviderGuardrails, getAiProviderRuntimePolicy } from '../ai/providerGuardrails.js';
 import { runProviderGenerate } from '../ai/providerAdapter.js';
 import { db, fromJson, nextId, now, toJson } from '../db/database.js';
+import { checkComplianceText, recordComplianceCheck } from '../utils/compliance.js';
 import { requireAuth, requirePermission } from '../utils/auth.js';
 import { PERMISSIONS } from '../utils/permissions.js';
 import { fail, page, success } from '../utils/response.js';
@@ -716,7 +717,38 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
   });
   const content = result.content || '';
   const structured = result.structured || {};
-  const riskTips = result.riskTips || [];
+  const complianceResult = options.complianceCheck === false ? null : checkComplianceText(content);
+  const complianceLogId = complianceResult
+    ? recordComplianceCheck({
+        sourcePage,
+        scenario,
+        target,
+        inputSummary: `AI 输出长度=${String(content || '').length}; productId=${product.id || productId}; target=${target}; 不记录完整输出。`,
+        result: complianceResult,
+      })
+    : '';
+  const riskTips = [
+    ...(result.riskTips || []),
+    ...(
+      complianceResult?.matches?.length
+        ? [
+            {
+              level: complianceResult.riskLevel,
+              type: 'global_compliance',
+              action: complianceResult.action,
+              message: complianceResult.suggestion,
+              matches: complianceResult.matches.map((item) => ({
+                id: item.id,
+                text: item.text,
+                category: item.category,
+                riskLevel: item.riskLevel,
+                action: item.action,
+              })),
+            },
+          ]
+        : []
+    ),
+  ];
   const duration = `${Date.now() - startedAt}ms`;
   const tokens = Number(result.usage?.totalTokens || 0);
   const cost = Number(result.cost || 0);
@@ -763,6 +795,8 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
     mock: true,
     realProviderEnabled: false,
     guardrail: serializeGuardrail(guardrail),
+    compliance: complianceResult,
+    complianceLogId,
     message: result.message,
   });
 });

@@ -585,6 +585,42 @@ async function run() {
   });
   assert(copiedPrompt.prompt?.id, 'AI 能力中心 API：复制 Prompt 模板未返回 prompt');
   pass('AI 能力中心 API：复制 Prompt 模板', copiedPrompt.prompt.id);
+  const complianceKeywords = await checkList('AI 能力中心 API：合规词库', '/api/compliance/keywords', protectedOptions);
+  assert(complianceKeywords.some((item) => item.text === '全网最低'), 'AI 能力中心 API：合规词库缺少 seed 词条');
+  const complianceCheck = await requestJson('AI 能力中心 API：合规文本检查', '/api/compliance/check', {
+    method: 'POST',
+    body: {
+      text: '这款商品全网最低，库存有限。',
+      sourcePage: 'Smoke Test',
+      scenario: 'manual_check',
+      target: 'smoke_text',
+    },
+    ...protectedOptions,
+  });
+  assert(complianceCheck.result?.riskLevel === '高', 'AI 能力中心 API：合规文本检查未返回高风险');
+  assert(complianceCheck.result?.action === 'block', 'AI 能力中心 API：合规文本检查未返回 block 动作');
+  assert(complianceCheck.logId, 'AI 能力中心 API：合规文本检查未返回 logId');
+  pass('AI 能力中心 API：合规文本检查', complianceCheck.result.action);
+  await requestExpectedError('AI 能力中心 API：合规词条参数校验', '/api/compliance/keywords', 40001, {
+    method: 'POST',
+    body: { text: '' },
+    ...protectedOptions,
+  });
+  const createdComplianceKeyword = await requestJson('AI 能力中心 API：新增合规词条', '/api/compliance/keywords', {
+    method: 'POST',
+    body: {
+      text: '烟火测试禁用表达',
+      category: 'Smoke Test',
+      riskLevel: '中',
+      action: 'warn',
+      matchType: 'contains',
+      enabled: true,
+      description: 'Smoke test keyword only.',
+    },
+    ...protectedOptions,
+  });
+  assert(createdComplianceKeyword.keyword?.id, 'AI 能力中心 API：新增合规词条未返回 keyword');
+  pass('AI 能力中心 API：新增合规词条', createdComplianceKeyword.keyword.id);
   await checkList('AI 能力中心 API：调用日志', '/api/ai/logs');
   const aiCostData = await requestJson('AI 能力中心 API：成本监控', '/api/ai/costs');
   assert(aiCostData.costs?.budgetSettings, 'AI 能力中心 API：成本监控未返回 budgetSettings');

@@ -4,6 +4,7 @@ import { runSchema } from './db/database.js';
 import aiRoutes from './routes/ai.js';
 import authRoutes from './routes/auth.js';
 import avatarRoutes from './routes/avatars.js';
+import complianceRoutes from './routes/compliance.js';
 import dashboardRoutes from './routes/dashboard.js';
 import delayControlRoutes from './routes/delayControl.js';
 import executorRoutes from './routes/executors.js';
@@ -109,6 +110,7 @@ app.use('/api', studioRoutes);
 app.use('/api', interactionRoutes);
 app.use('/api', delayControlRoutes);
 app.use('/api', aiRoutes);
+app.use('/api', complianceRoutes);
 app.use('/api', liveControlRoomRoutes);
 
 app.use((req, res) => {

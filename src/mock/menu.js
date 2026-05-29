@@ -63,6 +63,7 @@ export const menuItems = [
       { key: '/ai-center/assistant', label: 'AI助理设置' },
       { key: '/ai-center/models', label: '模型服务配置' },
       { key: '/ai-center/prompts', label: 'Prompt模板管理' },
+      { key: '/ai-center/compliance', label: '合规词库' },
       { key: '/ai-center/logs', label: '调用日志' },
       { key: '/ai-center/costs', label: '成本监控' },
     ],

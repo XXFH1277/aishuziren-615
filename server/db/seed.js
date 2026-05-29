@@ -82,6 +82,89 @@ const executorCommandMocks = [
   },
 ];
 
+const complianceKeywords = [
+  {
+    id: 'CK001',
+    text: '全网最低',
+    category: '绝对化表达',
+    riskLevel: '高',
+    action: 'block',
+    matchType: 'contains',
+    enabled: true,
+    description: '避免无法证明的绝对化价格承诺。',
+  },
+  {
+    id: 'CK002',
+    text: '永久有效',
+    category: '绝对化表达',
+    riskLevel: '中',
+    action: 'rewrite',
+    matchType: 'contains',
+    enabled: true,
+    description: '建议改为以页面展示和活动规则为准。',
+  },
+  {
+    id: 'CK003',
+    text: '治疗',
+    category: '功效宣称',
+    riskLevel: '高',
+    action: 'block',
+    matchType: 'contains',
+    enabled: true,
+    description: '非医疗商品不得使用治疗功效表达。',
+  },
+  {
+    id: 'CK004',
+    text: '保证瘦',
+    category: '功效宣称',
+    riskLevel: '高',
+    action: 'block',
+    matchType: 'contains',
+    enabled: true,
+    description: '避免效果保证类承诺。',
+  },
+  {
+    id: 'CK005',
+    text: '最后一天',
+    category: '营销催促',
+    riskLevel: '中',
+    action: 'warn',
+    matchType: 'contains',
+    enabled: true,
+    description: '如非真实活动节点，应避免强催促表达。',
+  },
+  {
+    id: 'CK006',
+    text: '点击私聊付款',
+    category: '平台规则',
+    riskLevel: '高',
+    action: 'block',
+    matchType: 'contains',
+    enabled: true,
+    description: '避免诱导站外交易或绕过平台流程。',
+  },
+  {
+    id: 'CK007',
+    text: '100%有效',
+    category: '绝对化表达',
+    riskLevel: '高',
+    action: 'rewrite',
+    matchType: 'contains',
+    enabled: true,
+    description: '建议改为体验因人而异或参考实际反馈。',
+  },
+  {
+    id: 'CK008',
+    text: '无效退款',
+    category: '售后承诺',
+    riskLevel: '中',
+    action: 'warn',
+    matchType: 'contains',
+    enabled: true,
+    description: '需要确认售后政策真实存在。',
+  },
+];
+
 function clearTables() {
   [
     'product_group_items',
@@ -105,6 +188,8 @@ function clearTables() {
     'ai_model_credentials',
     'ai_model_providers',
     'ai_assistant_settings',
+    'compliance_check_logs',
+    'compliance_keywords',
     'manual_takeover_state',
     'questions',
     'comments',
@@ -897,6 +982,34 @@ function seedSettings() {
   });
 }
 
+function seedCompliance() {
+  const insertKeyword = db.prepare(
+    `INSERT INTO compliance_keywords (
+      id, text, category, risk_level, action, match_type, enabled,
+      description, created_by, created_at, updated_at
+    ) VALUES (
+      @id, @text, @category, @riskLevel, @action, @matchType, @enabled,
+      @description, @createdBy, @createdAt, @updatedAt
+    )`,
+  );
+
+  complianceKeywords.forEach((item) => {
+    insertKeyword.run({
+      id: item.id,
+      text: item.text,
+      category: item.category,
+      riskLevel: item.riskLevel,
+      action: item.action,
+      matchType: item.matchType,
+      enabled: item.enabled ? 1 : 0,
+      description: item.description,
+      createdBy: 'system-seed',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+}
+
 function seedExecutors() {
   const insertExecutor = db.prepare(
     `INSERT INTO executors (
@@ -1170,6 +1283,7 @@ const seed = db.transaction(() => {
   seedInteraction();
   seedDelayControl();
   seedAiCenter();
+  seedCompliance();
   seedSettings();
   seedExecutors();
   seedHelp();
@@ -1183,5 +1297,6 @@ console.log(`Studio backgrounds: ${studioBackgrounds.length}, Studio layouts: ${
 console.log(`Interaction comments: ${comments.length}, Questions: ${questions.length}, Manual takeover states: 1`);
 console.log(`Delay control states: 1, Speech queue: ${speechQueue.length}, Subtitle settings: 1, Delay settings: 1`);
 console.log(`AI models: ${modelProviders.length}, Prompt templates: ${promptTemplates.length}, AI call logs: ${aiCallLogs.length}, AI cost records: 1`);
+console.log(`Compliance keywords: ${complianceKeywords.length}`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);

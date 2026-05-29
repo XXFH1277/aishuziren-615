@@ -4,6 +4,7 @@ import RequireAuth from '../components/RequireAuth';
 import AdminLayout from '../layouts/AdminLayout';
 import AiAssistant from '../pages/ai-center/AiAssistant';
 import AiCallLogs from '../pages/ai-center/AiCallLogs';
+import ComplianceCenter from '../pages/ai-center/ComplianceCenter';
 import AiCostMonitor from '../pages/ai-center/AiCostMonitor';
 import ModelServices from '../pages/ai-center/ModelServices';
 import PromptTemplates from '../pages/ai-center/PromptTemplates';
@@ -92,6 +93,7 @@ const router = createBrowserRouter([
       { path: 'ai-center/assistant', element: <AiAssistant />, handle: { label: 'AI助理设置' } },
       { path: 'ai-center/models', element: <ModelServices />, handle: { label: '模型服务配置' } },
       { path: 'ai-center/prompts', element: <PromptTemplates />, handle: { label: 'Prompt模板管理' } },
+      { path: 'ai-center/compliance', element: <ComplianceCenter />, handle: { label: '合规词库' } },
       { path: 'ai-center/logs', element: <AiCallLogs />, handle: { label: '调用日志' } },
       { path: 'ai-center/costs', element: <AiCostMonitor />, handle: { label: '成本监控' } },
       { path: 'executors/list', element: <ExecutorList />, handle: { label: '执行端列表' } },

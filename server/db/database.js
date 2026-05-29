@@ -26,6 +26,8 @@ const allowedIdTables = new Set([
   'prompt_templates',
   'ai_call_logs',
   'ai_cost_daily',
+  'compliance_keywords',
+  'compliance_check_logs',
   'comments',
   'questions',
   'manual_takeover_state',

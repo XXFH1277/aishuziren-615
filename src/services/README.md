@@ -201,6 +201,8 @@ aiService -> fetch(`${API_BASE_URL}/api/ai/models/defaults`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/prompts`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/logs`)
 aiService -> fetch(`${API_BASE_URL}/api/ai/costs`)
+aiService -> fetch(`${API_BASE_URL}/api/compliance/keywords`)
+aiService -> fetch(`${API_BASE_URL}/api/compliance/check`)
 ```
 
 说明：
@@ -216,6 +218,8 @@ aiService -> fetch(`${API_BASE_URL}/api/ai/costs`)
 - `getModelStatusOptions()`、`getModelUsageScenes()`、`getPromptCategories()`、`getPromptTemplateStatuses()`、`getPromptVariables()` 仍使用前端静态选项。
 - 本阶段不做静默 Mock fallback；API 未启动时页面提示“本地 API 服务未连接，请先运行 npm run server:dev”。
 - 商品文案已打通 fake provider 闭环；真实 provider 仍未开启，`realProvider=true` 会先被后端 guardrails 拦截并写入脱敏日志。
+- Phase 18D 起，`getComplianceKeywords()`、`createComplianceKeyword()`、`updateComplianceKeyword()`、`checkComplianceText()` 复用 `aiService` 请求全局合规词库和文本检查 API。
+- 商品文案生成后会进行本地合规词库后置检查，返回 `riskTips` 与 `compliance`，但不代表真实平台审核。
 
 ## Phase 12.16 直播中控台聚合 Service API 试点
 
