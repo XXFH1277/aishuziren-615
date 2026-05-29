@@ -104,6 +104,17 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `feature/review-core-hardening`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
 
+### 2026-05-29 11:47:07 CST ｜ 开发 Codex（OpenAI）｜ review-core-hardening 合并收口
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：开始执行下一步计划。
+- 执行结果：已切换到 `dev`，拉取 `origin/dev` 后 fast-forward 合并 `feature/review-core-hardening`，无冲突。
+- 自检结果：`npm run server:seed` 通过；临时启动本地后端后 `npm run server:smoke` 通过 97 项；`npm run build` 通过，仅 Vite chunk 体积提醒。
+- 服务清理：smoke 使用的本地后端已关闭，确认 `localhost:3000` 无监听进程。
+- 本次改动：仅追加本交流记录，未修改业务代码。
+- GitHub 同步：本条记录会随本次提交推送到远端 `dev`，随后打 tag `v0.18-review-core-hardening`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型。
+
 ---
 
 ## 审查记录
