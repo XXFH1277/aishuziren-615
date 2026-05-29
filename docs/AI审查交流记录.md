@@ -136,6 +136,15 @@
 - GitHub 同步：本条记录会随本次提交推送到远端 `feature/compliance-center-mvp`。
 - 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key，未调用真实 AI 模型，未接真实平台风控。
 
+### 2026-05-29 13:28:23 CST ｜ 开发 Codex（OpenAI）｜ Computer Use 权限处理说明
+
+- 身份：开发 Codex（OpenAI）。
+- 用户要求：解释“浏览器自动化检查因本机 Computer Use 权限仍在等待授权”如何解决。
+- 本次回答摘要：说明该问题不是项目代码问题，而是 macOS 尚未授予 Codex 控制电脑和截屏所需权限；需要在系统设置的“隐私与安全性”中为 Codex 开启“辅助功能”和“屏幕录制”，必要时重启 Codex 和 Chrome。
+- 本次改动：仅更新本交流记录，未修改业务代码。
+- GitHub 同步：本条记录会随本次提交推送到远端 `feature/compliance-center-mvp`。
+- 安全边界：未读取 `.env.local`，未读取 `模型api.txt`，未写入任何真实 API Key。
+
 ---
 
 ## 审查记录
