@@ -1,5 +1,6 @@
 node_modules
 dist
+.local-cache/
 logs/
 .agents/
 TRACE_LOG*.md
