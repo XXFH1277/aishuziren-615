@@ -14,16 +14,20 @@ import healthRoutes from './routes/health.js';
 import interactionRoutes from './routes/interaction.js';
 import liveControlRoomRoutes from './routes/liveControlRoom.js';
 import liveRoutes from './routes/liveRooms.js';
+import liveSessionRoutes from './routes/liveSessions.js';
+import obsLocalRoutes from './routes/obsLocal.js';
+import obsOutputRoutes from './routes/obsOutput.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
 import studioRoutes from './routes/studio.js';
+import talkingVideoRoutes from './routes/talkingVideos.js';
 import { requireAuth } from './utils/auth.js';
+import { PASSWORD_CHANGE_REQUIRED, SERVER_ERROR } from './utils/errorCodes.js';
 import { fail, success } from './utils/response.js';
 import { uploadPublicPrefix, uploadRoot } from './utils/uploadConfig.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 runSchema();
 
@@ -62,20 +66,48 @@ function createCorsOriginChecker() {
   };
 }
 
-function shouldSkipMutationAuth(req) {
-  if (!req.path.startsWith('/api') || !mutatingMethods.has(req.method)) {
-    return true;
-  }
-
-  return req.method === 'POST' && req.path === '/api/auth/login';
+function isAuthWhitelist(req) {
+  return (
+    (req.method === 'GET' && req.path === '/api/health') ||
+    (req.method === 'POST' && req.path === '/api/auth/login') ||
+    (req.method === 'GET' && req.path === '/api/obs-output/runtime') ||
+    (req.method === 'POST' && req.path === '/api/obs-output/runtime/clear') ||
+    (req.method === 'POST' && req.path === '/api/obs-output/sessions') ||
+    (req.method === 'POST' && /^\/api\/obs-output\/sessions\/[^/]+\/connect$/.test(req.path))
+  );
 }
 
-function requireAuthForMutations(req, res, next) {
-  if (shouldSkipMutationAuth(req)) {
+function isDeviceProtocolPath(req) {
+  return (
+    (req.method === 'POST' && req.path === '/api/executors/register') ||
+    (req.method === 'POST' && /^\/api\/executors\/[^/]+\/heartbeat$/.test(req.path)) ||
+    (req.method === 'GET' && /^\/api\/executors\/[^/]+\/commands\/pending$/.test(req.path)) ||
+    (req.method === 'POST' && /^\/api\/executors\/commands\/[^/]+\/ack$/.test(req.path))
+  );
+}
+
+function isPasswordChangeAllowedPath(req) {
+  return (
+    (req.method === 'POST' && req.path === '/api/auth/change-password') ||
+    (req.method === 'GET' && req.path === '/api/auth/me') ||
+    (req.method === 'POST' && req.path === '/api/auth/logout')
+  );
+}
+
+function requireAuthForApi(req, res, next) {
+  if (!req.path.startsWith('/api') || isAuthWhitelist(req) || isDeviceProtocolPath(req)) {
     return next();
   }
 
-  return requireAuth(req, res, next);
+  return requireAuth(req, res, () => {
+    if (req.authUser?.must_change_password && !isPasswordChangeAllowedPath(req)) {
+      return fail(res, '请先修改初始密码', PASSWORD_CHANGE_REQUIRED, {
+        mustChangePassword: true,
+      });
+    }
+
+    return next();
+  });
 }
 
 app.use(
@@ -94,7 +126,7 @@ app.get('/', (req, res) => {
   });
 });
 
-app.use(requireAuthForMutations);
+app.use(requireAuthForApi);
 
 app.use('/api/health', healthRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -107,11 +139,15 @@ app.use('/api', settingsRoutes);
 app.use('/api', helpRoutes);
 app.use('/api', executorRoutes);
 app.use('/api', studioRoutes);
+app.use('/api', talkingVideoRoutes);
+app.use('/api', obsLocalRoutes);
+app.use('/api', obsOutputRoutes);
 app.use('/api', interactionRoutes);
 app.use('/api', delayControlRoutes);
 app.use('/api', aiRoutes);
 app.use('/api', complianceRoutes);
 app.use('/api', liveControlRoomRoutes);
+app.use('/api', liveSessionRoutes);
 
 app.use((req, res) => {
   return fail(res, '接口不存在', 40400, {
@@ -122,9 +158,7 @@ app.use((req, res) => {
 
 app.use((error, req, res, next) => {
   console.error(error);
-  return fail(res, '服务器内部错误', 50000, {
-    reason: error.message,
-  });
+  return fail(res, '服务器内部错误', SERVER_ERROR);
 });
 
 app.listen(port, () => {

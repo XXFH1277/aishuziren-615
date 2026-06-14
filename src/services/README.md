@@ -319,7 +319,7 @@ apiRequest 自动附带 Authorization
 
 当前边界：
 
-- 默认本地演示账号为 `admin / admin123456`，仅用于本地开发。
+- 默认本地演示账号为 `admin`；初始密码请查看 `npm run server:seed` 输出，或通过 `SEED_ADMIN_PASSWORD` 注入。
 - 前端只保存后端返回的本地 token，不保存密码。
 - 当前未做生产级 Cookie / CSRF 策略、密码重置、登录限流或全量接口权限拦截。
 

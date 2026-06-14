@@ -42,7 +42,7 @@ export default function Login() {
         </div>
 
         <Card className="login-card">
-          <Alert className="login-alert" type="info" showIcon message="本地演示账号：admin / admin123456" />
+          <Alert className="login-alert" type="info" showIcon message="本地演示账号：admin；初始密码请查看 server:seed 输出或设置 SEED_ADMIN_PASSWORD" />
           <Form
             form={form}
             layout="vertical"

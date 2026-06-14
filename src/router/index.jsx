@@ -27,6 +27,7 @@ import SystemStatus from '../pages/help/SystemStatus';
 import Tickets from '../pages/help/Tickets';
 import Troubleshooting from '../pages/help/Troubleshooting';
 import Tutorials from '../pages/help/Tutorials';
+import ObsOutput from '../pages/obs/ObsOutput';
 import CommentCapture from '../pages/interaction/CommentCapture';
 import ManualTakeover from '../pages/interaction/ManualTakeover';
 import QuestionQueue from '../pages/interaction/QuestionQueue';
@@ -48,12 +49,18 @@ import UserManagement from '../pages/settings/UserManagement';
 import StudioBackground from '../pages/studio/StudioBackground';
 import StudioLayout from '../pages/studio/StudioLayout';
 import StudioOutput from '../pages/studio/StudioOutput';
+import TalkingVideoGenerator from '../pages/studio/TalkingVideoGenerator';
 
 const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
     handle: { label: '登录' },
+  },
+  {
+    path: '/obs/output',
+    element: <ObsOutput />,
+    handle: { label: 'OBS数字人输出' },
   },
   {
     path: '/',
@@ -69,7 +76,7 @@ const router = createBrowserRouter([
       { path: 'live/rooms', element: <LiveRoomList />, handle: { label: '直播间列表' } },
       { path: 'live/rooms/create', element: <CreateLiveRoom />, handle: { label: '创建直播间' } },
       { path: 'live/rooms/:id/edit', element: <EditLiveRoom />, handle: { label: '编辑直播间' } },
-      { path: 'live/tasks', element: <LiveTasks />, handle: { label: '直播任务' } },
+      { path: 'live/tasks', element: <LiveTasks />, handle: { label: '计划与历史' } },
       { path: 'live/control-room', element: <LiveControlRoom />, handle: { label: '直播中控台' } },
       { path: 'products/list', element: <ProductList />, handle: { label: '商品列表' } },
       { path: 'products/create', element: <CreateProduct />, handle: { label: '创建商品' } },
@@ -81,8 +88,10 @@ const router = createBrowserRouter([
       { path: 'avatar/:id/edit', element: <EditAvatar />, handle: { label: '编辑数字人' } },
       { path: 'avatar/actions', element: <ActionLibrary />, handle: { label: '动作库' } },
       { path: 'studio/background', element: <StudioBackground />, handle: { label: 'AI生成背景' } },
+      { path: 'studio/talking-video', element: <Navigate to="/short-video/talking-video" replace /> },
       { path: 'studio/layout', element: <StudioLayout />, handle: { label: '画面布局' } },
       { path: 'studio/output', element: <StudioOutput />, handle: { label: 'OBS输出预留' } },
+      { path: 'short-video/talking-video', element: <TalkingVideoGenerator />, handle: { label: '口播视频生成' } },
       { path: 'interaction/comments', element: <CommentCapture />, handle: { label: '弹幕捕获' } },
       { path: 'interaction/questions', element: <QuestionQueue />, handle: { label: '问题队列' } },
       { path: 'interaction/takeover', element: <ManualTakeover />, handle: { label: '人工接管' } },

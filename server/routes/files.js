@@ -6,7 +6,14 @@ import { db, nextId, now } from '../db/database.js';
 import { requireAuth } from '../utils/auth.js';
 import { PARAM_ERROR } from '../utils/errorCodes.js';
 import { fail, success } from '../utils/response.js';
-import { allowedMimeTypes, allowedUploadDescription, maxUploadSize, uploadPublicPrefix, uploadRoot } from '../utils/uploadConfig.js';
+import {
+  allowedMimeTypes,
+  allowedUploadDescription,
+  maxUploadSize,
+  maxUploadSizeMb,
+  uploadPublicPrefix,
+  uploadRoot,
+} from '../utils/uploadConfig.js';
 
 const router = express.Router();
 
@@ -100,11 +107,12 @@ function readRequestBody(req) {
       totalSize += chunk.length;
 
       if (totalSize > maxUploadSize) {
+        const sizeLimitMessage = `文件大小不能超过 ${maxUploadSizeMb}MB`;
         reject(
-          Object.assign(new Error('文件大小不能超过 5MB'), {
+          Object.assign(new Error(sizeLimitMessage), {
             code: PARAM_ERROR,
             field: 'file',
-            reason: '文件大小不能超过 5MB',
+            reason: sizeLimitMessage,
           }),
         );
         req.destroy();
@@ -193,9 +201,10 @@ router.post('/upload', requireAuth, async (req, res) => {
   const safeName = sanitizeFileName(multipart.file.originalName);
   const storedFileName = `${fileId}-${crypto.randomBytes(6).toString('hex')}-${safeName}${mimeConfig.extension}`;
   const moduleDir = path.join(uploadRoot, moduleName);
+  const localPath = path.join(moduleDir, storedFileName);
 
   fs.mkdirSync(moduleDir, { recursive: true });
-  fs.writeFileSync(path.join(moduleDir, storedFileName), multipart.file.buffer);
+  fs.writeFileSync(localPath, multipart.file.buffer);
 
   const fileUrl = `${uploadPublicPrefix}/${encodeURIComponent(moduleName)}/${encodeURIComponent(storedFileName)}`;
 
@@ -223,7 +232,10 @@ router.post('/upload', requireAuth, async (req, res) => {
   const row = db.prepare('SELECT * FROM file_assets WHERE id = ?').get(fileId);
 
   return success(res, {
-    file: mapFileAsset(row),
+    file: {
+      ...mapFileAsset(row),
+      localPath,
+    },
     mock: false,
     message: '文件已保存到本地 server/uploads，并记录到 SQLite。',
   });

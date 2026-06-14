@@ -41,6 +41,7 @@ export function toFileAsset(uploadItem = {}) {
     fileType: file.fileType || uploadItem.fileType,
     size: file.size || uploadItem.size,
     mimeType: file.mimeType || uploadItem.type,
+    localPath: file.localPath || uploadItem.localPath,
     uploadedAt: file.uploadedAt || uploadItem.uploadedAt,
   };
 }
@@ -60,6 +61,15 @@ export async function uploadAvatarAuthorization(file, meta = {}) {
     module: 'avatar_authorization',
     businessId: meta.businessId || '',
     fileType: meta.fileType || 'document',
+  });
+}
+
+export async function uploadAvatarSourceVideo(file, meta = {}) {
+  return uploadFile({
+    file,
+    module: 'avatar_sources',
+    businessId: meta.businessId || '',
+    fileType: 'video',
   });
 }
 

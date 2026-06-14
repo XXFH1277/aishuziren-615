@@ -20,6 +20,13 @@ export function getBindingDeviceMock() {
   return bindingDeviceMock;
 }
 
+export async function generateExecutorBindCode(data = {}) {
+  return apiRequest.post('/api/executors/bind-code', data);
+}
+
+/**
+ * @deprecated Use generateExecutorBindCode(). This mock endpoint is kept only for old UI compatibility.
+ */
 export async function bindExecutorMock(data = {}) {
   return apiRequest.post('/api/executors/bind', data);
 }
@@ -44,8 +51,53 @@ export async function refreshExecutorObsScenes(id, data = {}) {
   return apiRequest.post(`/api/executors/${id}/obs/refresh-scenes`, data);
 }
 
+export async function sendExecutorSpeak(id, data = {}) {
+  return apiRequest.post(`/api/executors/${id}/speak`, data);
+}
+
+export async function getExecutorCommand(id) {
+  const data = await apiRequest.get(`/api/executors/commands/${id}`);
+  return data.command;
+}
+
 export async function getExecutorObsStatus(params = {}) {
   return apiRequest.get('/api/executor-obs', params);
+}
+
+export async function getLocalObsConfig() {
+  return apiRequest.get('/api/obs-local/config');
+}
+
+export async function saveLocalObsConfig(data = {}) {
+  return apiRequest.put('/api/obs-local/config', data);
+}
+
+export async function testLocalObsConnection(data = {}) {
+  return apiRequest.post('/api/obs-local/test', data);
+}
+
+export async function refreshLocalObsScenes(data = {}) {
+  return apiRequest.post('/api/obs-local/refresh-scenes', data);
+}
+
+export async function upsertLocalObsBrowserSource(data = {}) {
+  return apiRequest.post('/api/obs-local/browser-source', data);
+}
+
+export async function setLocalObsVirtualCamera(data = {}) {
+  return apiRequest.post('/api/obs-local/virtual-camera', data);
+}
+
+export async function getObsOutputRuntime() {
+  return apiRequest.get('/api/obs-output/runtime');
+}
+
+export async function getLocalObsSourceScreenshot(params = {}) {
+  if (params.password || params.obsPassword) {
+    return apiRequest.post('/api/obs-local/source-screenshot', params);
+  }
+
+  return apiRequest.get('/api/obs-local/source-screenshot', params);
 }
 
 export async function getExecutorObsList(params = {}) {

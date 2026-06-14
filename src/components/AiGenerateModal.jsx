@@ -1,6 +1,6 @@
 import { Alert, Button, Form, Input, Modal, Select, Switch, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { generateProductCopy } from '../services/aiService';
+import { generateProductCopy, getAiRuntimePolicy, getModelRoleSettings } from '../services/aiService';
 
 const targetOptions = ['简介', '卖点', '口播', 'FAQ', '合规改写'];
 const styleOptions = ['专业', '亲切', '热情', '接地气', '数字人自然口吻'];
@@ -15,7 +15,7 @@ const targetApiMap = {
 
 function buildMockCopy({ target, style, length, fieldName }) {
   const field = fieldName ? `围绕「${fieldName}」` : '围绕当前商品';
-  return `${field}生成一段${style || '专业'}风格的${target || '简介'} Mock 文案，长度为${length || '中'}。这里不会调用 Kimi / Mimo，也不会读取任何 API Key；后续接入真实服务前可先用这段文案检查页面流程。`;
+  return `${field}生成一段${style || '专业'}风格的${target || '简介'} Mock 文案，长度为${length || '中'}。这里不会调用真实模型，也不会读取任何 API Key；接入真实模型前可先用这段文案检查页面流程。`;
 }
 
 function normalizeTarget(value) {
@@ -28,6 +28,8 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
   const [riskTips, setRiskTips] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [generateMeta, setGenerateMeta] = useState(null);
+  const [realProvider, setRealProvider] = useState({ available: false, providerId: '', label: '' });
+  const [useReal, setUseReal] = useState(false);
 
   const initialValues = useMemo(
     () => ({
@@ -40,12 +42,39 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
   );
 
   useEffect(() => {
-    if (open) {
-      form.setFieldsValue(initialValues);
-      setResult(buildMockCopy({ ...initialValues, fieldName }));
-      setRiskTips([]);
-      setGenerateMeta(null);
+    if (!open) {
+      return undefined;
     }
+
+    form.setFieldsValue(initialValues);
+    setResult(buildMockCopy({ ...initialValues, fieldName }));
+    setRiskTips([]);
+    setGenerateMeta(null);
+
+    let ignore = false;
+
+    async function loadRealStatus() {
+      try {
+        const [policyRes, defaultsRes] = await Promise.all([getAiRuntimePolicy(), getModelRoleSettings({})]);
+        if (ignore) return;
+        const policy = policyRes.policy || {};
+        const copy = (defaultsRes.list || []).find((item) => item.id === 'copywriting');
+        const available = Boolean(policy.realProviderEnabled && copy?.providerId);
+        setRealProvider({ available, providerId: copy?.providerId || '', label: copy?.value || '' });
+        setUseReal(available);
+      } catch {
+        if (!ignore) {
+          setRealProvider({ available: false, providerId: '', label: '' });
+          setUseReal(false);
+        }
+      }
+    }
+
+    loadRealStatus();
+
+    return () => {
+      ignore = true;
+    };
   }, [fieldName, form, initialValues, open]);
 
   const handleGenerate = async () => {
@@ -58,6 +87,8 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
       message.success('已生成 Mock 文案，未调用真实 AI 服务');
       return;
     }
+
+    const willUseReal = Boolean(useReal && realProvider.available);
 
     try {
       setGenerating(true);
@@ -72,12 +103,22 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
           length: values.length,
           complianceCheck: values.compliance,
         },
-        realProvider: false,
+        realProvider: willUseReal,
+        providerId: willUseReal ? realProvider.providerId : payload.providerId,
       });
       setResult(data.content || '');
       setRiskTips(data.riskTips || []);
       setGenerateMeta(data);
-      message.success('已通过本地 fake provider 生成文案，未调用真实模型');
+
+      if (data.error) {
+        message.error(data.message || '真实模型调用失败');
+      } else if (data.realProviderEnabled) {
+        message.success('已通过真实模型生成文案');
+      } else if (data.blocked) {
+        message.warning(data.message || '真实模型未通过安全闸，已回退');
+      } else {
+        message.success('已通过本地 fake provider 生成文案，未调用真实模型');
+      }
     } catch (error) {
       message.error(error.message || 'AI 文案生成失败');
     } finally {
@@ -93,9 +134,11 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
     }
   };
 
+  const realActive = realProvider.available && useReal;
+
   return (
     <Modal
-      title="AI生成文案（Mock）"
+      title={realActive ? 'AI生成文案（真实模型）' : 'AI生成文案（Mock）'}
       open={open}
       onCancel={onCancel}
       width={720}
@@ -115,10 +158,14 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
     >
       <Alert
         className="ai-modal-alert"
-        type="info"
+        type={realActive ? 'success' : 'info'}
         showIcon
-        message="当前使用 fake provider，不调用真实模型。"
-        description="请求会经过本地 /api/ai/generate，并写入脱敏调用日志和 fake 成本统计。"
+        message={realActive ? `将调用真实模型：${realProvider.label || '已配置默认模型'}` : '当前使用 fake provider，不调用真实模型。'}
+        description={
+          realProvider.available
+            ? '请求经过本地 /api/ai/generate + 安全闸（频率/预算/超时）与合规检查，并写入脱敏日志。'
+            : '请求会经过本地 /api/ai/generate，并写入脱敏调用日志和 fake 成本统计。到「模型服务配置」配置并启用真实模型后可切换。'
+        }
       />
       <Form form={form} layout="vertical" initialValues={initialValues}>
         <div className="ai-modal-grid">
@@ -135,6 +182,11 @@ export default function AiGenerateModal({ open, target = '简介', fieldName, bu
             <Switch checkedChildren="开启" unCheckedChildren="关闭" />
           </Form.Item>
         </div>
+        {realProvider.available ? (
+          <Form.Item label="使用真实模型">
+            <Switch checked={useReal} onChange={setUseReal} checkedChildren="真实" unCheckedChildren="Mock" />
+          </Form.Item>
+        ) : null}
         <Form.Item label="生成结果">
           <Input.TextArea value={result} rows={5} readOnly />
         </Form.Item>

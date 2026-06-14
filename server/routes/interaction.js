@@ -1,8 +1,20 @@
 import express from 'express';
 import { db, fromJson, nextId, now } from '../db/database.js';
+import {
+  buildComplianceRiskTips,
+  checkComplianceText,
+  isComplianceBlockingResult,
+  recordComplianceCheck,
+} from '../utils/compliance.js';
 import { fail, page, success } from '../utils/response.js';
 
 const router = express.Router();
+
+const riskRank = {
+  低: 1,
+  中: 2,
+  高: 3,
+};
 
 function getPagination(req) {
   const pageNumber = Math.max(Number.parseInt(req.query.page || '1', 10), 1);
@@ -61,6 +73,138 @@ function mapQuestion(row) {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapSpeechQueueItem(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    liveTaskId: row.live_task_id,
+    liveRoomId: row.live_room_id,
+    questionId: row.question_id,
+    commentId: row.comment_id,
+    productId: row.product_id,
+    productName: row.product_name,
+    relatedProduct: row.product_name,
+    text: row.text,
+    source: row.source,
+    action: row.action,
+    tone: row.tone,
+    riskLevel: row.risk_level,
+    reviewStatus: row.review_status,
+    broadcastStatus: row.broadcast_status || '',
+    executorCommandId: row.executor_command_id || '',
+    scheduledTime: row.scheduled_time,
+    approvedBy: row.approved_by,
+    approvedAt: row.approved_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function pickHigherRisk(...levels) {
+  return levels.filter(Boolean).reduce((highest, current) => {
+    const highestRank = riskRank[highest] || 0;
+    const currentRank = riskRank[current] || 0;
+    return currentRank > highestRank ? current : highest;
+  }, '低');
+}
+
+function buildQuestionReplyText(question, body = {}) {
+  return String(
+    body.text ||
+      body.replyText ||
+      body.editedReply ||
+      body.aiReply ||
+      question.edited_reply ||
+      question.ai_reply ||
+      `关于“${question.question}”，这款${question.product_name || '商品'}可以放心了解，具体以页面说明和客服确认信息为准。`,
+  ).trim();
+}
+
+function createQuestionSpeechQueueItem(question, body = {}) {
+  const existingQueued = db
+    .prepare('SELECT * FROM speech_queue WHERE question_id = ? ORDER BY created_at DESC, id DESC LIMIT 1')
+    .get(question.id);
+
+  if (existingQueued) {
+    return {
+      speechItem: existingQueued,
+      duplicate: true,
+      compliance: null,
+      complianceLogId: '',
+      riskTips: [],
+    };
+  }
+
+  const timestamp = now();
+  const text = buildQuestionReplyText(question, body);
+  const compliance = checkComplianceText(text);
+  const complianceLogId = recordComplianceCheck({
+    sourcePage: '直播中控台',
+    scenario: 'question_reply_queue',
+    target: question.id,
+    inputSummary: `questionId=${question.id}; liveTaskId=${question.live_task_id}; textLength=${text.length}; 不记录完整待播话术。`,
+    result: compliance,
+  });
+  const riskLevel = pickHigherRisk(question.risk_level, compliance.riskLevel);
+  const shouldForceReview = isComplianceBlockingResult(compliance) || riskLevel === '高';
+  const reviewStatus = shouldForceReview ? '高风险待人工' : '已通过';
+  const broadcastStatus = shouldForceReview ? '未审核' : '待下发';
+  const speechId = nextId('speech_queue', 'SQ');
+  const isApproved = reviewStatus === '已通过' || reviewStatus === '已审核' || reviewStatus === '即将播出';
+
+  db.prepare(
+    `INSERT INTO speech_queue (
+      id, live_task_id, live_room_id, question_id, comment_id, product_id, product_name,
+      text, source, action, tone, risk_level, review_status, broadcast_status,
+      executor_command_id, broadcast_result_json, broadcast_error_message,
+      broadcast_started_at, broadcast_finished_at, scheduled_time,
+      approved_by, approved_at, created_at, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @questionId, @commentId, @productId, @productName,
+      @text, @source, @action, @tone, @riskLevel, @reviewStatus, @broadcastStatus,
+      @executorCommandId, @broadcastResult, @broadcastErrorMessage,
+      @broadcastStartedAt, @broadcastFinishedAt, @scheduledTime,
+      @approvedBy, @approvedAt, @createdAt, @updatedAt
+    )`,
+  ).run({
+    id: speechId,
+    liveTaskId: question.live_task_id,
+    liveRoomId: question.live_room_id,
+    questionId: question.id,
+    commentId: question.comment_id || '',
+    productId: body.productId || question.product_id || '',
+    productName: body.productName || question.product_name || '',
+    text,
+    source: body.source || 'question_reply',
+    action: String(body.action || '').trim() || '回答问题',
+    tone: String(body.tone || '').trim() || '专业',
+    riskLevel,
+    reviewStatus,
+    broadcastStatus,
+    executorCommandId: '',
+    broadcastResult: '',
+    broadcastErrorMessage: '',
+    broadcastStartedAt: '',
+    broadcastFinishedAt: '',
+    scheduledTime: body.scheduledTime || '下一句',
+    approvedBy: isApproved ? body.approvedBy || 'question-queue' : '',
+    approvedAt: isApproved ? timestamp : '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+
+  return {
+    speechItem: db.prepare('SELECT * FROM speech_queue WHERE id = ?').get(speechId),
+    duplicate: false,
+    compliance,
+    complianceLogId,
+    riskTips: buildComplianceRiskTips(compliance),
   };
 }
 
@@ -236,14 +380,49 @@ router.post('/interaction/questions/:id/add-to-queue', (req, res) => {
     return null;
   }
 
-  db.prepare('UPDATE questions SET status = ?, updated_at = ? WHERE id = ?').run('已加入待播', now(), req.params.id);
+  const queued = createQuestionSpeechQueueItem(existing, req.body || {});
+  const timestamp = now();
+  const replyText = queued.speechItem?.text || buildQuestionReplyText(existing, req.body || {});
+
+  db.prepare(
+    `UPDATE questions
+     SET status = @status,
+         ai_reply = CASE WHEN ai_reply IS NULL OR ai_reply = '' THEN @replyText ELSE ai_reply END,
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: req.params.id,
+    status: '已加入待播',
+    replyText,
+    updatedAt: timestamp,
+  });
+
+  if (existing.comment_id) {
+    db.prepare(
+      `UPDATE comments
+       SET reply_status = @status,
+           handled_status = @status
+       WHERE id = @commentId`,
+    ).run({
+      commentId: existing.comment_id,
+      status: '已加入待播',
+    });
+  }
 
   const row = db.prepare('SELECT * FROM questions WHERE id = ?').get(req.params.id);
   return success(res, {
     question: mapQuestion(row),
-    speechId: `MOCK-SQ-${req.params.id}`,
-    mock: true,
-    message: 'Mock add-to-queue only. Delay control service was not called.',
+    speechItem: mapSpeechQueueItem(queued.speechItem),
+    speechId: queued.speechItem?.id || '',
+    status: queued.duplicate ? 'exists' : 'queued',
+    complianceLogId: queued.complianceLogId,
+    riskTips: queued.riskTips,
+    mock: false,
+    message: queued.duplicate
+      ? '该问题已在真实待播队列中，可在固定播控区继续下发。'
+      : queued.speechItem?.broadcast_status === '未审核'
+        ? '问题回复已加入真实待播队列，但命中高风险，需要人工审核后下发。'
+        : '问题回复已加入真实待播队列，可在固定播控区下发。',
   });
 });
 

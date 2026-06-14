@@ -135,7 +135,7 @@ export default function ModelServices() {
       const result = await testAiModel(model.id, {
         sourcePage: 'AI模型配置页',
       });
-      message.info(`${model.name} 测试连接：${result.status}，默认 fake provider，不调用真实模型`);
+      message.info(`${model.name} 测试连接：${result.status}`);
       await loadData();
     } catch (requestError) {
       message.error(requestError.message || '测试失败');
@@ -150,7 +150,7 @@ export default function ModelServices() {
         modelName: model.defaultModel,
         value: `${model.name} / ${model.defaultModel}`,
       });
-      message.success(`${model.name} 已设为普通文案默认模型 Mock`);
+      message.success(`${model.name} 已设为文案默认模型`);
       await loadData();
     } catch (requestError) {
       message.error(requestError.message || '设置失败');
@@ -166,10 +166,10 @@ export default function ModelServices() {
 
       <Alert
         className="studio-alert"
-        type="warning"
+        type={runtimePolicy?.realProviderEnabled ? 'success' : 'warning'}
         showIcon
-        message="当前默认使用 fake provider，不会调用真实模型。"
-        description={`API Key 只会提交给本地后端保存脱敏状态；前端不保存明文，测试连接不调用 Kimi / Mimo / OpenAI / DeepSeek。真实模型调用需在后端环境变量和权限策略确认后开启。当前运行模式：${runtimePolicy?.mode || 'fake_provider_only'}，单分钟上限：${runtimePolicy?.perMinuteCallLimit || 20} 次，单日上限：${runtimePolicy?.dailyCallLimit || 200} 次。`}
+        message={runtimePolicy?.realProviderEnabled ? '真实模型调用已开启（受安全闸保护）。' : '当前默认使用 fake provider，未开启真实模型。'}
+        description={`API Key 提交后由后端加密存储（AES-256-GCM），明文不返回前端、不写日志。客户可填自己的 Key；未填则回退平台默认 Key。真实调用需后端环境变量开启并通过频率/预算/超时安全闸。当前运行模式：${runtimePolicy?.mode || 'fake_provider_only'}，单分钟上限：${runtimePolicy?.perMinuteCallLimit || 20} 次，单日上限：${runtimePolicy?.dailyCallLimit || 200} 次。`}
       />
       {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
 
@@ -234,7 +234,7 @@ export default function ModelServices() {
           type="warning"
           showIcon
           message="官方 URL 和模型名仅作为预设参考，请以服务商最新文档为准。"
-          description="当前默认 fake provider，不调用真实模型；API Key 明文不会返回前端，也不会写入日志、Mock 或文档。"
+          description="API Key 由后端加密存储（AES-256-GCM），明文不返回前端、不写日志/文档。客户可填自己的 Key；未填则真实调用回退平台默认 Key。"
         />
         <Form form={form} layout="vertical">
           <Form.Item label="服务商" name="provider">
@@ -265,9 +265,9 @@ export default function ModelServices() {
           <Form.Item
             label="apiKey"
             name="apiKey"
-            extra={credentialInfo?.apiKeyConfigured ? `当前脱敏状态：${credentialInfo.apiKeyMasked || '已配置'}` : '留空则只保存模型配置；输入后仅提交本地后端保存脱敏状态。'}
+            extra={credentialInfo?.apiKeyConfigured ? `当前脱敏状态：${credentialInfo.apiKeyMasked || '已配置'}（明文已加密存储）` : '留空则只保存模型配置；输入真实 Key 后由后端加密存储，仅回显脱敏。'}
           >
-            <Input.Password placeholder="本地联调可输入 fake key，不要输入真实 API Key" autoComplete="new-password" />
+            <Input.Password placeholder="输入真实 API Key（后端加密存储，仅回显脱敏）" autoComplete="new-password" />
           </Form.Item>
           <Form.Item label="maxTokens" name="maxTokens">
             <Slider min={512} max={8192} step={256} />

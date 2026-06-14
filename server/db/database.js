@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 const serverRoot = path.resolve(__dirname, '..');
 const dataDir = path.join(serverRoot, 'data');
 const schemaPath = path.join(__dirname, 'schema.sql');
+const oldLiveTalkingObsUrl = 'http://127.0.0.1:8010/index.html';
+const defaultObsOutputUrl = process.env.OBS_BROWSER_SOURCE_URL || 'http://127.0.0.1:5173/obs/output';
 const allowedIdTables = new Set([
   'products',
   'product_groups',
@@ -37,9 +39,13 @@ const allowedIdTables = new Set([
   'operation_logs',
   'tickets',
   'ticket_attachments',
+  'executor_bind_codes',
+  'executor_heartbeats',
   'executors',
   'executor_commands',
   'file_assets',
+  'live_sessions',
+  'talking_video_jobs',
 ]);
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -54,6 +60,10 @@ export function runSchema() {
   db.exec(schema);
   ensureAuthColumns();
   ensureAiColumns();
+  ensureExecutorColumns();
+  ensureObsLocalConfigColumns();
+  ensureSpeechQueueColumns();
+  ensureTalkingVideoJobColumns();
 }
 
 function ensureColumn(tableName, columnName, columnDefinition) {
@@ -67,11 +77,99 @@ function ensureColumn(tableName, columnName, columnDefinition) {
 
 function ensureAuthColumns() {
   ensureColumn('users', 'password_hash', 'password_hash TEXT');
+  ensureColumn('users', 'must_change_password', 'must_change_password INTEGER DEFAULT 0');
   ensureColumn('roles', 'permission_keys', 'permission_keys TEXT');
 }
 
 function ensureAiColumns() {
   ensureColumn('ai_call_logs', 'error_type', 'error_type TEXT');
+  ensureColumn('ai_model_credentials', 'api_key_cipher', 'api_key_cipher TEXT');
+  ensureColumn('ai_model_credentials', 'api_key_iv', 'api_key_iv TEXT');
+  ensureColumn('ai_model_credentials', 'api_key_tag', 'api_key_tag TEXT');
+}
+
+function ensureExecutorColumns() {
+  ensureColumn('executors', 'device_token_hash', 'device_token_hash TEXT');
+  ensureColumn('executors', 'registered_at', 'registered_at TEXT');
+  ensureColumn('executor_heartbeats', 'reported_at', 'reported_at TEXT');
+  ensureColumn('executor_heartbeats', 'version', 'version TEXT');
+  ensureColumn('executor_commands', 'idempotency_key', 'idempotency_key TEXT');
+  ensureColumn('executor_commands', 'timeout_at', 'timeout_at TEXT');
+  ensureColumn('executor_commands', 'retry_count', 'retry_count INTEGER DEFAULT 0');
+  ensureColumn('executor_commands', 'ack_payload_json', 'ack_payload_json TEXT');
+  ensureColumn('executor_commands', 'acked_at', 'acked_at TEXT');
+  ensureColumn('executor_commands', 'updated_at', 'updated_at TEXT');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_executors_device_token_hash ON executors(device_token_hash);
+    CREATE INDEX IF NOT EXISTS idx_executor_commands_timeout_at ON executor_commands(timeout_at);
+  `);
+}
+
+function ensureObsLocalConfigColumns() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS obs_local_config (
+      id TEXT PRIMARY KEY,
+      obs_url TEXT,
+      password_cipher TEXT,
+      password_iv TEXT,
+      password_tag TEXT,
+      password_masked TEXT,
+      obs_timeout_ms INTEGER DEFAULT 5000,
+      scene_name TEXT,
+      browser_source_name TEXT,
+      browser_source_url TEXT,
+      browser_source_width INTEGER DEFAULT 1080,
+      browser_source_height INTEGER DEFAULT 1920,
+      last_status_json TEXT,
+      updated_at TEXT
+    );
+  `);
+  ensureColumn('obs_local_config', 'password_masked', 'password_masked TEXT');
+  ensureColumn('obs_local_config', 'obs_timeout_ms', 'obs_timeout_ms INTEGER DEFAULT 5000');
+  ensureColumn('obs_local_config', 'scene_name', 'scene_name TEXT');
+  ensureColumn('obs_local_config', 'browser_source_name', 'browser_source_name TEXT');
+  ensureColumn('obs_local_config', 'browser_source_url', 'browser_source_url TEXT');
+  ensureColumn('obs_local_config', 'browser_source_width', 'browser_source_width INTEGER DEFAULT 1080');
+  ensureColumn('obs_local_config', 'browser_source_height', 'browser_source_height INTEGER DEFAULT 1920');
+  ensureColumn('obs_local_config', 'output_runtime_session_id', 'output_runtime_session_id TEXT');
+  ensureColumn('obs_local_config', 'output_runtime_live_session_id', 'output_runtime_live_session_id TEXT');
+  ensureColumn('obs_local_config', 'output_runtime_avatar_id', 'output_runtime_avatar_id TEXT');
+  ensureColumn('obs_local_config', 'output_runtime_status', 'output_runtime_status TEXT');
+  ensureColumn('obs_local_config', 'output_runtime_updated_at', 'output_runtime_updated_at TEXT');
+  ensureColumn('obs_local_config', 'last_status_json', 'last_status_json TEXT');
+  db.prepare(
+    `UPDATE obs_local_config
+     SET browser_source_url = ?
+     WHERE browser_source_url = ? OR browser_source_url IS NULL OR browser_source_url = ''`,
+  ).run(defaultObsOutputUrl, oldLiveTalkingObsUrl);
+}
+
+function ensureSpeechQueueColumns() {
+  ensureColumn('speech_queue', 'broadcast_status', 'broadcast_status TEXT');
+  ensureColumn('speech_queue', 'executor_command_id', 'executor_command_id TEXT');
+  ensureColumn('speech_queue', 'broadcast_result_json', 'broadcast_result_json TEXT');
+  ensureColumn('speech_queue', 'broadcast_error_message', 'broadcast_error_message TEXT');
+  ensureColumn('speech_queue', 'broadcast_started_at', 'broadcast_started_at TEXT');
+  ensureColumn('speech_queue', 'broadcast_finished_at', 'broadcast_finished_at TEXT');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_speech_queue_broadcast_status ON speech_queue(broadcast_status);
+    CREATE INDEX IF NOT EXISTS idx_speech_queue_executor_command_id ON speech_queue(executor_command_id);
+  `);
+}
+
+function ensureTalkingVideoJobColumns() {
+  ensureColumn('talking_video_jobs', 'output_file_id', 'output_file_id TEXT');
+  ensureColumn('talking_video_jobs', 'output_file_name', 'output_file_name TEXT');
+  ensureColumn('talking_video_jobs', 'output_video_url', 'output_video_url TEXT');
+  ensureColumn('talking_video_jobs', 'output_local_path', 'output_local_path TEXT');
+  ensureColumn('talking_video_jobs', 'mime_type', 'mime_type TEXT');
+  ensureColumn('talking_video_jobs', 'file_size', 'file_size INTEGER DEFAULT 0');
+  ensureColumn('talking_video_jobs', 'engine_snapshot_json', 'engine_snapshot_json TEXT');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_status ON talking_video_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_avatar_id ON talking_video_jobs(avatar_id);
+    CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_created_at ON talking_video_jobs(created_at);
+  `);
 }
 
 export function now() {

@@ -55,7 +55,7 @@ export default function EditLiveRoom() {
     <>
       <PageHeader
         title="编辑直播间"
-        description="编辑某一个已有直播间配置，当前详情读取自本地 API / SQLite。预览、推流和播控仍为 Mock。"
+        description="编辑某一个已有直播间配置，保存到本地 API / SQLite；启用后进入本机直播中控台。"
       />
       <LiveRoomForm mode="edit" roomId={room.id} initialValues={mapLiveRoomToFormValues(room)} roomName={room.name} />
     </>

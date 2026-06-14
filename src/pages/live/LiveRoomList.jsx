@@ -1,11 +1,11 @@
-import { CopyOutlined, EyeOutlined, PlusOutlined, ScheduleOutlined } from '@ant-design/icons';
+import { CopyOutlined, EyeOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import { getAvatars } from '../../services/avatarService';
-import { getLivePlatforms, getLiveRoomStatuses, getLiveRooms, updateLiveRoom } from '../../services/liveService';
+import { activateLiveRoom, createLiveRoom, getLivePlatforms, getLiveRoomStatuses, getLiveRooms, updateLiveRoom } from '../../services/liveService';
 import { getProductGroups } from '../../services/productService';
 
 const livePlatforms = getLivePlatforms();
@@ -27,6 +27,8 @@ export default function LiveRoomList() {
   const [status, setStatus] = useState();
   const [avatarId, setAvatarId] = useState();
   const [groupId, setGroupId] = useState();
+  const [activatingRoomId, setActivatingRoomId] = useState('');
+  const [duplicatingRoomId, setDuplicatingRoomId] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 6, total: 0 });
 
   const fetchLiveRooms = useCallback(async () => {
@@ -87,6 +89,50 @@ export default function LiveRoomList() {
     }
   };
 
+  const handleActivateRoom = async (record) => {
+    try {
+      setActivatingRoomId(record.id);
+      const result = await activateLiveRoom(record.id);
+      message.success(result.message || `已启用「${record.name}」`);
+      navigate(result.redirectUrl || '/live/control-room');
+    } catch (requestError) {
+      message.error(requestError.message || '启用直播间失败');
+    } finally {
+      setActivatingRoomId('');
+    }
+  };
+
+  const handleDuplicateRoom = async (record) => {
+    try {
+      setDuplicatingRoomId(record.id);
+      const duplicated = await createLiveRoom({
+        name: `${record.name} 副本`,
+        theme: record.theme,
+        notes: record.notes || '',
+        platform: record.platform,
+        platformAccount: record.platformAccount || '',
+        avatarId: record.avatarId,
+        avatarName: record.avatarName,
+        productGroupId: record.productGroupId,
+        productGroupName: record.productGroupName,
+        sceneName: record.sceneName,
+        layoutType: record.layoutType,
+        danmuEnabled: record.danmuEnabled,
+        aiReplyEnabled: record.aiReplyEnabled,
+        manualTakeoverEnabled: record.manualTakeoverEnabled,
+        delayControlEnabled: record.delayControlEnabled,
+        delaySeconds: record.delaySeconds,
+        status: '草稿',
+      });
+      message.success(`已创建「${duplicated.name}」`);
+      fetchLiveRooms();
+    } catch (requestError) {
+      message.error(requestError.message || '复制直播间失败');
+    } finally {
+      setDuplicatingRoomId('');
+    }
+  };
+
   const columns = [
     {
       title: '直播间名称',
@@ -110,9 +156,18 @@ export default function LiveRoomList() {
     {
       title: '操作',
       fixed: 'right',
-      width: 280,
+      width: 260,
       render: (_, record) => (
         <Space size={4} wrap>
+          <Button
+            type={record.status === '启用中' ? 'primary' : 'link'}
+            size="small"
+            icon={<PlayCircleOutlined />}
+            loading={activatingRoomId === record.id}
+            onClick={() => handleActivateRoom(record)}
+          >
+            {record.status === '启用中' ? '进入中控' : '启用并进入'}
+          </Button>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/live/rooms/${record.id}/edit`)}>
             查看
           </Button>
@@ -123,21 +178,16 @@ export default function LiveRoomList() {
             type="link"
             size="small"
             icon={<CopyOutlined />}
-            onClick={() => message.success(`已复制「${record.name}」的 Mock 配置`)}
+            loading={duplicatingRoomId === record.id}
+            onClick={() => handleDuplicateRoom(record)}
           >
             复制
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<ScheduleOutlined />}
-            onClick={() => message.info('创建任务为 Mock 入口，可在直播任务页继续管理')}
-          >
-            创建任务
-          </Button>
-          <Button type="link" size="small" danger={record.status === '启用中'} onClick={() => handleToggleStatus(record)}>
-            {record.status === '启用中' ? '停用' : '启用'}
-          </Button>
+          {record.status === '启用中' ? (
+            <Button type="link" size="small" danger onClick={() => handleToggleStatus(record)}>
+              停用
+            </Button>
+          ) : null}
         </Space>
       ),
     },
@@ -147,7 +197,7 @@ export default function LiveRoomList() {
     <>
       <PageHeader
         title="直播间列表"
-        description="管理直播间配置，串联平台账号、数字人、商品组、互动能力和延迟播控设置，当前通过本地 API 读取 SQLite 数据。"
+        description="本机演示以直播间作为开播入口：同一时间只启用一场直播，点击启用后会自动进入本场直播中控台。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/live/rooms/create')}>
             新建直播间
@@ -156,6 +206,13 @@ export default function LiveRoomList() {
       />
       <Card className="panel-card">
         {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+        <Alert
+          className="placeholder-hint"
+          type="info"
+          showIcon
+          message="当前流程：选择一个直播间，启用后进入直播中控台"
+          description="直播任务页后续会更适合作为计划/历史记录；本机版开播入口先统一收敛到直播间列表。"
+        />
         <div className="toolbar-row">
           <Input.Search
             allowClear

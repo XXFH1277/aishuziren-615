@@ -6,6 +6,7 @@ const moduleBreadcrumbs = [
   { prefix: '/live/', link: '/live/rooms', label: '直播管理' },
   { prefix: '/avatar/', link: '/avatar/list', label: '数字人管理' },
   { prefix: '/studio/', link: '/studio/background', label: '直播间搭建' },
+  { prefix: '/short-video/', link: '/short-video/talking-video', label: '短视频创作' },
   { prefix: '/interaction/', link: '/interaction/comments', label: '播控管理' },
   { prefix: '/delay-control/', link: '/delay-control/queue', label: '播控管理' },
   { prefix: '/ai-center/', link: '/ai-center/assistant', label: 'AI能力中心' },

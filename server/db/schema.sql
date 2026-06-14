@@ -158,6 +158,39 @@ CREATE TABLE IF NOT EXISTS studio_output_status (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS talking_video_jobs (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  script_text TEXT,
+  avatar_id TEXT,
+  avatar_name TEXT,
+  livetalking_avatar_id TEXT,
+  provider TEXT,
+  voice_engine TEXT,
+  clone_mode TEXT,
+  ratio TEXT,
+  resolution TEXT,
+  status TEXT,
+  progress INTEGER DEFAULT 0,
+  duration_seconds REAL DEFAULT 0,
+  output_file_id TEXT,
+  output_file_name TEXT,
+  output_video_url TEXT,
+  output_local_path TEXT,
+  mime_type TEXT,
+  file_size INTEGER DEFAULT 0,
+  error_message TEXT,
+  engine_snapshot_json TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  started_at TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_status ON talking_video_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_avatar_id ON talking_video_jobs(avatar_id);
+CREATE INDEX IF NOT EXISTS idx_talking_video_jobs_created_at ON talking_video_jobs(created_at);
+
 CREATE TABLE IF NOT EXISTS comments (
   id TEXT PRIMARY KEY,
   live_task_id TEXT,
@@ -252,6 +285,12 @@ CREATE TABLE IF NOT EXISTS speech_queue (
   tone TEXT,
   risk_level TEXT,
   review_status TEXT,
+  broadcast_status TEXT,
+  executor_command_id TEXT,
+  broadcast_result_json TEXT,
+  broadcast_error_message TEXT,
+  broadcast_started_at TEXT,
+  broadcast_finished_at TEXT,
   scheduled_time TEXT,
   approved_by TEXT,
   approved_at TEXT,
@@ -323,6 +362,9 @@ CREATE TABLE IF NOT EXISTS ai_model_credentials (
   credential_ref TEXT,
   source TEXT,
   api_key_masked TEXT,
+  api_key_cipher TEXT,
+  api_key_iv TEXT,
+  api_key_tag TEXT,
   base_url TEXT,
   model_name TEXT,
   remark TEXT,
@@ -336,6 +378,22 @@ CREATE TABLE IF NOT EXISTS ai_model_role_settings (
   value TEXT,
   provider_id TEXT,
   model_name TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS live_sessions (
+  id TEXT PRIMARY KEY,
+  room_id TEXT,
+  room_name TEXT,
+  figure_id TEXT,
+  mode TEXT,
+  provider TEXT,
+  status TEXT,
+  stream_url TEXT,
+  last_text TEXT,
+  started_at TEXT,
+  ended_at TEXT,
+  created_at TEXT,
   updated_at TEXT
 );
 
@@ -431,6 +489,7 @@ CREATE TABLE IF NOT EXISTS users (
   status TEXT,
   last_login_at TEXT,
   recent_login INTEGER DEFAULT 0,
+  must_change_password INTEGER DEFAULT 0,
   notes TEXT,
   created_at TEXT,
   updated_at TEXT
@@ -460,6 +519,20 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   created_at TEXT,
   updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS auth_login_attempts (
+  username TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  failure_count INTEGER DEFAULT 0,
+  first_failed_at TEXT,
+  last_failed_at TEXT,
+  locked_until TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  PRIMARY KEY (username, ip)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_login_attempts_locked_until ON auth_login_attempts(locked_until);
 
 CREATE TABLE IF NOT EXISTS basic_settings (
   id TEXT PRIMARY KEY,
@@ -581,6 +654,7 @@ CREATE TABLE IF NOT EXISTS executors (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   device_id TEXT,
+  device_token_hash TEXT,
   bound_account TEXT,
   device_name TEXT,
   os TEXT,
@@ -590,7 +664,19 @@ CREATE TABLE IF NOT EXISTS executors (
   virtual_camera_status TEXT,
   version TEXT,
   last_heartbeat_at TEXT,
+  registered_at TEXT,
   notes TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS executor_bind_codes (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  used_executor_id TEXT,
+  created_by TEXT,
   created_at TEXT,
   updated_at TEXT
 );
@@ -613,6 +699,28 @@ CREATE TABLE IF NOT EXISTS executor_obs_status (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS obs_local_config (
+  id TEXT PRIMARY KEY,
+  obs_url TEXT,
+  password_cipher TEXT,
+  password_iv TEXT,
+  password_tag TEXT,
+  password_masked TEXT,
+  obs_timeout_ms INTEGER DEFAULT 5000,
+  scene_name TEXT,
+  browser_source_name TEXT,
+  browser_source_url TEXT,
+  browser_source_width INTEGER DEFAULT 1080,
+  browser_source_height INTEGER DEFAULT 1920,
+  output_runtime_session_id TEXT,
+  output_runtime_live_session_id TEXT,
+  output_runtime_avatar_id TEXT,
+  output_runtime_status TEXT,
+  output_runtime_updated_at TEXT,
+  last_status_json TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS executor_heartbeats (
   id TEXT PRIMARY KEY,
   executor_id TEXT,
@@ -623,6 +731,8 @@ CREATE TABLE IF NOT EXISTS executor_heartbeats (
   cpu_usage INTEGER DEFAULT 0,
   memory_usage INTEGER DEFAULT 0,
   network_latency INTEGER DEFAULT 0,
+  version TEXT,
+  reported_at TEXT,
   error_message TEXT,
   level TEXT,
   created_at TEXT
@@ -634,10 +744,16 @@ CREATE TABLE IF NOT EXISTS executor_commands (
   command_type TEXT,
   payload_json TEXT,
   status TEXT,
+  idempotency_key TEXT,
+  timeout_at TEXT,
+  retry_count INTEGER DEFAULT 0,
   result_message TEXT,
+  ack_payload_json TEXT,
   created_by TEXT,
   created_at TEXT,
-  executed_at TEXT
+  executed_at TEXT,
+  acked_at TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS file_assets (
@@ -676,6 +792,8 @@ CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
 CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_tutorials_category ON tutorials(category);
 CREATE INDEX IF NOT EXISTS idx_executors_status ON executors(status);
+CREATE INDEX IF NOT EXISTS idx_executor_bind_codes_code_hash ON executor_bind_codes(code_hash);
+CREATE INDEX IF NOT EXISTS idx_executor_bind_codes_expires_at ON executor_bind_codes(expires_at);
 CREATE INDEX IF NOT EXISTS idx_executor_obs_executor_id ON executor_obs_status(executor_id);
 CREATE INDEX IF NOT EXISTS idx_executor_obs_status ON executor_obs_status(obs_status);
 CREATE INDEX IF NOT EXISTS idx_executor_heartbeats_executor_id ON executor_heartbeats(executor_id);

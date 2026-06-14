@@ -113,9 +113,9 @@ export default function QuestionQueue() {
 
   const handleAddToQueue = async (record) => {
     try {
-      const question = await addQuestionToSpeechQueue(record.id);
-      updateQuestion(record.id, question);
-      message.success('已模拟加入待播队列，不写入延迟播控模块');
+      const result = await addQuestionToSpeechQueue(record.id);
+      updateQuestion(record.id, result.question);
+      message.success(result.message || '已加入真实待播队列');
     } catch (requestError) {
       message.error(requestError.message || '加入待播队列失败');
     }

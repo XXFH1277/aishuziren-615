@@ -3,7 +3,7 @@ import { Button, Card, Descriptions, Empty, Form, Input, Select, Slider, Space, 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAvatars } from '../services/avatarService';
-import { createLiveRoom, getLivePlatforms, updateLiveRoom } from '../services/liveService';
+import { activateLiveRoom, createLiveRoom, getLivePlatforms, updateLiveRoom } from '../services/liveService';
 import { getProductGroups } from '../services/productService';
 
 const { TextArea } = Input;
@@ -33,7 +33,7 @@ export function mapLiveRoomToFormValues(room) {
       name: room.platform,
       account: room.platformAccount,
       streamMethod: room.platform === '抖音' ? 'OBS' : '直播伴侣',
-      ruleTip: 'Mock 平台规则提示：请检查平台禁用词、商品资质和直播标题。',
+      ruleTip: '请检查平台禁用词、商品资质和直播标题。',
     },
     avatarId: room.avatarId,
     avatarName: room.avatarName,
@@ -90,6 +90,7 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
   const isEdit = mode === 'edit';
   const [avatars, setAvatars] = useState([]);
   const [productGroups, setProductGroups] = useState([]);
+  const [activating, setActivating] = useState(false);
 
   useEffect(() => {
     async function fetchOptions() {
@@ -107,6 +108,9 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
 
   const watchedAvatarId = Form.useWatch('avatarId', form);
   const watchedGroupId = Form.useWatch('productGroupId', form);
+  const watchedScene = Form.useWatch('scene', form) || {};
+  const watchedPlatform = Form.useWatch('platform', form) || {};
+  const watchedControl = Form.useWatch('control', form) || {};
   const selectedAvatar = useMemo(() => avatars.find((item) => item.id === watchedAvatarId), [avatars, watchedAvatarId]);
   const selectedGroup = useMemo(() => productGroups.find((item) => item.id === watchedGroupId), [productGroups, watchedGroupId]);
 
@@ -121,16 +125,19 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
     const payload = buildLiveRoomPayload(values, selectedAvatar, selectedGroup, status);
 
     if (isEdit) {
-      await updateLiveRoom(roomId, payload);
+      return updateLiveRoom(roomId, payload);
     } else {
-      await createLiveRoom(payload);
+      return createLiveRoom(payload);
     }
   };
 
   const handleSaveDraft = async () => {
     try {
-      await saveLiveRoom({ status: '草稿' });
+      const savedRoom = await saveLiveRoom({ status: '草稿' });
       message.success(isEdit ? '直播间修改草稿已保存到本地 SQLite' : '直播间草稿已保存到本地 SQLite');
+      if (!isEdit && savedRoom?.id) {
+        navigate(`/live/rooms/${savedRoom.id}/edit`, { replace: true });
+      }
     } catch (error) {
       if (!error.errorFields) {
         message.error(error.message || '保存草稿失败');
@@ -148,6 +155,40 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
         message.error(error.message || '直播间保存失败');
       }
     }
+  };
+
+  const handleSaveAndEnterControl = async () => {
+    try {
+      setActivating(true);
+      const savedRoom = await saveLiveRoom({ returnToList: true, status: '启用中' });
+      const result = await activateLiveRoom(savedRoom.id);
+      message.success(result.message || '直播间已保存并进入中控台');
+      navigate(result.redirectUrl || '/live/control-room');
+    } catch (error) {
+      if (!error.errorFields) {
+        message.error(error.message || '保存并进入中控失败');
+      }
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const handleOpenSelectedAvatar = () => {
+    if (!selectedAvatar?.id) {
+      message.warning('请先选择一个数字人');
+      return;
+    }
+
+    navigate(`/avatar/${selectedAvatar.id}/edit`);
+  };
+
+  const handleOpenProductGroup = () => {
+    if (!selectedGroup?.id) {
+      message.warning('请先选择一个商品组');
+      return;
+    }
+
+    navigate('/products/groups');
   };
 
   const tabItems = [
@@ -171,7 +212,7 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
             <TextArea rows={4} placeholder="说明本直播间的定位、主推商品和运营注意事项" />
           </Form.Item>
           <Form.Item name="notes" label="备注">
-            <TextArea rows={3} placeholder="内部备注，仅前端 Mock 保存" />
+            <TextArea rows={3} placeholder="内部备注，会保存到本地 SQLite" />
           </Form.Item>
         </Card>
       ),
@@ -192,8 +233,8 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
               <Select options={streamMethods.map((item) => ({ label: item, value: item }))} placeholder="请选择推流方式" />
             </Form.Item>
           </div>
-          <Form.Item name={['platform', 'ruleTip']} label="平台规则提示 Mock">
-            <TextArea rows={4} placeholder="展示平台规则提示，不连接真实平台接口" />
+          <Form.Item name={['platform', 'ruleTip']} label="平台规则提示">
+            <TextArea rows={4} placeholder="记录本场直播需要注意的平台规则、商品资质和禁用表达" />
           </Form.Item>
         </Card>
       ),
@@ -224,7 +265,9 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
             <Empty description="请选择数字人后查看人设、声音和动作规则" />
           )}
           <div className="copy-scene-actions">
-            <Button onClick={() => message.info('数字人测试为 Mock 操作，不调用真实数字人服务')}>数字人测试</Button>
+            <Button onClick={handleOpenSelectedAvatar} disabled={!selectedAvatar}>
+              查看数字人素材与声音
+            </Button>
           </div>
         </Card>
       ),
@@ -245,14 +288,16 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="商品数量">{selectedGroup.productCount} 个</Descriptions.Item>
               <Descriptions.Item label="主推商品">{selectedGroup.mainProduct}</Descriptions.Item>
-              <Descriptions.Item label="福利商品">{selectedGroup.type === '福利品' ? selectedGroup.mainProduct : 'Mock 福利商品占位'}</Descriptions.Item>
+            <Descriptions.Item label="福利商品">{selectedGroup.type === '福利品' ? selectedGroup.mainProduct : '未单独配置'}</Descriptions.Item>
               <Descriptions.Item label="适用直播间">{selectedGroup.liveRoom}</Descriptions.Item>
             </Descriptions>
           ) : (
             <Empty description="请选择商品组后查看商品数量和主推商品" />
           )}
           <div className="copy-scene-actions">
-            <Button onClick={() => message.info('商品组预览为 Mock 操作，不读取真实商品接口')}>商品组预览</Button>
+            <Button onClick={handleOpenProductGroup} disabled={!selectedGroup}>
+              打开商品组配置
+            </Button>
           </div>
         </Card>
       ),
@@ -277,10 +322,18 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
             </Form.Item>
           </div>
           <div className="live-preview-panel">
-            <div className="live-preview-stage">直播间预览占位</div>
+            <div className="live-preview-stage">
+              <strong>{selectedAvatar?.name || '未选择数字人'}</strong>
+              <span>{selectedGroup?.name || '未选择商品组'}</span>
+              <span>{watchedScene.background || '未选择背景'}</span>
+            </div>
             <Descriptions size="small" column={2}>
-              <Descriptions.Item label="画面渲染">未连接</Descriptions.Item>
-              <Descriptions.Item label="OBS 状态">未连接</Descriptions.Item>
+              <Descriptions.Item label="直播平台">{watchedPlatform.name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="推流方式">{watchedPlatform.streamMethod || '-'}</Descriptions.Item>
+              <Descriptions.Item label="画面布局">{watchedScene.layoutType || '-'}</Descriptions.Item>
+              <Descriptions.Item label="商品区">{watchedScene.productPosition || '-'}</Descriptions.Item>
+              <Descriptions.Item label="弹幕样式">{watchedScene.danmuStyle || '-'}</Descriptions.Item>
+              <Descriptions.Item label="延迟播控">{watchedControl.delayControlEnabled ? `${watchedControl.delaySeconds || 0}s` : '关闭'}</Descriptions.Item>
             </Descriptions>
           </div>
         </Card>
@@ -319,7 +372,7 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
           <Steps
             size="small"
             current={1}
-            items={[{ title: '配置延迟' }, { title: '人工确认' }, { title: 'Mock 播控' }]}
+            items={[{ title: '配置延迟' }, { title: '人工确认' }, { title: '本机播控' }]}
             className="avatar-preview-steps"
           />
           <div className="form-grid">
@@ -351,7 +404,7 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
       initialValues={
         initialValues || {
           liveType: '常规直播',
-          platform: { name: '抖音', streamMethod: 'OBS', ruleTip: 'Mock 平台规则提示：请检查平台禁用词和商品资质。' },
+              platform: { name: '抖音', streamMethod: 'OBS', ruleTip: '请检查平台禁用词和商品资质。' },
           scene: { background: '默认测试背景', layoutType: '基础三栏布局', productPosition: '右侧商品卡', danmuStyle: '右侧浮层' },
           interaction: { danmuEnabled: true, aiReplyEnabled: false, manualTakeoverEnabled: true, faqLibrary: '通用商品 FAQ' },
           control: { delayControlEnabled: true, delaySeconds: 10, nextSentencePreview: true, riskWordBlock: true, manualConfirm: true },
@@ -367,6 +420,9 @@ export default function LiveRoomForm({ mode = 'create', roomId, initialValues, r
           </Button>
           <Button type="primary" onClick={handleSaveAndReturn}>
             保存并返回列表
+          </Button>
+          <Button type="primary" ghost loading={activating} onClick={handleSaveAndEnterControl}>
+            保存并进入中控
           </Button>
           <Button onClick={() => navigate('/live/rooms')}>取消</Button>
         </Space>

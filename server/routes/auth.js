@@ -1,9 +1,15 @@
 import express from 'express';
 import { db, now } from '../db/database.js';
 import { createSession, buildAuthPayload, getBearerToken, refreshSession, requireAuth, resolveSession, revokeSession } from '../utils/auth.js';
-import { PARAM_ERROR, UNAUTHORIZED } from '../utils/errorCodes.js';
+import { LOGIN_LOCKED, PARAM_ERROR, UNAUTHORIZED } from '../utils/errorCodes.js';
+import {
+  clearLoginFailures,
+  getLoginClientIp,
+  getLoginLock,
+  recordLoginFailure,
+} from '../utils/loginSecurity.js';
 import { recordOperationLog } from '../utils/operationLog.js';
-import { verifyPassword } from '../utils/password.js';
+import { createPasswordHash, verifyPassword } from '../utils/password.js';
 import { fail, success } from '../utils/response.js';
 import { assertRequired, toValidationErrorPayload } from '../utils/validators.js';
 
@@ -11,6 +17,25 @@ const router = express.Router();
 
 function findLoginUser(username) {
   return db.prepare('SELECT * FROM users WHERE username = ? LIMIT 1').get(username);
+}
+
+function validateNewPassword(password) {
+  const value = String(password || '');
+  const checks = [
+    value.length >= 12,
+    /[a-z]/.test(value),
+    /[A-Z]/.test(value),
+    /\d/.test(value),
+    /[^A-Za-z0-9]/.test(value),
+  ];
+
+  if (!checks.every(Boolean)) {
+    const error = new Error('新密码强度不足');
+    error.code = PARAM_ERROR;
+    error.field = 'newPassword';
+    error.reason = '新密码至少 12 位，并包含大小写字母、数字和符号';
+    throw error;
+  }
 }
 
 function recordAuthLog({ username, action, result, description }) {
@@ -35,16 +60,39 @@ router.post('/login', (req, res) => {
   }
 
   const username = String(payload.username).trim();
+  const clientIp = getLoginClientIp(req);
+  const existingLock = getLoginLock(username, clientIp);
+
+  if (existingLock) {
+    recordAuthLog({
+      username,
+      action: '登录锁定',
+      result: '失败',
+      description: `登录失败次数过多，账号已临时锁定到 ${existingLock.lockedUntil}。`,
+    });
+    return fail(res, '登录失败次数过多，请稍后再试', LOGIN_LOCKED, {
+      lockedUntil: existingLock.lockedUntil,
+    });
+  }
+
   const user = findLoginUser(username);
 
   if (!user || !verifyPassword(payload.password, user.password_hash)) {
+    const attempt = recordLoginFailure(username, clientIp);
     recordAuthLog({
       username,
       action: '登录失败',
       result: '失败',
-      description: '账号或密码错误。',
+      description: attempt.locked
+        ? `账号或密码错误，失败次数已达到限制，锁定到 ${attempt.lockedUntil}。`
+        : `账号或密码错误，当前失败次数 ${attempt.failureCount}。`,
     });
-    return fail(res, '账号或密码错误', UNAUTHORIZED);
+    return fail(
+      res,
+      attempt.locked ? '登录失败次数过多，请稍后再试' : '账号或密码错误',
+      attempt.locked ? LOGIN_LOCKED : UNAUTHORIZED,
+      attempt.locked ? { lockedUntil: attempt.lockedUntil } : null,
+    );
   }
 
   if (user.status !== '启用') {
@@ -72,6 +120,8 @@ router.post('/login', (req, res) => {
       role: user.role,
     });
   }
+
+  clearLoginFailures(username, clientIp);
 
   const session = createSession(user.id);
   const timestamp = now();
@@ -138,6 +188,57 @@ router.post('/refresh', requireAuth, (req, res) => {
     success: true,
     mock: false,
     sessionExpiresAt,
+  });
+});
+
+router.post('/change-password', requireAuth, (req, res) => {
+  const payload = req.body || {};
+
+  try {
+    assertRequired(payload.oldPassword, 'oldPassword', '旧密码不能为空');
+    assertRequired(payload.newPassword, 'newPassword', '新密码不能为空');
+    validateNewPassword(payload.newPassword);
+  } catch (error) {
+    return fail(res, '参数错误', error.code || PARAM_ERROR, toValidationErrorPayload(error));
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ? LIMIT 1').get(req.authUser.id);
+
+  if (!user || !verifyPassword(payload.oldPassword, user.password_hash)) {
+    recordAuthLog({
+      username: req.authUser.username,
+      action: '修改密码失败',
+      result: '失败',
+      description: '旧密码校验失败。',
+    });
+    return fail(res, '旧密码不正确', UNAUTHORIZED);
+  }
+
+  db.prepare(
+    `UPDATE users
+     SET password_hash = @passwordHash,
+         must_change_password = 0,
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: user.id,
+    passwordHash: createPasswordHash(payload.newPassword),
+    updatedAt: now(),
+  });
+
+  recordAuthLog({
+    username: req.authUser.username,
+    action: '修改密码',
+    result: '成功',
+    description: '用户已完成本地账号密码修改，未记录明文密码。',
+  });
+
+  const refreshedUser = db.prepare('SELECT * FROM users WHERE id = ? LIMIT 1').get(user.id);
+
+  return success(res, {
+    success: true,
+    user: buildAuthPayload(refreshedUser, req.authSession).user,
+    changedAt: now(),
   });
 });
 

@@ -1,7 +1,14 @@
+import { db } from '../db/database.js';
+import { LOGIN_LOCKED, PARAM_ERROR, PASSWORD_CHANGE_REQUIRED } from '../utils/errorCodes.js';
+import { createPasswordHash } from '../utils/password.js';
+
 const DEFAULT_BASE_URL = 'http://localhost:3000';
 const baseUrl = (process.env.SMOKE_BASE_URL || process.env.API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 5000);
 const passedChecks = [];
+const SMOKE_INITIAL_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'Smoke-Initial!2026Aa1';
+const SMOKE_CHANGED_PASSWORD = process.env.SMOKE_CHANGED_ADMIN_PASSWORD || 'Smoke-Changed!2026Aa1';
+let defaultAuthHeaders = {};
 
 function pass(name, detail = '') {
   passedChecks.push({ name, detail });
@@ -27,6 +34,7 @@ async function requestPayload(name, path, options = {}) {
     const response = await fetch(url, {
       method: options.method || 'GET',
       headers: {
+        ...(options.skipAuth ? {} : defaultAuthHeaders),
         ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...(options.headers || {}),
       },
@@ -52,6 +60,26 @@ async function requestPayload(name, path, options = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function setDefaultAuthToken(token) {
+  defaultAuthHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function prepareSmokeAdminPassword() {
+  db.prepare(
+    `UPDATE users
+     SET password_hash = @passwordHash,
+         must_change_password = 1,
+         updated_at = @updatedAt
+     WHERE username = 'admin'`,
+  ).run({
+    passwordHash: createPasswordHash(SMOKE_INITIAL_PASSWORD),
+    updatedAt: new Date().toISOString(),
+  });
+
+  db.prepare('DELETE FROM auth_sessions').run();
+  db.prepare('DELETE FROM auth_login_attempts').run();
 }
 
 async function requestJson(name, path, options = {}) {
@@ -91,32 +119,55 @@ async function checkDetail(name, path, key, id, options = {}) {
 
 async function run() {
   console.log(`Local API smoke test: ${baseUrl}`);
+  prepareSmokeAdminPassword();
 
   const health = await requestJson('健康检查 API', '/api/health');
   assert(health.status === 'ok', '健康检查 API 未返回 status=ok');
   pass('健康检查 API', '/api/health');
 
-  const dashboard = await requestJson('Dashboard API: overview', '/api/dashboard/overview');
-  assert(dashboard.overview?.stats?.length > 0, 'Dashboard API: overview did not return stats');
-  pass('Dashboard API: overview', `${dashboard.overview.stats.length} stats`);
+  await requestExpectedError('Auth API: unauthenticated protected GET blocked', '/api/dashboard/overview', 40101);
   await requestExpectedError('Auth API: current user unauthorized', '/api/auth/me', 40101);
   await requestExpectedError('Auth API: login invalid password', '/api/auth/login', 40101, {
     method: 'POST',
     body: { username: 'admin', password: 'wrong-password' },
   });
+  for (let index = 1; index < 5; index += 1) {
+    await requestExpectedError(`Auth API: login rate limit failure ${index}`, '/api/auth/login', 40101, {
+      method: 'POST',
+      body: { username: 'lock-smoke-user', password: `wrong-password-${index}` },
+    });
+  }
+  await requestExpectedError('Auth API: login rate limit locked', '/api/auth/login', LOGIN_LOCKED, {
+    method: 'POST',
+    body: { username: 'lock-smoke-user', password: 'wrong-password-5' },
+  });
   const loginResult = await requestJson('Auth API: login', '/api/auth/login', {
     method: 'POST',
-    body: { username: 'admin', password: 'admin123456' },
+    body: { username: 'admin', password: SMOKE_INITIAL_PASSWORD },
   });
   assert(loginResult.mock === false && loginResult.user?.id && loginResult.token, 'Auth API: login did not return real session');
   assert(loginResult.permissions?.includes('settings:user:read'), 'Auth API: login did not return RBAC permissions');
+  assert(loginResult.user?.mustChangePassword === true, 'Auth API: login did not return mustChangePassword=true for seeded admin');
   pass('Auth API: login', loginResult.user.username);
   const authOptions = {
     headers: { Authorization: `Bearer ${loginResult.token}` },
   };
+  await requestExpectedError('Auth API: initial password blocks protected GET', '/api/dashboard/overview', PASSWORD_CHANGE_REQUIRED, authOptions);
+  const passwordChangeResult = await requestJson('Auth API: change password', '/api/auth/change-password', {
+    method: 'POST',
+    body: { oldPassword: SMOKE_INITIAL_PASSWORD, newPassword: SMOKE_CHANGED_PASSWORD },
+    ...authOptions,
+  });
+  assert(passwordChangeResult.success === true, 'Auth API: change password did not return success=true');
+  assert(passwordChangeResult.user?.mustChangePassword === false, 'Auth API: change password did not clear mustChangePassword');
+  pass('Auth API: change password', passwordChangeResult.changedAt);
   const currentUser = await requestJson('Auth API: current user', '/api/auth/me', authOptions);
   assert(currentUser.user?.id, 'Auth API: current user did not return user');
+  assert(currentUser.user?.mustChangePassword === false, 'Auth API: current user still requires password change');
   pass('Auth API: current user', currentUser.user.username);
+  const dashboard = await requestJson('Dashboard API: overview', '/api/dashboard/overview', authOptions);
+  assert(dashboard.overview?.stats?.length > 0, 'Dashboard API: overview did not return stats');
+  pass('Dashboard API: overview', `${dashboard.overview.stats.length} stats`);
   const refreshResult = await requestJson('Auth API: refresh', '/api/auth/refresh', {
     method: 'POST',
     ...authOptions,
@@ -131,8 +182,9 @@ async function run() {
   pass('Auth API: logout', logoutResult.loggedOutAt);
   const reloginResult = await requestJson('Auth API: relogin for protected APIs', '/api/auth/login', {
     method: 'POST',
-    body: { username: 'admin', password: 'admin123456' },
+    body: { username: 'admin', password: SMOKE_CHANGED_PASSWORD },
   });
+  setDefaultAuthToken(reloginResult.token);
   const protectedOptions = {
     headers: { Authorization: `Bearer ${reloginResult.token}` },
   };
@@ -159,6 +211,7 @@ async function run() {
 
   await requestExpectedError('File API: upload unauthorized', '/api/files/upload', 40101, {
     method: 'POST',
+    skipAuth: true,
   });
   const uploadFormData = new FormData();
   uploadFormData.append('file', new Blob(['smoke test image placeholder'], { type: 'image/png' }), 'smoke-demo.png');
@@ -241,6 +294,7 @@ async function run() {
   await requestExpectedError('商品 API：创建商品未登录拦截', '/api/products', 40101, {
     method: 'POST',
     body: { name: 'Smoke auth guard product' },
+    skipAuth: true,
   });
   await requestExpectedError('商品 API：创建商品参数校验', '/api/products', 40001, {
     method: 'POST',
@@ -698,6 +752,465 @@ async function run() {
   });
   assert(bindResult.code && bindResult.bindUrl, '执行端 API：绑定信息 Mock 未返回 code 或 bindUrl');
   pass('执行端 API：绑定信息 Mock', bindResult.code);
+  const bindCodeResult = await requestJson('执行端协议 API：生成绑定码', '/api/executors/bind-code', {
+    method: 'POST',
+    body: { expiresInMinutes: 10 },
+    ...protectedOptions,
+  });
+  assert(bindCodeResult.bindCode && bindCodeResult.expiresAt, '执行端协议 API：生成绑定码未返回 bindCode 或 expiresAt');
+  pass('执行端协议 API：生成绑定码', bindCodeResult.bindCode);
+  const registeredExecutor = await requestJson('执行端协议 API：绑定码注册换取 device token', '/api/executors/register', {
+    method: 'POST',
+    body: {
+      bindCode: bindCodeResult.bindCode,
+      name: 'Smoke Test Executor',
+      deviceName: 'Smoke Test Local Agent',
+      deviceId: 'SMOKE-EXECUTOR-001',
+      os: 'Windows Mock',
+      version: '0.1.0-smoke',
+    },
+    skipAuth: true,
+  });
+  assert(registeredExecutor.executor?.id, '执行端协议 API：注册未返回 executor');
+  assert(registeredExecutor.deviceToken, '执行端协议 API：注册未返回 deviceToken');
+  pass('执行端协议 API：绑定码注册换取 device token', registeredExecutor.executor.id);
+  const deviceOptions = {
+    headers: { Authorization: `Bearer ${registeredExecutor.deviceToken}` },
+  };
+  const heartbeatResult = await requestJson(
+    '执行端协议 API：device token 心跳上报',
+    `/api/executors/${registeredExecutor.executor.id}/heartbeat`,
+    {
+      method: 'POST',
+      body: {
+        onlineStatus: 'online',
+        obsStatus: 'connected',
+        virtualCameraStatus: 'enabled',
+        cpuUsage: 12,
+        memoryUsage: 34,
+        networkLatency: 28,
+        version: '0.1.0-smoke',
+        timestamp: new Date().toISOString(),
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(heartbeatResult.heartbeat?.id, '执行端协议 API：心跳未返回 heartbeat');
+  assert(heartbeatResult.executor?.lastHeartbeatAt, '执行端协议 API：心跳未刷新 lastHeartbeatAt');
+  assert(heartbeatResult.executor?.status === '在线', '执行端协议 API：心跳未将 online 归一为 在线');
+  assert(heartbeatResult.executor?.obsStatus === '已连接', '执行端协议 API：心跳未将 connected 归一为 已连接');
+  pass('执行端协议 API：device token 心跳上报', heartbeatResult.heartbeat.id);
+  const commandResult = await requestJson(
+    '执行端协议 API：管理端写入待执行命令',
+    `/api/executors/${registeredExecutor.executor.id}/restart`,
+    {
+      method: 'POST',
+      body: { reason: 'smoke test command only' },
+      ...protectedOptions,
+    },
+  );
+  assert(commandResult.commandId, '执行端协议 API：管理端写入待执行命令未返回 commandId');
+  pass('执行端协议 API：管理端写入待执行命令', commandResult.commandId);
+  const pendingCommands = await requestJson(
+    '执行端协议 API：执行端拉取待执行命令',
+    `/api/executors/${registeredExecutor.executor.id}/commands/pending`,
+    deviceOptions,
+  );
+  assert(Array.isArray(pendingCommands.list), '执行端协议 API：待执行命令未返回 list');
+  assert(
+    pendingCommands.list.some((item) => item.id === commandResult.commandId),
+    '执行端协议 API：待执行命令中未包含刚写入的命令',
+  );
+  pass('执行端协议 API：执行端拉取待执行命令', `${pendingCommands.list.length} commands`);
+  const commandAck = await requestJson(
+    '执行端协议 API：执行端回执命令结果',
+    `/api/executors/commands/${commandResult.commandId}/ack`,
+    {
+      method: 'POST',
+      body: {
+        status: 'succeeded',
+        resultMessage: 'Smoke command acknowledged. No real local action executed.',
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(commandAck.command?.status === 'succeeded', '执行端协议 API：命令回执未更新 status');
+  pass('执行端协议 API：执行端回执命令结果', commandAck.command.id);
+  const speakCommand = await requestJson(
+    '执行端协议 API：管理端下发 speak 播报命令',
+    `/api/executors/${registeredExecutor.executor.id}/speak`,
+    {
+      method: 'POST',
+      body: {
+        text: 'Smoke test digital human speech line.',
+        tone: 'natural',
+        source: 'smoke_test',
+      },
+      ...protectedOptions,
+    },
+  );
+  assert(speakCommand.commandId, '执行端协议 API：speak 命令未返回 commandId');
+  pass('执行端协议 API：管理端下发 speak 播报命令', speakCommand.commandId);
+  const speakPendingCommands = await requestJson(
+    '执行端协议 API：执行端拉取 speak 待播命令',
+    `/api/executors/${registeredExecutor.executor.id}/commands/pending`,
+    deviceOptions,
+  );
+  assert(
+    speakPendingCommands.list?.some((item) => item.id === speakCommand.commandId && item.commandType === 'speak'),
+    '执行端协议 API：待执行命令中未包含 speak 命令',
+  );
+  pass('执行端协议 API：执行端拉取 speak 待播命令', speakCommand.commandId);
+  const speakAck = await requestJson(
+    '执行端协议 API：执行端回执 speak 播报结果',
+    `/api/executors/commands/${speakCommand.commandId}/ack`,
+    {
+      method: 'POST',
+      body: {
+        status: 'succeeded',
+        resultMessage: 'PrintAdapter simulated digital human speech successfully.',
+        detail: {
+          ok: true,
+          adapter: 'print',
+          startedAt: new Date().toISOString(),
+          durationMs: 1280,
+          message: 'PrintAdapter simulated digital human speech successfully.',
+          commandType: 'speak',
+          source: 'smoke_test',
+        },
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(speakAck.command?.status === 'succeeded', '执行端协议 API：speak 回执未更新 status');
+  assert(speakAck.command?.ackPayload?.detail?.adapter === 'print', '执行端协议 API：speak 回执未保存 adapter detail');
+  pass('执行端协议 API：执行端回执 speak 播报结果', speakAck.command.id);
+  db.prepare('UPDATE live_tasks SET executor_id = ?, executor_name = ?, updated_at = ? WHERE id = ?').run(
+    registeredExecutor.executor.id,
+    registeredExecutor.executor.name || 'Smoke Test Executor',
+    new Date().toISOString(),
+    'LT001',
+  );
+  const manualQueued = await requestJson('Live Control Room API: manual takeover enqueue speech', '/api/live/control-room/manual-speech', {
+    method: 'POST',
+    body: {
+      taskId: 'LT001',
+      text: 'Smoke test manual takeover enqueue line.',
+      tone: '专业',
+      action: '看评论区',
+      deliveryMode: 'queue',
+    },
+    ...protectedOptions,
+  });
+  assert(manualQueued.speechItem?.source === 'manual_takeover', 'Live Control Room API: manual enqueue did not set source=manual_takeover');
+  assert(manualQueued.speechItem?.broadcastStatus === '待下发', 'Live Control Room API: manual enqueue did not mark 待下发');
+  pass('Live Control Room API: manual takeover enqueue speech', manualQueued.speechItem.id);
+  const blockedManualDirect = await requestExpectedError(
+    'Live Control Room API: high risk direct speak blocked by compliance',
+    '/api/live/control-room/manual-speech',
+    PARAM_ERROR,
+    {
+      method: 'POST',
+      body: {
+        taskId: 'LT001',
+        text: 'Smoke test 高风险直发：这款商品全网最低。',
+        tone: '热情',
+        action: '微笑回应',
+        deliveryMode: 'direct',
+      },
+      ...protectedOptions,
+    },
+  );
+  assert(
+    blockedManualDirect.error?.riskLevel === '高' &&
+      blockedManualDirect.error?.matches?.some((item) => item.keyword === '全网最低'),
+    'Live Control Room API: high risk direct speak did not return matched compliance detail',
+  );
+  const manualDirect = await requestJson('Live Control Room API: manual takeover direct speak', '/api/live/control-room/manual-speech', {
+    method: 'POST',
+    body: {
+      taskId: 'LT001',
+      text: 'Smoke test manual takeover direct speak line，最后一天请以页面规则为准。',
+      tone: '热情',
+      action: '微笑回应',
+      deliveryMode: 'direct',
+    },
+    ...protectedOptions,
+  });
+  assert(manualDirect.commandId, 'Live Control Room API: manual direct speak did not return commandId');
+  assert(manualDirect.speechItem?.broadcastStatus === '下发中', 'Live Control Room API: manual direct speak did not mark 下发中');
+  assert(
+    manualDirect.riskTips?.some((item) => item.keyword === '最后一天') && manualDirect.speechItem?.riskLevel === '中',
+    'Live Control Room API: low or medium risk direct speak did not return riskTips',
+  );
+  pass('Live Control Room API: manual takeover direct speak', manualDirect.commandId);
+  const manualDirectPending = await requestJson(
+    'Live Control Room API: executor pulls manual direct speak command',
+    `/api/executors/${registeredExecutor.executor.id}/commands/pending`,
+    deviceOptions,
+  );
+  assert(
+    manualDirectPending.list?.some((item) => item.id === manualDirect.commandId && item.payload?.speechQueueId === manualDirect.speechItem.id),
+    'Live Control Room API: pending commands did not include manual direct speak command',
+  );
+  pass('Live Control Room API: executor pulls manual direct speak command', manualDirect.commandId);
+  const manualDirectAck = await requestJson(
+    'Live Control Room API: manual direct speak ack writes queue status',
+    `/api/executors/commands/${manualDirect.commandId}/ack`,
+    {
+      method: 'POST',
+      body: {
+        status: 'succeeded',
+        resultMessage: 'PrintAdapter manual takeover direct speak completed.',
+        detail: {
+          ok: true,
+          adapter: 'print',
+          startedAt: new Date().toISOString(),
+          durationMs: 960,
+          message: 'PrintAdapter manual takeover direct speak completed.',
+          commandType: 'speak',
+          source: 'manual_takeover_direct',
+        },
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(manualDirectAck.command?.status === 'succeeded', 'Live Control Room API: manual direct speak ack did not update command');
+  const manualBroadcasted = await requestJson(
+    'Live Control Room API: manual direct queue status after ack',
+    `/api/delay-control/queue?liveTaskId=LT001&broadcastStatus=已播报&pageSize=100`,
+    protectedOptions,
+  );
+  assert(
+    manualBroadcasted.list?.some((item) => item.id === manualDirect.speechItem.id && item.executorCommandId === manualDirect.commandId),
+    'Live Control Room API: manual direct speech item was not marked 已播报 after ack',
+  );
+  pass('Live Control Room API: manual direct speak ack writes queue status', manualDirect.speechItem.id);
+  db.prepare(
+    `UPDATE speech_queue
+     SET live_task_id = @liveTaskId,
+         live_room_id = @liveRoomId,
+         text = @text,
+         review_status = @reviewStatus,
+         broadcast_status = @broadcastStatus,
+         risk_level = @riskLevel,
+         executor_command_id = '',
+         broadcast_result_json = '',
+         broadcast_error_message = '',
+         broadcast_started_at = '',
+         broadcast_finished_at = '',
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: 'SQ003',
+    liveTaskId: 'LT001',
+    liveRoomId: 'LR001',
+    text: 'Smoke test 队列复检：这款商品全网最低。',
+    reviewStatus: '已通过',
+    broadcastStatus: '待下发',
+    riskLevel: '低',
+    updatedAt: new Date().toISOString(),
+  });
+  const blockedQueueDispatch = await requestExpectedError(
+    'Delay Control API: high risk queue dispatch blocked by compliance',
+    '/api/delay-control/queue/SQ003/dispatch',
+    PARAM_ERROR,
+    {
+      method: 'POST',
+      body: { reason: 'smoke high risk queue dispatch' },
+      ...protectedOptions,
+    },
+  );
+  assert(
+    blockedQueueDispatch.error?.speechItem?.reviewStatus === '高风险待人工',
+    'Delay Control API: blocked queue dispatch did not mark speech item 高风险待人工',
+  );
+  db.prepare(
+    `UPDATE speech_queue
+     SET live_task_id = @liveTaskId,
+         review_status = @reviewStatus,
+         broadcast_status = @broadcastStatus,
+         executor_command_id = '',
+         broadcast_result_json = '',
+         broadcast_error_message = '',
+         broadcast_started_at = '',
+         broadcast_finished_at = '',
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: 'SQ001',
+    liveTaskId: 'LT001',
+    reviewStatus: '已通过',
+    broadcastStatus: '待下发',
+    updatedAt: new Date().toISOString(),
+  });
+  const queueDispatch = await requestJson(
+    'Delay Control API: dispatch approved speech item to executor',
+    '/api/delay-control/queue/SQ001/dispatch',
+    {
+      method: 'POST',
+      body: { reason: 'smoke queue dispatch' },
+      ...protectedOptions,
+    },
+  );
+  assert(queueDispatch.commandId, 'Delay Control API: dispatch did not return commandId');
+  assert(queueDispatch.speechItem?.broadcastStatus === '下发中', 'Delay Control API: dispatch did not mark speech item as 下发中');
+  pass('Delay Control API: dispatch approved speech item to executor', queueDispatch.commandId);
+  const queuePendingCommands = await requestJson(
+    'Delay Control API: executor pulls queued speak command',
+    `/api/executors/${registeredExecutor.executor.id}/commands/pending`,
+    deviceOptions,
+  );
+  assert(
+    queuePendingCommands.list?.some((item) => item.id === queueDispatch.commandId && item.payload?.speechQueueId === 'SQ001'),
+    'Delay Control API: pending commands did not include queue speak command',
+  );
+  pass('Delay Control API: executor pulls queued speak command', queueDispatch.commandId);
+  const queueSpeakAck = await requestJson(
+    'Delay Control API: queue speak ack writes broadcast status',
+    `/api/executors/commands/${queueDispatch.commandId}/ack`,
+    {
+      method: 'POST',
+      body: {
+        status: 'succeeded',
+        resultMessage: 'PrintAdapter queue speech completed.',
+        detail: {
+          ok: true,
+          adapter: 'print',
+          startedAt: new Date().toISOString(),
+          durationMs: 1480,
+          message: 'PrintAdapter queue speech completed.',
+          commandType: 'speak',
+          source: 'speech_queue',
+        },
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(queueSpeakAck.command?.status === 'succeeded', 'Delay Control API: queue speak ack did not update command status');
+  const broadcastedQueue = await requestJson(
+    'Delay Control API: queue item broadcast status after ack',
+    '/api/delay-control/queue?liveTaskId=LT001&broadcastStatus=已播报&pageSize=100',
+    protectedOptions,
+  );
+  assert(
+    broadcastedQueue.list?.some((item) => item.id === 'SQ001' && item.executorCommandId === queueDispatch.commandId),
+    'Delay Control API: queue item was not marked 已播报 after ack',
+  );
+  pass('Delay Control API: queue item broadcast status after ack', 'SQ001 已播报');
+  db.prepare(
+    `UPDATE speech_queue
+     SET review_status = @reviewStatus,
+         broadcast_status = @broadcastStatus,
+         scheduled_time = @scheduledTime,
+         updated_at = @updatedAt
+     WHERE id = @id`,
+  ).run({
+    id: 'SQ005',
+    reviewStatus: '已通过',
+    broadcastStatus: '待下发',
+    scheduledTime: '20:19:02',
+    updatedAt: new Date().toISOString(),
+  });
+  const nextDispatch = await requestJson('Delay Control API: dispatch next approved speech item', '/api/delay-control/queue/dispatch-next', {
+    method: 'POST',
+    body: { liveTaskId: 'LT001' },
+    ...protectedOptions,
+  });
+  assert(nextDispatch.commandId, 'Delay Control API: dispatch-next did not return commandId');
+  assert(nextDispatch.speechItem?.broadcastStatus === '下发中', 'Delay Control API: dispatch-next did not mark item 下发中');
+  pass('Delay Control API: dispatch next approved speech item', nextDispatch.commandId);
+  const obsRefreshCommand = await requestJson(
+    '执行端协议 API：管理端写入 OBS 刷新场景命令',
+    `/api/executors/${registeredExecutor.executor.id}/obs/refresh-scenes`,
+    {
+      method: 'POST',
+      body: { reason: 'smoke test obs scene refresh' },
+      ...protectedOptions,
+    },
+  );
+  assert(obsRefreshCommand.commandId, '执行端协议 API：OBS 刷新场景命令未返回 commandId');
+  pass('执行端协议 API：管理端写入 OBS 刷新场景命令', obsRefreshCommand.commandId);
+  const obsSceneAck = await requestJson(
+    '执行端协议 API：OBS 场景回执写入',
+    `/api/executors/commands/${obsRefreshCommand.commandId}/ack`,
+    {
+      method: 'POST',
+      body: {
+        status: 'succeeded',
+        resultMessage: 'Smoke OBS scenes refreshed.',
+        detail: {
+          obsStatus: '已连接',
+          obsVersion: 'OBS 31.0 Smoke',
+          obsWebSocketVersion: '5.0 Smoke',
+          currentScene: 'Smoke Scene',
+          virtualCameraStatus: '未连接',
+          sourceCount: 2,
+          scenes: [
+            {
+              name: 'Smoke Scene',
+              sources: [
+                { name: 'Smoke Camera', type: 'input', sceneItemId: 1, enabled: true },
+                { name: 'Smoke Text', type: 'text', sceneItemId: 2, enabled: true },
+              ],
+            },
+          ],
+          checkedAt: new Date().toISOString(),
+        },
+      },
+      ...deviceOptions,
+    },
+  );
+  assert(obsSceneAck.command?.status === 'succeeded', '执行端协议 API：OBS 场景回执未更新命令状态');
+  pass('执行端协议 API：OBS 场景回执写入', obsSceneAck.command.id);
+  const obsStatusAfterAck = await requestJson(
+    '执行端协议 API：读取真实 OBS 场景回执',
+    `/api/executor-obs/${registeredExecutor.executor.id}`,
+    protectedOptions,
+  );
+  assert(obsStatusAfterAck.obsStatus?.obsStatus === '已连接', '执行端协议 API：OBS 状态未写入 已连接');
+  assert(obsStatusAfterAck.obsStatus?.currentScene === 'Smoke Scene', '执行端协议 API：OBS 当前场景未写入');
+  assert(
+    obsStatusAfterAck.sceneSources?.some((item) => item.name === 'Smoke Camera' && item.sceneName === 'Smoke Scene'),
+    '执行端协议 API：OBS 场景来源未写入',
+  );
+  pass('执行端协议 API：读取真实 OBS 场景回执', obsStatusAfterAck.obsStatus.currentScene);
+
+  const liveSessionOpen = await requestJson('Live Session API：开播（stub 数字人）', '/api/live/sessions', {
+    method: 'POST',
+    body: { figureId: 'FIG-SMOKE', roomName: 'Smoke 直播间', mode: 'realtime' },
+  });
+  assert(liveSessionOpen.session?.id, 'Live Session API：开播未返回会话 id');
+  assert(liveSessionOpen.session?.status === 'ready', 'Live Session API：开播状态非 ready');
+  assert(liveSessionOpen.provider === 'stub', 'Live Session API：默认未走 stub provider');
+  const liveSessionId = liveSessionOpen.session.id;
+  pass('Live Session API：开播（stub 数字人）', liveSessionId);
+
+  const liveSessionGet = await requestJson('Live Session API：查询会话', `/api/live/sessions/${liveSessionId}`);
+  assert(liveSessionGet.session?.id === liveSessionId, 'Live Session API：查询会话 id 不一致');
+  pass('Live Session API：查询会话', liveSessionGet.session.status);
+
+  const liveSessionSpeak = await requestJson(
+    'Live Session API：驱动数字人说话',
+    `/api/live/sessions/${liveSessionId}/speak`,
+    { method: 'POST', body: { text: '家人们，这是一段用于联调的测试播报，价格库存以页面为准。' } },
+  );
+  assert(liveSessionSpeak.ok === true, 'Live Session API：驱动未返回 ok');
+  assert(liveSessionSpeak.spokenText, 'Live Session API：驱动未回显文本');
+  pass('Live Session API：驱动数字人说话', liveSessionSpeak.sentenceId);
+
+  const liveSessionClose = await requestJson('Live Session API：下播', `/api/live/sessions/${liveSessionId}/close`, {
+    method: 'POST',
+  });
+  assert(liveSessionClose.session?.status === 'ended', 'Live Session API：下播后状态非 ended');
+  pass('Live Session API：下播', liveSessionClose.session.status);
+
+  const commentReply = await requestJson('AI 能力中心 API：弹幕回复（fake 兜底）', '/api/ai/comment-reply', {
+    method: 'POST',
+    body: { comment: '这个有优惠吗？什么时候发货？', productName: 'Smoke 商品' },
+  });
+  assert(typeof commentReply.reply === 'string' && commentReply.reply.length > 0, 'AI 能力中心 API：弹幕回复为空');
+  pass('AI 能力中心 API：弹幕回复（fake 兜底）', `len=${commentReply.reply.length}`);
 
   console.log(`\nSmoke Test 通过：${passedChecks.length} 项`);
   passedChecks.forEach((item, index) => {

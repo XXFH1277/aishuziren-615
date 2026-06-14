@@ -1,12 +1,24 @@
-import { ApiOutlined, EyeOutlined, PlayCircleOutlined, ReloadOutlined, VideoCameraOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Empty, List, Modal, Progress, Space, Table, Tag, Typography, message } from 'antd';
+import { ApiOutlined, EyeOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, InputNumber, List, Modal, Progress, Space, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getExecutorObsStatus, getObsChecklist, refreshExecutorObsScenes, testExecutorObsConnection } from '../../services/executorService';
+import {
+  getExecutorObsStatus,
+  getLocalObsConfig,
+  getObsChecklist,
+  refreshExecutorObsScenes,
+  refreshLocalObsScenes,
+  saveLocalObsConfig,
+  setLocalObsVirtualCamera,
+  testExecutorObsConnection,
+  testLocalObsConnection,
+  upsertLocalObsBrowserSource,
+} from '../../services/executorService';
 
 const defaultObsChecklist = getObsChecklist();
+const defaultObsOutputUrl = 'http://127.0.0.1:5173/obs/output';
 const emptyObs = {
   executorId: '',
   executorName: '暂无执行端',
@@ -24,9 +36,14 @@ const emptyObs = {
 };
 
 export default function ObsStatus() {
+  const [obsForm] = Form.useForm();
   const [executorObsList, setExecutorObsList] = useState([]);
   const [obsChecklist, setObsChecklist] = useState(defaultObsChecklist);
   const [loading, setLoading] = useState(false);
+  const [localObsLoading, setLocalObsLoading] = useState(false);
+  const [localObsConfig, setLocalObsConfig] = useState(null);
+  const [localObsStatus, setLocalObsStatus] = useState(null);
+  const [encryptionConfigured, setEncryptionConfigured] = useState(false);
   const [error, setError] = useState('');
   const [sourceRecord, setSourceRecord] = useState(null);
 
@@ -53,9 +70,58 @@ export default function ObsStatus() {
     fetchObsStatus();
   }, [fetchObsStatus]);
 
+  const fetchLocalObsConfig = useCallback(async () => {
+    try {
+      const data = await getLocalObsConfig();
+      const config = data.config || {};
+      setLocalObsConfig(config);
+      setEncryptionConfigured(Boolean(data.encryptionConfigured));
+      setLocalObsStatus(config.lastStatus || null);
+      obsForm.setFieldsValue({
+        obsUrl: config.obsUrl || 'ws://127.0.0.1:4455',
+        password: '',
+        obsTimeoutMs: config.obsTimeoutMs || 5000,
+        sceneName: config.sceneName || '',
+        browserSourceName: config.browserSourceName || '数字人直播画面',
+        browserSourceUrl: config.browserSourceUrl || defaultObsOutputUrl,
+        browserSourceWidth: config.browserSourceWidth || 1080,
+        browserSourceHeight: config.browserSourceHeight || 1920,
+      });
+    } catch (requestError) {
+      message.warning(requestError.message || '本机 OBS 配置加载失败');
+    }
+  }, [obsForm]);
+
+  useEffect(() => {
+    fetchLocalObsConfig();
+  }, [fetchLocalObsConfig]);
+
   const activeObs = useMemo(
     () => executorObsList.find((item) => item.obsStatus === '已连接') || executorObsList[0] || emptyObs,
     [executorObsList],
+  );
+
+  const displayObs = useMemo(
+    () =>
+      localObsStatus?.obsStatus
+        ? {
+            ...emptyObs,
+            executorId: 'LOCAL_OBS',
+            executorName: '本机 OBS WebSocket',
+            obsStatus: localObsStatus.obsStatus,
+            obsVersion: localObsStatus.obsVersion || '未知',
+            currentScene: localObsStatus.currentScene || '无',
+            sourceCount: Number(localObsStatus.sourceCount || localObsStatus.sceneSources?.length || 0),
+            resolution: localObsStatus.resolution || '未设置',
+            fps: Number(localObsStatus.fps || 0),
+            virtualCameraStatus: localObsStatus.virtualCameraStatus || '未开启',
+            outputStatus: localObsStatus.outputStatus || '预览中',
+            errorMessage: localObsStatus.errorMessage || '无',
+            sceneSources: localObsStatus.sceneSources || [],
+            lastConnectedAt: localObsStatus.checkedAt || localObsStatus.updatedAt || '无',
+          }
+        : activeObs,
+    [activeObs, localObsStatus],
   );
 
   const passedChecklist = obsChecklist.filter((item) => item.checked).length;
@@ -69,7 +135,8 @@ export default function ObsStatus() {
 
     try {
       const data = await testExecutorObsConnection(executorId);
-      message.success(data.message || 'Mock OBS 测试连接指令已记录');
+      message.success(data.message || 'OBS 测试连接指令已下发，请等待本地执行端回执');
+      fetchObsStatus();
     } catch (requestError) {
       message.error(requestError.message || 'OBS 测试连接失败');
     }
@@ -83,11 +150,71 @@ export default function ObsStatus() {
 
     try {
       const data = await refreshExecutorObsScenes(executorId);
-      message.success(data.message || 'Mock 刷新场景指令已记录');
+      message.success(data.message || 'OBS 刷新场景指令已下发，请等待本地执行端回执');
       fetchObsStatus();
     } catch (requestError) {
       message.error(requestError.message || '刷新场景失败');
     }
+  };
+
+  const readObsFormValues = async () => {
+    const values = await obsForm.validateFields();
+    return {
+      ...values,
+      password: values.password || '',
+    };
+  };
+
+  const handleSaveLocalObs = async () => {
+    try {
+      const values = await readObsFormValues();
+      setLocalObsLoading(true);
+      const data = await saveLocalObsConfig(values);
+      setLocalObsConfig(data.config || null);
+      setEncryptionConfigured(Boolean(data.encryptionConfigured));
+      obsForm.setFieldsValue({ password: '' });
+
+      if (data.passwordSaveWarning) {
+        message.warning(data.passwordSaveWarning);
+      } else {
+        message.success('本机 OBS 配置已保存');
+      }
+    } catch (requestError) {
+      message.error(requestError.message || '保存 OBS 配置失败');
+    } finally {
+      setLocalObsLoading(false);
+    }
+  };
+
+  const handleLocalObsAction = async (action, successText) => {
+    try {
+      const values = await readObsFormValues();
+      setLocalObsLoading(true);
+      const data = await action(values);
+      setLocalObsStatus(data.status || data.obsStatus || null);
+      message.success(successText);
+      await fetchObsStatus();
+    } catch (requestError) {
+      message.error(requestError.message || 'OBS 操作失败');
+    } finally {
+      setLocalObsLoading(false);
+    }
+  };
+
+  const handleLocalObsTest = () => {
+    handleLocalObsAction(testLocalObsConnection, '本机 OBS 连接测试完成');
+  };
+
+  const handleLocalObsRefresh = () => {
+    handleLocalObsAction(refreshLocalObsScenes, '已读取本机 OBS 场景和来源');
+  };
+
+  const handleLocalObsBrowserSource = () => {
+    handleLocalObsAction(upsertLocalObsBrowserSource, '已创建或更新数字人浏览器源');
+  };
+
+  const handleLocalObsVirtualCamera = () => {
+    handleLocalObsAction((values) => setLocalObsVirtualCamera({ ...values, action: 'start' }), '已请求开启 OBS 虚拟摄像头');
   };
 
   const columns = [
@@ -137,20 +264,14 @@ export default function ObsStatus() {
     <>
       <PageHeader
         title="OBS连接状态"
-        description="通过本地 API 读取 SQLite 中的 OBS 连接状态、场景来源和输出检查结果。"
+        description="连接本机 OBS WebSocket，读取真实版本、当前场景、来源列表，并可创建数字人浏览器源。"
         extra={
           <Space wrap>
-            <Button icon={<ApiOutlined />} onClick={() => handleObsTest(activeObs.executorId)}>
-              测试连接 Mock
+            <Button icon={<ReloadOutlined />} onClick={fetchObsStatus} loading={loading}>
+              刷新状态
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={() => handleRefreshScenes(activeObs.executorId)}>
-              刷新场景 Mock
-            </Button>
-            <Button icon={<VideoCameraOutlined />} onClick={() => message.info('打开虚拟摄像头为 Mock 操作')}>
-              打开虚拟摄像头 Mock
-            </Button>
-            <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => message.warning('重启 OBS 连接为 Mock 操作')}>
-              重启 OBS 连接 Mock
+            <Button type="primary" icon={<ApiOutlined />} onClick={handleLocalObsTest} loading={localObsLoading}>
+              测试本机 OBS
             </Button>
           </Space>
         }
@@ -158,17 +279,97 @@ export default function ObsStatus() {
 
       <Alert
         className="executor-alert"
-        type="warning"
+        type="info"
         showIcon
-        message="当前不连接真实 OBS"
-        description="OBS 状态来自本地 SQLite；测试连接、刷新场景、重启连接等操作只记录或提示 Mock 指令，不访问本机端口或任何 OBS WebSocket 服务。"
+        message="OBS 接入 MVP：先连接本机 OBS，再把纯数字人输出页作为浏览器源放进 OBS。"
+        description="请先在 OBS 的 工具 / WebSocket 服务器设置 中启用 WebSocket 服务。数字人画面 URL 应使用 5173/obs/output；不要使用 8010/index.html，那是 LiveTalking 调试台。竖屏带货建议把 OBS 基础画布和输出分辨率设为 1080x1920。"
       />
 
+      <Card title="本机 OBS WebSocket MVP" className="panel-card obs-mvp-card">
+        <Form form={obsForm} layout="vertical">
+          <div className="obs-mvp-grid">
+            <Form.Item name="obsUrl" label="OBS WebSocket 地址" rules={[{ required: true, message: '请输入 OBS WebSocket 地址' }]}>
+              <Input placeholder="ws://127.0.0.1:4455" />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label={encryptionConfigured ? 'OBS 密码（可保存加密）' : 'OBS 密码（本次临时使用）'}
+              extra={localObsConfig?.passwordConfigured ? `已有密码来源：${localObsConfig.passwordSource}` : 'OBS 未设置密码可留空'}
+            >
+              <Input.Password placeholder="未设置密码可留空" autoComplete="new-password" />
+            </Form.Item>
+            <Form.Item name="obsTimeoutMs" label="连接超时">
+              <InputNumber min={1000} max={30000} step={1000} addonAfter="ms" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="sceneName" label="目标场景">
+              <Input placeholder="留空则使用 OBS 当前场景" />
+            </Form.Item>
+            <Form.Item name="browserSourceName" label="浏览器源名称">
+              <Input placeholder="数字人直播画面" />
+            </Form.Item>
+            <Form.Item
+              name="browserSourceUrl"
+              label="数字人画面 URL"
+              extra="OBS 应该抓这个纯输出页；如需指定形象可追加 ?avatar=你的LiveTalkingAvatarId"
+            >
+              <Input placeholder={defaultObsOutputUrl} />
+            </Form.Item>
+            <Form.Item name="browserSourceWidth" label="源宽度">
+              <InputNumber min={320} max={3840} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="browserSourceHeight" label="源高度">
+              <InputNumber min={320} max={3840} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+        </Form>
+
+        <Space wrap className="obs-mvp-actions">
+          <Button icon={<SaveOutlined />} onClick={handleSaveLocalObs} loading={localObsLoading}>
+            保存配置
+          </Button>
+          <Button icon={<ApiOutlined />} onClick={handleLocalObsTest} loading={localObsLoading}>
+            测试连接
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={handleLocalObsRefresh} loading={localObsLoading}>
+            刷新场景来源
+          </Button>
+          <Button icon={<LinkOutlined />} onClick={handleLocalObsBrowserSource} loading={localObsLoading}>
+            创建/更新浏览器源
+          </Button>
+          <Button
+            onClick={() => {
+              obsForm.setFieldValue('browserSourceUrl', defaultObsOutputUrl);
+              message.info('已切换为 OBS 纯输出页 URL');
+            }}
+          >
+            使用纯输出页
+          </Button>
+          <Button icon={<VideoCameraOutlined />} onClick={handleLocalObsVirtualCamera} loading={localObsLoading}>
+            开启虚拟摄像头
+          </Button>
+        </Space>
+
+        <Descriptions bordered size="small" column={4} className="obs-mvp-status">
+          <Descriptions.Item label="连接状态">
+            <StatusTag status={displayObs.obsStatus} />
+          </Descriptions.Item>
+          <Descriptions.Item label="OBS版本">{displayObs.obsVersion}</Descriptions.Item>
+          <Descriptions.Item label="当前场景">{displayObs.currentScene}</Descriptions.Item>
+          <Descriptions.Item label="来源数量">{displayObs.sourceCount}</Descriptions.Item>
+          <Descriptions.Item label="输出规格">{displayObs.resolution}</Descriptions.Item>
+          <Descriptions.Item label="帧率">{displayObs.fps} FPS</Descriptions.Item>
+          <Descriptions.Item label="虚拟摄像头">
+            <StatusTag status={displayObs.virtualCameraStatus} />
+          </Descriptions.Item>
+          <Descriptions.Item label="最近检查">{displayObs.lastConnectedAt}</Descriptions.Item>
+        </Descriptions>
+      </Card>
+
       <div className="executor-stat-grid">
-        <DataCard title="OBS连接状态" value={activeObs.obsStatus} helper={`执行端：${activeObs.executorName}`} tone="teal" status={activeObs.obsStatus} />
-        <DataCard title="OBS版本" value={activeObs.obsVersion} helper={`当前场景：${activeObs.currentScene}`} tone="blue" />
-        <DataCard title="当前来源数量" value={activeObs.sourceCount} helper={`${activeObs.resolution} / ${activeObs.fps}fps`} tone="amber" />
-        <DataCard title="最后连接时间" value={activeObs.lastConnectedAt} helper={`输出状态：${activeObs.outputStatus}`} tone="rose" status={activeObs.outputStatus} />
+        <DataCard title="OBS连接状态" value={displayObs.obsStatus} helper={`来源：${displayObs.executorName}`} tone="teal" status={displayObs.obsStatus} />
+        <DataCard title="OBS版本" value={displayObs.obsVersion} helper={`当前场景：${displayObs.currentScene}`} tone="blue" />
+        <DataCard title="当前来源数量" value={displayObs.sourceCount} helper={`${displayObs.resolution} / ${displayObs.fps}fps`} tone="amber" />
+        <DataCard title="最后连接时间" value={displayObs.lastConnectedAt} helper={`输出状态：${displayObs.outputStatus}`} tone="rose" status={displayObs.outputStatus} />
       </div>
 
       <div className="executor-obs-grid">
@@ -203,13 +404,13 @@ export default function ObsStatus() {
             className="executor-modal-alert"
             type={checklistPercent === 100 ? 'success' : 'warning'}
             showIcon
-            message="检查结果为 Mock"
-            description="真实执行端上线后，该清单应由本地执行端上报 OBS 场景、来源和输出状态。"
+            message="检查结果来自 SQLite"
+            description="已配置 executor-client + OBS WebSocket 时，刷新场景命令会写入真实场景来源；未配置时仍显示 seed 或最近一次回执状态。"
           />
         </Card>
       </div>
 
-      <Modal title={sourceRecord ? `${sourceRecord.executorName} 场景来源 Mock` : '场景来源 Mock'} open={Boolean(sourceRecord)} onCancel={() => setSourceRecord(null)} footer={null}>
+      <Modal title={sourceRecord ? `${sourceRecord.executorName} 场景来源` : '场景来源'} open={Boolean(sourceRecord)} onCancel={() => setSourceRecord(null)} footer={null}>
         {sourceRecord ? (
           <>
             <Descriptions column={1} size="small" bordered>
@@ -223,7 +424,7 @@ export default function ObsStatus() {
               locale={{ emptyText: <Empty description="暂无场景来源" /> }}
               renderItem={(item) => (
                 <List.Item>
-                  <List.Item.Meta title={item.name} description={item.type} />
+                  <List.Item.Meta title={item.name} description={`${item.sceneName ? `场景：${item.sceneName} / ` : ''}${item.type || '未知来源类型'}`} />
                   <StatusTag status={item.status} />
                 </List.Item>
               )}

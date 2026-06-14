@@ -55,7 +55,7 @@ export default function EditAvatar() {
     <>
       <PageHeader
         title="编辑数字人"
-        description="编辑某一个已有数字人的完整配置，当前详情读取自本地 API / SQLite。预览和素材上传仍为 Mock。"
+        description="编辑某一个已有数字人的完整配置，形象源视频、LiveTalking 预处理和声音模型配置均读取/写入本地 API 与 SQLite。"
       />
       <AvatarForm mode="edit" avatarId={avatar.id} initialValues={mapAvatarToFormValues(avatar)} avatarName={avatar.name} />
     </>

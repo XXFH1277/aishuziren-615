@@ -21,6 +21,22 @@ export async function updateAvatar(id, data) {
   return result.avatar;
 }
 
+export async function deleteAvatar(id) {
+  return apiRequest.delete(`/api/avatars/${id}`);
+}
+
+export async function startAvatarPreprocess(id, data = {}) {
+  return apiRequest.post(`/api/avatars/${id}/live-runtime/preprocess`, data);
+}
+
+export async function getAvatarPreprocessTask(id, taskId) {
+  return apiRequest.get(`/api/avatars/${id}/live-runtime/preprocess/${taskId}`);
+}
+
+export async function getAvatarSourceVideos() {
+  return apiRequest.get('/api/avatars/source-videos');
+}
+
 export function getAvatarCategories() {
   return avatarCategories;
 }

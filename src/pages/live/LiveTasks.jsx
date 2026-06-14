@@ -1,8 +1,17 @@
 import { DatePicker, Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { createLiveTask, getExecutorOptions, getLiveRooms, getLiveTasks, getLiveTaskStatuses, updateLiveTaskStatus } from '../../services/liveService';
+import {
+  activateLiveRoom,
+  createLiveTask,
+  getExecutorOptions,
+  getLiveRooms,
+  getLiveTasks,
+  getLiveTaskStatuses,
+  updateLiveTaskStatus,
+} from '../../services/liveService';
 
 const { RangePicker } = DatePicker;
 const liveTaskStatuses = getLiveTaskStatuses();
@@ -15,6 +24,7 @@ const taskStatusActionMap = {
 };
 
 export default function LiveTasks() {
+  const navigate = useNavigate();
   const [liveTasks, setLiveTasks] = useState([]);
   const [liveRooms, setLiveRooms] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -105,6 +115,22 @@ export default function LiveTasks() {
   };
 
   const handleTaskAction = async (action, record) => {
+    if (action === '启动') {
+      if (!record.liveRoomId) {
+        message.warning('该任务没有绑定直播间，无法进入中控');
+        return;
+      }
+
+      try {
+        const result = await activateLiveRoom(record.liveRoomId);
+        message.success(result.message || `已启动「${record.taskName}」`);
+        navigate(result.redirectUrl || '/live/control-room');
+      } catch (requestError) {
+        message.error(requestError.message || '启动直播任务失败');
+      }
+      return;
+    }
+
     if (!taskStatusActionMap[action]) {
       message.info(`${action}「${record.taskName}」为 Mock 操作，不连接真实执行端`);
       return;
@@ -153,12 +179,19 @@ export default function LiveTasks() {
   return (
     <>
       <PageHeader
-        title="直播任务"
-        description="管理具体直播执行任务：在某个时间使用某个直播间配置执行一场直播，当前通过本地 API 读取 SQLite 数据。"
+        title="直播计划与历史"
+        description="这里保留计划任务和历史任务记录；本机版实际开播入口已收敛到直播间列表，启动任务会进入同一个中控台。"
         extra={<Button type="primary" onClick={() => setOpen(true)}>新建任务</Button>}
       />
       <Card className="panel-card">
         {error ? <Alert className="placeholder-hint" type="error" showIcon message={error} /> : null}
+        <Alert
+          className="placeholder-hint"
+          type="info"
+          showIcon
+          message="本页不是主开播入口"
+          description="主流程请从「直播间列表」启用直播间；任务页用于查看计划、历史和兼容旧数据。"
+        />
         <div className="toolbar-row">
           <Input.Search
             allowClear

@@ -10,7 +10,7 @@ export const menuItems = [
     icon: 'live',
     children: [
       { key: '/live/rooms', label: '直播间列表' },
-      { key: '/live/tasks', label: '直播任务' },
+      { key: '/live/tasks', label: '计划与历史' },
       { key: '/live/control-room', label: '直播中控台' },
     ],
   },
@@ -40,6 +40,14 @@ export const menuItems = [
       { key: '/studio/background', label: 'AI生成背景' },
       { key: '/studio/layout', label: '画面布局' },
       { key: '/studio/output', label: 'OBS输出预留' },
+    ],
+  },
+  {
+    key: '/short-video',
+    label: '短视频创作',
+    icon: 'shortVideo',
+    children: [
+      { key: '/short-video/talking-video', label: '口播视频生成' },
     ],
   },
   {
@@ -111,6 +119,7 @@ export function flattenMenu(items = menuItems) {
 
 const permissionPathAliases = {
   '/interaction-control': ['/interaction/', '/delay-control/'],
+  '/studio': ['/short-video'],
 };
 
 export function canAccessMenuKey(key, menuPermissions = []) {

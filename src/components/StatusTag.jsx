@@ -1,6 +1,7 @@
 import { Tag } from 'antd';
 
 const statusColor = {
+  连接异常: 'error',
   成功: 'success',
   失败: 'error',
   超时: 'warning',

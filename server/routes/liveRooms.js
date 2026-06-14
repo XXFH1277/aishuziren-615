@@ -1,5 +1,5 @@
 import express from 'express';
-import { db, nextId, now } from '../db/database.js';
+import { db, nextId, now, toJson } from '../db/database.js';
 import { fail, page, success } from '../utils/response.js';
 
 const router = express.Router();
@@ -87,6 +87,239 @@ function normalizeLiveRoomBody(body, existing = {}) {
     delaySeconds: Number(body.delaySeconds ?? body.delay_seconds ?? existing.delay_seconds ?? 0),
     status: body.status ?? existing.status ?? '草稿',
     notes: body.notes ?? existing.notes ?? '',
+  };
+}
+
+function pickLocalExecutor() {
+  return db
+    .prepare(
+      `SELECT * FROM executors
+       WHERE status IN ('直播中', '在线', '更新中')
+       ORDER BY
+         CASE status
+           WHEN '直播中' THEN 0
+           WHEN '在线' THEN 1
+           WHEN '更新中' THEN 2
+           ELSE 3
+         END,
+         id ASC
+       LIMIT 1`,
+    )
+    .get();
+}
+
+function getReusableTaskForRoom(roomId) {
+  return db
+    .prepare(
+      `SELECT * FROM live_tasks
+       WHERE live_room_id = ?
+       ORDER BY
+         CASE status WHEN '直播中' THEN 0 WHEN '待开始' THEN 1 WHEN '草稿' THEN 2 ELSE 3 END,
+         updated_at DESC,
+         id DESC
+       LIMIT 1`,
+    )
+    .get(roomId);
+}
+
+function createOrUpdateCurrentLiveTask(room, executor, timestamp) {
+  const existingTask = getReusableTaskForRoom(room.id);
+  const taskName = existingTask?.task_name || `${room.name} 本机直播`;
+  const taskId = existingTask?.id || nextId('live_tasks', 'LT');
+  const payload = {
+    id: taskId,
+    taskName,
+    liveRoomId: room.id,
+    liveRoomName: room.name,
+    platform: room.platform || '',
+    executorId: executor?.id || '',
+    executorName: executor?.name || '',
+    avatarId: room.avatar_id || '',
+    avatarName: room.avatar_name || '',
+    productGroupId: room.product_group_id || '',
+    productGroupName: room.product_group_name || '',
+    scheduledStartTime: timestamp,
+    status: '直播中',
+    notes: `由直播间「${room.name}」启用后自动生成/复用的本机当前直播任务。`,
+    createdAt: existingTask?.created_at || timestamp,
+    updatedAt: timestamp,
+  };
+
+  if (existingTask) {
+    db.prepare(
+      `UPDATE live_tasks SET
+        task_name = @taskName,
+        live_room_id = @liveRoomId,
+        live_room_name = @liveRoomName,
+        platform = @platform,
+        executor_id = @executorId,
+        executor_name = @executorName,
+        avatar_id = @avatarId,
+        avatar_name = @avatarName,
+        product_group_id = @productGroupId,
+        product_group_name = @productGroupName,
+        scheduled_start_time = @scheduledStartTime,
+        status = @status,
+        notes = @notes,
+        updated_at = @updatedAt
+       WHERE id = @id`,
+    ).run(payload);
+  } else {
+    db.prepare(
+      `INSERT INTO live_tasks (
+        id, task_name, live_room_id, live_room_name, platform, executor_id, executor_name,
+        avatar_id, avatar_name, product_group_id, product_group_name, scheduled_start_time,
+        status, notes, created_at, updated_at
+      ) VALUES (
+        @id, @taskName, @liveRoomId, @liveRoomName, @platform, @executorId, @executorName,
+        @avatarId, @avatarName, @productGroupId, @productGroupName, @scheduledStartTime,
+        @status, @notes, @createdAt, @updatedAt
+      )`,
+    ).run(payload);
+  }
+
+  return db.prepare('SELECT * FROM live_tasks WHERE id = ?').get(taskId);
+}
+
+function writeCurrentControlRoomState(room, task, timestamp) {
+  const currentSpeech = {
+    text: '本场直播已准备就绪，等待下发第一条播报。',
+    riskLevel: '低',
+    source: 'live_room_activation',
+  };
+  const nextSpeech = {
+    text: `欢迎来到${room.name}，今天先为大家介绍${room.product_group_name || '本场主推商品'}。`,
+    riskLevel: '低',
+    source: 'live_room_activation',
+  };
+  const recommendedReplies = [
+    '这款今天直播间有福利，建议先领券再看规格，合适的话再下单。',
+    '关于发货时间，以订单页面提示为准，我们会按平台规则安排。',
+    '如果对价格有疑问，可以对比规格、产地和配送方式一起看。',
+  ];
+
+  db.prepare(
+    `INSERT INTO delay_control_state (
+      id, live_task_id, live_room_id, current_avatar_id, current_avatar_name,
+      current_product_group_id, current_product_group_name, delay_mode,
+      executor_status, current_speech_json, next_speech_json,
+      upcoming_speech_json, risk_summary_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @currentAvatarId, @currentAvatarName,
+      @currentProductGroupId, @currentProductGroupName, @delayMode,
+      @executorStatus, @currentSpeech, @nextSpeech,
+      @upcomingSpeech, @riskSummary, @updatedAt
+    )`,
+  ).run({
+    id: nextId('delay_control_state', 'DCS'),
+    liveTaskId: task.id,
+    liveRoomId: room.id,
+    currentAvatarId: room.avatar_id || '',
+    currentAvatarName: room.avatar_name || '',
+    currentProductGroupId: room.product_group_id || '',
+    currentProductGroupName: room.product_group_name || '',
+    delayMode: room.delay_control_enabled ? `${Number(room.delay_seconds || 0)}秒延迟` : '实时下发',
+    executorStatus: task.executor_id ? '在线' : '未绑定',
+    currentSpeech: toJson(currentSpeech),
+    nextSpeech: toJson(nextSpeech),
+    upcomingSpeech: toJson([nextSpeech]),
+    riskSummary: toJson({ high: 0, medium: 0, pending: 0 }),
+    updatedAt: timestamp,
+  });
+
+  db.prepare(
+    `INSERT INTO manual_takeover_state (
+      id, live_task_id, live_room_id, current_avatar_id, current_avatar_name,
+      current_product_group_id, current_product_group_name, speech_status,
+      executor_status, current_speech, next_speech, upcoming_speech_json,
+      recommended_replies_json, risk_warnings_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @currentAvatarId, @currentAvatarName,
+      @currentProductGroupId, @currentProductGroupName, @speechStatus,
+      @executorStatus, @currentSpeech, @nextSpeech, @upcomingSpeech,
+      @recommendedReplies, @riskWarnings, @updatedAt
+    )`,
+  ).run({
+    id: nextId('manual_takeover_state', 'MTS'),
+    liveTaskId: task.id,
+    liveRoomId: room.id,
+    currentAvatarId: room.avatar_id || '',
+    currentAvatarName: room.avatar_name || '',
+    currentProductGroupId: room.product_group_id || '',
+    currentProductGroupName: room.product_group_name || '',
+    speechStatus: '待下发',
+    executorStatus: task.executor_id ? '在线' : '未绑定',
+    currentSpeech: currentSpeech.text,
+    nextSpeech: nextSpeech.text,
+    upcomingSpeech: toJson([nextSpeech.text]),
+    recommendedReplies: toJson(recommendedReplies),
+    riskWarnings: toJson([]),
+    updatedAt: timestamp,
+  });
+
+  db.prepare(
+    `INSERT INTO subtitle_settings (
+      id, live_task_id, current_subtitle, next_subtitle,
+      upcoming_subtitles_json, subtitle_style_json, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @currentSubtitle, @nextSubtitle,
+      @upcomingSubtitles, @subtitleStyle, @updatedAt
+    )`,
+  ).run({
+    id: nextId('subtitle_settings', 'SUBSET'),
+    liveTaskId: task.id,
+    currentSubtitle: toJson({ text: currentSpeech.text, position: 'bottom' }),
+    nextSubtitle: toJson({ text: nextSpeech.text, position: 'bottom' }),
+    upcomingSubtitles: toJson([{ text: nextSpeech.text, position: 'bottom' }]),
+    subtitleStyle: toJson({
+      position: 'bottom',
+      fontSize: 28,
+      color: '#ffffff',
+      background: 'rgba(15, 23, 42, 0.72)',
+    }),
+    updatedAt: timestamp,
+  });
+}
+
+function activateLiveRoomTransaction(room) {
+  const timestamp = now();
+  const executor = pickLocalExecutor();
+
+  db.prepare(
+    `UPDATE live_tasks
+     SET status = '已结束',
+         updated_at = @updatedAt
+     WHERE status IN ('直播中', '已暂停')`,
+  ).run({ updatedAt: timestamp });
+
+  db.prepare(
+    `UPDATE live_rooms
+     SET status = CASE WHEN id = @roomId THEN '启用中' WHEN status = '启用中' THEN '配置中' ELSE status END,
+         updated_at = @updatedAt`,
+  ).run({ roomId: room.id, updatedAt: timestamp });
+
+  const task = createOrUpdateCurrentLiveTask(room, executor, timestamp);
+
+  if (executor?.id) {
+    db.prepare(
+      `UPDATE executors
+       SET status = CASE WHEN id = @executorId THEN '直播中' WHEN status = '直播中' THEN '在线' ELSE status END,
+           current_live_task = CASE WHEN id = @executorId THEN @taskName ELSE current_live_task END,
+           updated_at = @updatedAt
+       WHERE status IN ('直播中', '在线', '更新中')`,
+    ).run({
+      executorId: executor.id,
+      taskName: task.task_name,
+      updatedAt: timestamp,
+    });
+  }
+
+  writeCurrentControlRoomState(room, task, timestamp);
+
+  return {
+    room: db.prepare('SELECT * FROM live_rooms WHERE id = ?').get(room.id),
+    task,
+    executor,
   };
 }
 
@@ -217,6 +450,34 @@ router.put('/live-rooms/:id', (req, res) => {
 
   const liveRoom = db.prepare('SELECT * FROM live_rooms WHERE id = ?').get(req.params.id);
   return success(res, { liveRoom: mapLiveRoom(liveRoom) });
+});
+
+router.post('/live-rooms/:id/activate', (req, res) => {
+  const row = db.prepare('SELECT * FROM live_rooms WHERE id = ?').get(req.params.id);
+
+  if (!row) {
+    return fail(res, '直播间不存在', 40400, { id: req.params.id });
+  }
+
+  const activate = db.transaction(() => activateLiveRoomTransaction(row));
+  const result = activate();
+
+  return success(res, {
+    liveRoom: mapLiveRoom(result.room),
+    liveTask: mapLiveTask(result.task),
+    executor: result.executor
+      ? {
+          id: result.executor.id,
+          name: result.executor.name,
+          status: result.executor.status,
+        }
+      : null,
+    redirectUrl: '/live/control-room',
+    message: result.executor
+      ? `已启用「${result.room.name}」，并绑定本机执行端「${result.executor.name}」。`
+      : `已启用「${result.room.name}」，但当前没有可用执行端。`,
+    mock: false,
+  });
 });
 
 router.get('/live-tasks', (req, res) => {

@@ -88,7 +88,7 @@ export const roles = [
     permissionScope: '全模块管理',
     dataScope: '全部',
     operationPermissions: ['查看', '新增', '编辑', '删除', '审核', '导出', '启动任务', '人工接管'],
-    menuPermissions: ['/dashboard', '/live', '/products', '/avatar', '/studio', '/interaction-control', '/ai-center', '/executors', '/help', '/settings'],
+    menuPermissions: ['/dashboard', '/live', '/products', '/avatar', '/studio', '/short-video', '/interaction-control', '/ai-center', '/executors', '/help', '/settings'],
     status: '启用',
     updatedAt: '2026-05-26 18:30',
   },
@@ -112,7 +112,7 @@ export const roles = [
     permissionScope: '商品与文案管理',
     dataScope: '所属团队',
     operationPermissions: ['查看', '新增', '编辑', '审核'],
-    menuPermissions: ['/products', '/ai-center', '/help'],
+    menuPermissions: ['/products', '/short-video', '/ai-center', '/help'],
     status: '启用',
     updatedAt: '2026-05-23 16:18',
   },
@@ -461,6 +461,13 @@ export const permissionTree = [
       { title: 'AI生成背景', key: '/studio/background' },
       { title: '画面布局', key: '/studio/layout' },
       { title: 'OBS输出预留', key: '/studio/output' },
+    ],
+  },
+  {
+    title: '短视频创作',
+    key: '/short-video',
+    children: [
+      { title: '口播视频生成', key: '/short-video/talking-video' },
     ],
   },
   {

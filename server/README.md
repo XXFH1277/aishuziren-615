@@ -156,9 +156,10 @@ Phase 13 已将 `/api/auth/*` 从 Mock 登录态升级为本地 Auth / RBAC MVP�
 - 登录成功后创建 `auth_sessions` 会话，只返回一次明文 Bearer token，数据库只保存 token hash。
 - `GET /api/auth/me` 和 `POST /api/auth/refresh` 需要 `Authorization: Bearer <token>`。
 - `POST /api/auth/logout` 会作废当前会话 token。
-- Seed 默认本地演示账号为 `admin / admin123456`。
+- Seed 默认本地演示账号为 `admin`；初始密码优先读取 `SEED_ADMIN_PASSWORD`，未设置时由 seed 生成随机强密码并仅在命令行输出一次。
 - 系统设置接口已示范接入基础权限校验：用户列表、角色列表、基础设置和操作日志需要登录，其中部分接口需要对应权限 key。
-- Phase 18B-3 起，所有 `/api` 下的写操作（`POST` / `PUT` / `PATCH` / `DELETE`）默认需要 `Authorization: Bearer <token>`；当前白名单仅保留 `POST /api/auth/login`。读接口仍按现阶段本地原型策略保持开放或由路由自行校验。
+- 后端安全收口后，除 `GET /api/health` 和 `POST /api/auth/login` 外，所有 `/api` 路由（含 `GET`）默认需要 `Authorization: Bearer <token>`。
+- `POST /api/auth/change-password` 用于首次登录后的强制改密；管理员 seed 后默认 `must_change_password=1`。
 
 这仍不是生产级鉴权系统：暂未实现 Cookie 策略、CSRF 防护、密码重置、登录频率限制、多端会话管理、数据权限过滤或全量读接口强制鉴权。
 

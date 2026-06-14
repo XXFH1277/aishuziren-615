@@ -10,7 +10,10 @@
     "server:dev": "nodemon server/index.js",
     "server:start": "node server/index.js",
     "server:seed": "node server/db/seed.js",
-    "server:smoke": "node server/tests/smoke-test.js"
+    "server:smoke": "node server/tests/smoke-test.js",
+    "demo:repair": "node scripts/local-demo.mjs repair",
+    "demo:health": "node scripts/local-demo.mjs health",
+    "demo:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-demo.ps1"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

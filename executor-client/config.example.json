@@ -1,0 +1,23 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "bindCode": "",
+  "heartbeatIntervalSeconds": 10,
+  "requestTimeoutMs": 8000,
+  "obsUrl": "ws://127.0.0.1:4455",
+  "obsPassword": "",
+  "obsTimeoutMs": 5000,
+  "dhAdapter": "print",
+  "duix": {},
+  "siyu": {
+    "runtimeRoot": "F:/AIshuziren/siyuAI_V194/siyuAI_V194",
+    "configPath": "config/config.yaml",
+    "pythonPath": "env/python.exe",
+    "entryScript": "start.py",
+    "exePath": "数字人直播.exe",
+    "launchMode": "bridge",
+    "autoStart": false,
+    "bridgeDir": "E:/数字人直播/executor-client/runtime/siyu-bridge",
+    "bridgeScript": "src/bridges/siyu_local_bridge.py",
+    "bridgePollIntervalSeconds": 0.5
+  }
+}

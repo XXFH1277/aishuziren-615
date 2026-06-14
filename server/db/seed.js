@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { avatarActions } from '../../src/mock/avatarActions.js';
 import { avatars } from '../../src/mock/avatars.js';
 import { aiCallLogs } from '../../src/mock/aiCallLogs.js';
@@ -35,7 +36,12 @@ import { getPermissionKeysForRole } from '../utils/permissions.js';
 runSchema();
 
 const timestamp = now();
-const DEFAULT_DEV_PASSWORD = 'admin123456';
+function createRandomSeedPassword() {
+  return `Seed-${crypto.randomBytes(18).toString('base64url')}!Aa1`;
+}
+
+const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD || createRandomSeedPassword();
+const seedPasswordFromEnv = Boolean(process.env.SEED_ADMIN_PASSWORD);
 const executorIdByName = new Map([
   ['杭州执行端 01', 'EX001'],
   ['舟山直播电脑 02', 'EX002'],
@@ -193,6 +199,7 @@ function clearTables() {
     'manual_takeover_state',
     'questions',
     'comments',
+    'auth_login_attempts',
     'auth_sessions',
     'users',
     'roles',
@@ -208,6 +215,7 @@ function clearTables() {
     'executor_commands',
     'executor_heartbeats',
     'executor_obs_status',
+    'executor_bind_codes',
     'executors',
     'file_assets',
   ].forEach((tableName) => {
@@ -629,10 +637,14 @@ function seedDelayControl() {
     `INSERT INTO speech_queue (
       id, live_task_id, live_room_id, question_id, comment_id, product_id,
       product_name, text, source, action, tone, risk_level, review_status,
+      broadcast_status, executor_command_id, broadcast_result_json, broadcast_error_message,
+      broadcast_started_at, broadcast_finished_at,
       scheduled_time, approved_by, approved_at, created_at, updated_at
     ) VALUES (
       @id, @liveTaskId, @liveRoomId, @questionId, @commentId, @productId,
       @productName, @text, @source, @action, @tone, @riskLevel, @reviewStatus,
+      @broadcastStatus, @executorCommandId, @broadcastResult, @broadcastErrorMessage,
+      @broadcastStartedAt, @broadcastFinishedAt,
       @scheduledTime, @approvedBy, @approvedAt, @createdAt, @updatedAt
     )`,
   );
@@ -689,6 +701,12 @@ function seedDelayControl() {
       tone: item.tone,
       riskLevel: item.riskLevel,
       reviewStatus: item.reviewStatus,
+      broadcastStatus: ['已通过', '即将播出'].includes(item.reviewStatus) ? '待下发' : '未审核',
+      executorCommandId: '',
+      broadcastResult: '',
+      broadcastErrorMessage: '',
+      broadcastStartedAt: '',
+      broadcastFinishedAt: '',
       scheduledTime: item.scheduledTime,
       approvedBy: item.reviewStatus === '已通过' ? 'system-seed' : '',
       approvedAt: item.reviewStatus === '已通过' ? timestamp : '',
@@ -891,10 +909,10 @@ function seedSettings() {
   const insertUser = db.prepare(
     `INSERT INTO users (
       id, username, password_hash, nickname, email, phone, role, status, last_login_at,
-      recent_login, notes, created_at, updated_at
+      recent_login, must_change_password, notes, created_at, updated_at
     ) VALUES (
       @id, @username, @passwordHash, @nickname, @email, @phone, @role, @status, @lastLoginAt,
-      @recentLogin, @notes, @createdAt, @updatedAt
+      @recentLogin, @mustChangePassword, @notes, @createdAt, @updatedAt
     )`,
   );
 
@@ -922,7 +940,7 @@ function seedSettings() {
     insertUser.run({
       id: user.id,
       username: user.username,
-      passwordHash: createPasswordHash(DEFAULT_DEV_PASSWORD),
+      passwordHash: createPasswordHash(seedAdminPassword),
       nickname: user.nickname,
       email: user.email,
       phone: user.phone,
@@ -930,6 +948,8 @@ function seedSettings() {
       status: user.status,
       lastLoginAt: user.lastLoginAt,
       recentLogin: user.recentLogin ? 1 : 0,
+      // 开发期先关闭强制改密，避免 admin 登录后被 40302 挡住；上线加固时改回 `user.username === 'admin' ? 1 : 0`
+      mustChangePassword: 0,
       notes: user.notes,
       createdAt: user.createdAt || timestamp,
       updatedAt: user.updatedAt || timestamp,
@@ -1013,13 +1033,13 @@ function seedCompliance() {
 function seedExecutors() {
   const insertExecutor = db.prepare(
     `INSERT INTO executors (
-      id, name, device_id, bound_account, device_name, os, status,
+      id, name, device_id, device_token_hash, bound_account, device_name, os, status,
       current_live_task, obs_status, virtual_camera_status, version,
-      last_heartbeat_at, notes, created_at, updated_at
+      last_heartbeat_at, registered_at, notes, created_at, updated_at
     ) VALUES (
-      @id, @name, @deviceId, @boundAccount, @deviceName, @os, @status,
+      @id, @name, @deviceId, @deviceTokenHash, @boundAccount, @deviceName, @os, @status,
       @currentLiveTask, @obsStatus, @virtualCameraStatus, @version,
-      @lastHeartbeatAt, @notes, @createdAt, @updatedAt
+      @lastHeartbeatAt, @registeredAt, @notes, @createdAt, @updatedAt
     )`,
   );
 
@@ -1038,20 +1058,22 @@ function seedExecutors() {
   const insertHeartbeat = db.prepare(
     `INSERT INTO executor_heartbeats (
       id, executor_id, executor_name, online_status, obs_status, virtual_camera_status,
-      cpu_usage, memory_usage, network_latency, error_message, level, created_at
+      cpu_usage, memory_usage, network_latency, version, reported_at, error_message, level, created_at
     ) VALUES (
       @id, @executorId, @executorName, @onlineStatus, @obsStatus, @virtualCameraStatus,
-      @cpuUsage, @memoryUsage, @networkLatency, @errorMessage, @level, @createdAt
+      @cpuUsage, @memoryUsage, @networkLatency, @version, @reportedAt, @errorMessage, @level, @createdAt
     )`,
   );
 
   const insertCommand = db.prepare(
     `INSERT INTO executor_commands (
-      id, executor_id, command_type, payload_json, status, result_message,
-      created_by, created_at, executed_at
+      id, executor_id, command_type, payload_json, status, idempotency_key,
+      timeout_at, retry_count, result_message, ack_payload_json,
+      created_by, created_at, executed_at, acked_at, updated_at
     ) VALUES (
-      @id, @executorId, @commandType, @payload, @status, @resultMessage,
-      @createdBy, @createdAt, @executedAt
+      @id, @executorId, @commandType, @payload, @status, @idempotencyKey,
+      @timeoutAt, @retryCount, @resultMessage, @ackPayload,
+      @createdBy, @createdAt, @executedAt, @ackedAt, @updatedAt
     )`,
   );
 
@@ -1060,6 +1082,7 @@ function seedExecutors() {
       id: executor.id,
       name: executor.name,
       deviceId: executor.deviceId,
+      deviceTokenHash: '',
       boundAccount: executor.boundAccount,
       deviceName: executor.deviceName,
       os: executor.os,
@@ -1069,6 +1092,7 @@ function seedExecutors() {
       virtualCameraStatus: executor.virtualCameraStatus,
       version: executor.version,
       lastHeartbeatAt: executor.lastHeartbeatAt,
+      registeredAt: '',
       notes: executor.notes,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -1106,6 +1130,8 @@ function seedExecutors() {
       cpuUsage: Number(item.cpuUsage || 0),
       memoryUsage: Number(item.memoryUsage || 0),
       networkLatency: Number(item.networkLatency || 0),
+      version: '',
+      reportedAt: item.time || timestamp,
       errorMessage: item.errorMessage,
       level: item.level,
       createdAt: item.time || timestamp,
@@ -1119,10 +1145,16 @@ function seedExecutors() {
       commandType: item.commandType,
       payload: toJson(item.payload),
       status: item.status,
+      idempotencyKey: item.id,
+      timeoutAt: '',
+      retryCount: 0,
       resultMessage: item.resultMessage,
+      ackPayload: null,
       createdBy: item.createdBy,
       createdAt: item.createdAt,
       executedAt: item.executedAt,
+      ackedAt: item.executedAt,
+      updatedAt: item.executedAt || item.createdAt,
     });
   });
 }
@@ -1300,3 +1332,9 @@ console.log(`AI models: ${modelProviders.length}, Prompt templates: ${promptTemp
 console.log(`Compliance keywords: ${complianceKeywords.length}`);
 console.log(`Help FAQ: ${helpFaqList.length}, Tickets: ${tickets.length}, Tutorials: ${tutorials.length}`);
 console.log(`Executors: ${executors.length}, Executor OBS: ${executorObsList.length}, Heartbeats: ${executorHeartbeats.length}`);
+if (seedPasswordFromEnv) {
+  console.log('Seed admin password: loaded from SEED_ADMIN_PASSWORD. Admin must change password on first login.');
+} else {
+  console.log(`Seed admin password generated for this seed run: ${seedAdminPassword}`);
+  console.log('Admin must change password on first login. Store this password locally; it is not written to docs or source.');
+}

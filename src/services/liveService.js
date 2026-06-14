@@ -21,6 +21,10 @@ export async function updateLiveRoom(id, data) {
   return result.liveRoom;
 }
 
+export async function activateLiveRoom(id, data = {}) {
+  return apiRequest.post(`/api/live-rooms/${id}/activate`, data);
+}
+
 export function getLivePlatforms() {
   return livePlatforms;
 }

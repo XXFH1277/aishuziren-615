@@ -1,15 +1,18 @@
-import { DisconnectOutlined, EyeOutlined, FileTextOutlined, LinkOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ApiOutlined, DisconnectOutlined, EyeOutlined, FileTextOutlined, LinkOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Descriptions, Empty, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
 import {
-  bindExecutorMock,
+  generateExecutorBindCode,
   getBindingDeviceMock,
   getExecutorStatusOptions,
   getExecutors,
+  refreshExecutorObsScenes,
   restartExecutor,
+  sendExecutorSpeak,
+  testExecutorObsConnection,
   unbindExecutor,
 } from '../../services/executorService';
 
@@ -22,6 +25,24 @@ const defaultStats = {
   offline: 0,
   abnormal: 0,
   live: 0,
+};
+
+const commandStatusLabels = {
+  pending: '待执行',
+  queued: '待执行',
+  running: '执行中',
+  succeeded: '已完成',
+  failed: '失败',
+  timeout: '超时',
+};
+
+const commandStatusColors = {
+  pending: 'gold',
+  queued: 'gold',
+  running: 'blue',
+  succeeded: 'green',
+  failed: 'red',
+  timeout: 'orange',
 };
 
 function buildStats(list) {
@@ -45,6 +66,10 @@ export default function ExecutorList() {
   const [bindingOpen, setBindingOpen] = useState(false);
   const [bindingDevice, setBindingDevice] = useState(defaultBindingDeviceMock);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [speakRecord, setSpeakRecord] = useState(null);
+  const [speakText, setSpeakText] = useState('');
+  const [speakTone, setSpeakTone] = useState('natural');
+  const [speakLoading, setSpeakLoading] = useState(false);
 
   const fetchExecutors = useCallback(
     async (page = 1, pageSize = pagination.pageSize) => {
@@ -89,15 +114,15 @@ export default function ExecutorList() {
     setBindingLoading(true);
 
     try {
-      const data = await bindExecutorMock({ expiresInMinutes: 10 });
+      const data = await generateExecutorBindCode({ expiresInMinutes: 10 });
       setBindingDevice({
-        code: data.code,
-        expiresIn: data.expiresIn,
-        link: data.bindUrl || data.link,
+        code: data.bindCode,
+        expiresIn: data.expiresAt,
+        link: data.bindCodeId,
       });
       setBindingOpen(true);
     } catch (requestError) {
-      message.error(requestError.message || '绑定信息生成失败');
+      message.error(requestError.message || '绑定码生成失败');
     } finally {
       setBindingLoading(false);
     }
@@ -107,8 +132,62 @@ export default function ExecutorList() {
     try {
       const data = await restartExecutor(record.id);
       message.success(data.message || `${record.name} Mock 重启指令已记录`);
+      fetchExecutors(pagination.current, pagination.pageSize);
     } catch (requestError) {
       message.error(requestError.message || '重启指令记录失败');
+    }
+  };
+
+  const handleObsTest = async (record) => {
+    try {
+      const data = await testExecutorObsConnection(record.id);
+      message.success(data.message || 'OBS 测试连接指令已下发');
+      fetchExecutors(pagination.current, pagination.pageSize);
+    } catch (requestError) {
+      message.error(requestError.message || 'OBS 测试连接指令下发失败');
+    }
+  };
+
+  const handleRefreshObsScenes = async (record) => {
+    try {
+      const data = await refreshExecutorObsScenes(record.id);
+      message.success(data.message || 'OBS 刷新场景指令已下发');
+      fetchExecutors(pagination.current, pagination.pageSize);
+    } catch (requestError) {
+      message.error(requestError.message || 'OBS 刷新场景指令下发失败');
+    }
+  };
+
+  const handleOpenSpeak = (record) => {
+    setSpeakRecord(record);
+    setSpeakTone('natural');
+    setSpeakText('家人们，现在为大家测试一段数字人播报链路。');
+  };
+
+  const handleSubmitSpeak = async () => {
+    const text = speakText.trim();
+
+    if (!speakRecord || !text) {
+      message.warning('请输入要下发的测试播报话术');
+      return;
+    }
+
+    setSpeakLoading(true);
+
+    try {
+      const data = await sendExecutorSpeak(speakRecord.id, {
+        text,
+        tone: speakTone,
+        source: 'executor_list_test',
+      });
+      message.success(data.message || '测试播报命令已下发');
+      setSpeakRecord(null);
+      setSpeakText('');
+      fetchExecutors(pagination.current, pagination.pageSize);
+    } catch (requestError) {
+      message.error(requestError.message || '测试播报命令下发失败');
+    } finally {
+      setSpeakLoading(false);
     }
   };
 
@@ -158,9 +237,23 @@ export default function ExecutorList() {
     { title: '执行端版本', dataIndex: 'version', width: 150 },
     { title: '最后心跳时间', dataIndex: 'lastHeartbeatAt', width: 170 },
     {
+      title: '最近命令',
+      dataIndex: 'latestCommand',
+      width: 150,
+      render: (value) =>
+        value ? (
+          <Space direction="vertical" size={2}>
+            <Typography.Text>{value.commandType}</Typography.Text>
+            <Tag color={commandStatusColors[value.status] || 'default'}>{commandStatusLabels[value.status] || value.status}</Tag>
+          </Space>
+        ) : (
+          <Tag>暂无命令</Tag>
+        ),
+    },
+    {
       title: '操作',
       fixed: 'right',
-      width: 250,
+      width: 430,
       render: (_, record) => (
         <Space size={4} wrap>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDetailRecord(record)}>
@@ -168,6 +261,15 @@ export default function ExecutorList() {
           </Button>
           <Button type="link" size="small" icon={<ReloadOutlined />} onClick={() => handleRestart(record)}>
             重启
+          </Button>
+          <Button type="link" size="small" icon={<ApiOutlined />} onClick={() => handleObsTest(record)}>
+            OBS测试
+          </Button>
+          <Button type="link" size="small" icon={<VideoCameraOutlined />} onClick={() => handleRefreshObsScenes(record)}>
+            刷新场景
+          </Button>
+          <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleOpenSpeak(record)}>
+            测试播报
           </Button>
           <Button type="link" danger size="small" icon={<DisconnectOutlined />} onClick={() => handleUnbind(record)}>
             解绑
@@ -187,7 +289,7 @@ export default function ExecutorList() {
         description="管理绑定到云端后台的本地直播执行端，列表状态通过本地 API 读取 SQLite。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} loading={bindingLoading} onClick={handleOpenBinding}>
-            绑定新设备 Mock
+            生成绑定码
           </Button>
         }
       />
@@ -240,18 +342,29 @@ export default function ExecutorList() {
             showTotal: (total) => `共 ${total} 个执行端`,
           }}
           onChange={(nextPagination) => fetchExecutors(nextPagination.current, nextPagination.pageSize)}
-          scroll={{ x: 1700 }}
+          scroll={{ x: 1920 }}
           locale={{ emptyText: <Empty description="暂无符合条件的执行端" /> }}
         />
       </Card>
 
       <Modal
-        title="绑定新设备 Mock"
+        title="生成执行端绑定码"
         open={bindingOpen}
         onCancel={() => setBindingOpen(false)}
         footer={[
-          <Button key="copy" icon={<LinkOutlined />} onClick={() => message.success('绑定链接已复制 Mock')}>
-            复制绑定链接 Mock
+          <Button
+            key="copy"
+            icon={<LinkOutlined />}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(bindingDevice.code || '');
+                message.success('绑定码已复制');
+              } catch {
+                message.info('当前浏览器不支持自动复制，请手动复制绑定码');
+              }
+            }}
+          >
+            复制绑定码
           </Button>,
           <Button key="close" type="primary" onClick={() => setBindingOpen(false)}>
             知道了
@@ -262,21 +375,60 @@ export default function ExecutorList() {
           className="executor-modal-alert"
           type="warning"
           showIcon
-          message="真实绑定功能后续由本地执行端登录或扫码完成"
-          description="当前通过本地 API 生成 Mock 绑定码和有效期，不注册真实设备。"
+          message="绑定码仅显示一次"
+          description="请在本地 executor-client 中设置 BIND_CODE 或 config.local.json，并在过期前启动客户端完成注册。device token 只会保存在本地客户端。"
         />
         <div className="executor-binding-panel">
           <div className="executor-binding-code">{bindingDevice.code}</div>
           <div className="executor-qr-placeholder">QR Mock</div>
         </div>
         <Descriptions column={1} size="small">
-          <Descriptions.Item label="绑定有效期">{bindingDevice.expiresIn}</Descriptions.Item>
-          <Descriptions.Item label="绑定链接">
-            <Tooltip title="仅为虚构 Mock 链接">
+          <Descriptions.Item label="过期时间">{bindingDevice.expiresIn}</Descriptions.Item>
+          <Descriptions.Item label="绑定码ID">
+            <Tooltip title="绑定码明文只在当前弹窗显示一次">
               <Typography.Text copyable={false}>{bindingDevice.link}</Typography.Text>
             </Tooltip>
           </Descriptions.Item>
         </Descriptions>
+      </Modal>
+
+      <Modal
+        title={speakRecord ? `测试播报 - ${speakRecord.name}` : '测试播报'}
+        open={Boolean(speakRecord)}
+        onCancel={() => setSpeakRecord(null)}
+        onOk={handleSubmitSpeak}
+        confirmLoading={speakLoading}
+        okText="下发播报"
+        cancelText="取消"
+      >
+        <Alert
+          className="executor-modal-alert"
+          type="info"
+          showIcon
+          message="当前只下发 speak 命令"
+          description="真实播报由本地执行端的数字人适配器处理。默认 PrintAdapter 只打印话术并模拟成功，不接真实 DUIX、TTS 或推流。"
+        />
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Select
+            value={speakTone}
+            onChange={setSpeakTone}
+            style={{ width: '100%' }}
+            options={[
+              { label: '自然', value: 'natural' },
+              { label: '亲切', value: 'friendly' },
+              { label: '热情', value: 'energetic' },
+              { label: '专业', value: 'professional' },
+            ]}
+          />
+          <Input.TextArea
+            rows={4}
+            maxLength={300}
+            showCount
+            value={speakText}
+            onChange={(event) => setSpeakText(event.target.value)}
+            placeholder="输入要让执行端数字人播报的测试话术"
+          />
+        </Space>
       </Modal>
 
       <Modal title="执行端详情" open={Boolean(detailRecord)} onCancel={() => setDetailRecord(null)} footer={null} width={760}>

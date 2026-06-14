@@ -1,5 +1,8 @@
 node_modules
 dist
+logs/
+.agents/
+TRACE_LOG*.md
 .DS_Store
 *.local
 
@@ -15,3 +18,11 @@ server/data/*.db-*
 
 server/uploads/*
 !server/uploads/.gitkeep
+
+executor-client/.device.json
+executor-client/config.local.json
+executor-client/*.local.json
+executor-client/runtime/
+
+# Local third-party digital human runtime copies should stay outside Git.
+数字人资料/

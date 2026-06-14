@@ -126,6 +126,47 @@ export function checkComplianceText(text, options = {}) {
   };
 }
 
+export function isComplianceBlockingResult(result = {}) {
+  return (
+    result.action === 'block' ||
+    result.riskLevel === '高' ||
+    (result.matches || []).some((item) => item.action === 'block' || item.riskLevel === '高')
+  );
+}
+
+export function buildComplianceRiskTips(result = {}) {
+  const matches = result.matches || [];
+
+  if (!matches.length) {
+    return [];
+  }
+
+  return matches.map((item) => ({
+    keyword: item.text,
+    category: item.category,
+    riskLevel: item.riskLevel,
+    action: item.action,
+    actionLabel: item.actionLabel,
+    suggestion: item.description || result.suggestion,
+  }));
+}
+
+export function buildComplianceErrorDetail(result = {}) {
+  const riskTips = buildComplianceRiskTips(result);
+  const keywords = riskTips.map((item) => item.keyword).filter(Boolean);
+  const keywordText = keywords.length ? keywords.join('、') : '未知合规词';
+  const suggestion = result.suggestion || '建议加入待播队列审核后再播报。';
+
+  return {
+    field: 'text',
+    reason: `命中词：${keywordText}；风险等级：${result.riskLevel || '未知'}；建议：${suggestion} 请改为入队审核或改写后再播报。`,
+    riskLevel: result.riskLevel || '',
+    action: result.action || '',
+    matches: riskTips,
+    suggestion,
+  };
+}
+
 export function recordComplianceCheck({
   sourcePage = '',
   scenario = '',

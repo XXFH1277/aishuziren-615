@@ -2,10 +2,11 @@ import express from 'express';
 import { evaluateAiProviderGuardrails, getAiProviderRuntimePolicy } from '../ai/providerGuardrails.js';
 import { runProviderGenerate } from '../ai/providerAdapter.js';
 import { db, fromJson, nextId, now, toJson } from '../db/database.js';
-import { checkComplianceText, recordComplianceCheck } from '../utils/compliance.js';
+import { buildComplianceRiskTips, checkComplianceText, recordComplianceCheck } from '../utils/compliance.js';
 import { requireAuth, requirePermission } from '../utils/auth.js';
 import { PERMISSIONS } from '../utils/permissions.js';
 import { fail, page, success } from '../utils/response.js';
+import { decryptSecret, encryptSecret, isEncryptionConfigured } from '../utils/crypto.js';
 
 const router = express.Router();
 
@@ -197,6 +198,61 @@ function mapCredential(row, model) {
 
 function getCredentialRow(providerId) {
   return db.prepare('SELECT * FROM ai_model_credentials WHERE provider_id = ? LIMIT 1').get(providerId);
+}
+
+const PROVIDER_ENV_KEYS = {
+  deepseek: 'DEEPSEEK_API_KEY',
+  kimi: 'KIMI_API_KEY',
+  moonshot: 'KIMI_API_KEY',
+  mimo: 'MIMO_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  qwen: 'DASHSCOPE_API_KEY',
+  tongyi: 'DASHSCOPE_API_KEY',
+  dashscope: 'DASHSCOPE_API_KEY',
+};
+
+function providerKeyOf(modelRow = {}) {
+  return String(modelRow.provider || modelRow.id || '').toLowerCase();
+}
+
+// 解析实际调用所用密钥：客户/平台自配的加密密钥优先，否则回退平台环境变量密钥。
+function resolveProviderKeyMeta(modelRow = {}) {
+  const providerKey = providerKeyOf(modelRow);
+  let apiKey = '';
+  let keySource = '';
+
+  const credRow = getCredentialRow(modelRow.id);
+  if (credRow?.api_key_cipher) {
+    try {
+      apiKey = decryptSecret({
+        cipher: credRow.api_key_cipher,
+        iv: credRow.api_key_iv,
+        tag: credRow.api_key_tag,
+      });
+      if (apiKey) keySource = 'configured';
+    } catch {
+      apiKey = '';
+    }
+  }
+
+  if (!apiKey) {
+    const envName = PROVIDER_ENV_KEYS[providerKey];
+    const envKey = envName ? String(process.env[envName] || '').trim() : '';
+    if (envKey) {
+      apiKey = envKey;
+      keySource = 'platform_env';
+    }
+  }
+
+  return {
+    apiKey,
+    baseUrl: modelRow.official_base_url || '',
+    modelName: modelRow.default_model || '',
+    providerKey,
+    keySource,
+    maxTokens: Number(modelRow.max_tokens || 2048),
+    temperature: Number(modelRow.temperature ?? 0.7),
+  };
 }
 
 function getTodayStatDate() {
@@ -698,8 +754,11 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
     });
   }
 
+  const useReal = realProvider && guardrail.allowed;
+  const keyMeta = useReal && requestedProvider ? resolveProviderKeyMeta(requestedProvider) : null;
+
   const result = await runProviderGenerate({
-    realProvider: realProvider && guardrail.allowed,
+    realProvider: useReal,
     scenario,
     prompt,
     input: {
@@ -709,10 +768,16 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
       promptTemplateId: promptTemplate?.id || '',
     },
     modelConfig: {
-      modelName,
+      modelName: keyMeta?.modelName || modelName,
       defaultModel: modelName,
       target,
       requestTimeoutMs: guardrail.policy.requestTimeoutMs,
+      baseUrl: keyMeta?.baseUrl || '',
+      apiKey: keyMeta?.apiKey || '',
+      providerKey: keyMeta?.providerKey || '',
+      provider: requestedProvider?.provider || '',
+      maxTokens: keyMeta?.maxTokens,
+      temperature: keyMeta?.temperature,
     },
   });
   const content = result.content || '';
@@ -752,9 +817,10 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
   const duration = `${Date.now() - startedAt}ms`;
   const tokens = Number(result.usage?.totalTokens || 0);
   const cost = Number(result.cost || 0);
-  const logStatus = result.skipped ? '已拦截' : '成功';
-  const errorType = result.skipped ? 'real_provider_disabled' : '';
-  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : '';
+  const isError = Boolean(result.error);
+  const logStatus = result.skipped ? '已拦截' : isError ? '失败' : '成功';
+  const errorType = result.skipped ? 'real_provider_disabled' : isError ? 'provider_call_failed' : '';
+  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : isError ? result.message : '';
   const logId = recordAiCallLog({
     sourcePage,
     type: '商品文案',
@@ -792,12 +858,108 @@ router.post('/ai/generate', requireAuth, async (req, res) => {
     modelName,
     providerRequestId: result.providerRequestId || '',
     logId,
-    mock: true,
-    realProviderEnabled: false,
+    mock: !result.realProviderEnabled,
+    realProviderEnabled: Boolean(result.realProviderEnabled),
+    error: isError || undefined,
     guardrail: serializeGuardrail(guardrail),
     compliance: complianceResult,
     complianceLogId,
     message: result.message,
+  });
+});
+
+function getDefaultProviderForRole(role) {
+  const setting = db.prepare('SELECT * FROM ai_model_role_settings WHERE id = ?').get(role);
+  if (!setting?.provider_id) return null;
+  return db.prepare('SELECT * FROM ai_model_providers WHERE id = ?').get(setting.provider_id);
+}
+
+function buildFakeCommentReply(comment, productName = '') {
+  const prefix = productName ? `关于${productName}，` : '';
+  return `${prefix}感谢家人的提问～具体看商品页实时信息哦，喜欢可以先加购对比，有疑问随时打在评论区。`;
+}
+
+// 弹幕回复：默认 provider 已配置且真实开关开启则用真实 LLM，否则兜底 fake 回复；下发由数字人 speak 接口再做合规复检。
+router.post('/ai/comment-reply', requireAuth, async (req, res) => {
+  const body = req.body || {};
+  const comment = String(body.comment || '').trim();
+  if (!comment) {
+    return fail(res, '评论内容不能为空', 40001, { field: 'comment', reason: 'comment 不能为空' });
+  }
+
+  const startedAt = Date.now();
+  const provider = getDefaultProviderForRole('copywriting');
+  const costRow = getAiCostRow();
+  const budgetSettings = getBudgetSettings(costRow);
+  const policy = getAiProviderRuntimePolicy({ budgetSettings });
+  const credentialConfigured = Boolean(Number(provider?.api_key_configured || 0));
+  const guardrail = evaluateAiProviderGuardrails({
+    realProvider: policy.realProviderEnabled && credentialConfigured,
+    providerId: provider?.id || 'fake',
+    credentialConfigured,
+    currentDailyCalls: Number(costRow?.today_calls || 0),
+    currentDailyCost: Number(costRow?.today_cost || 0),
+    budgetSettings,
+    estimatedCost: 0,
+  });
+  const useReal = policy.realProviderEnabled && credentialConfigured && guardrail.allowed && !guardrail.blocked;
+  const keyMeta = useReal && provider ? resolveProviderKeyMeta(provider) : null;
+
+  let reply = '';
+  let usage = {};
+  let cost = 0;
+  let realUsed = false;
+
+  if (useReal && keyMeta) {
+    const result = await runProviderGenerate({
+      realProvider: true,
+      scenario: 'comment_reply',
+      prompt: '你是直播间数字人助手。用一句自然、口语、友好的中文回答观众评论，40 字以内；不得绝对化承诺或疗效，价格库存以页面为准。',
+      input: { comment, productName: body.productName || '' },
+      modelConfig: {
+        modelName: keyMeta.modelName,
+        baseUrl: keyMeta.baseUrl,
+        apiKey: keyMeta.apiKey,
+        providerKey: keyMeta.providerKey,
+        provider: provider?.provider || '',
+        requestTimeoutMs: guardrail.policy.requestTimeoutMs,
+        maxTokens: 256,
+        temperature: 0.7,
+      },
+    });
+    if (!result.error && result.content) {
+      reply = String(result.content).trim();
+      usage = result.usage || {};
+      cost = Number(result.cost || 0);
+      realUsed = true;
+    }
+  }
+
+  if (!reply) {
+    reply = buildFakeCommentReply(comment, body.productName || '');
+  }
+
+  const compliance = checkComplianceText(reply);
+  const duration = `${Date.now() - startedAt}ms`;
+  recordAiCallLog({
+    sourcePage: body.sourcePage || '直播中控台',
+    type: '弹幕回复',
+    provider: realUsed ? provider?.name || 'provider' : 'fake',
+    modelName: realUsed ? provider?.default_model || '' : 'fake-model',
+    inputSummary: `comment_reply 评论长度=${comment.length}，未记录评论原文。`,
+    outputSummary: `回复长度=${reply.length}，real=${realUsed}，riskLevel=${compliance.riskLevel}。`,
+    status: '成功',
+    duration,
+    tokens: Number(usage.totalTokens || 0),
+    cost,
+  });
+  updateAiCostDaily({ provider: realUsed ? provider?.name || 'provider' : 'fake', type: '弹幕回复', cost });
+
+  return success(res, {
+    reply,
+    realProviderEnabled: realUsed,
+    compliance,
+    riskTips: buildComplianceRiskTips(compliance),
   });
 });
 
@@ -903,17 +1065,30 @@ router.put('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSI
   const modelName = body.modelName ?? existing.default_model ?? '';
   const id = credentialRef;
 
+  let encrypted = { cipher: null, iv: null, tag: null };
+  let encryptionWarning = '';
+  if (isEncryptionConfigured()) {
+    encrypted = encryptSecret(apiKey);
+  } else {
+    encryptionWarning = '后端未配置 CRED_ENC_KEY，仅保存脱敏状态；真实调用将回退到平台环境变量密钥。';
+  }
+
   db.prepare(
     `INSERT INTO ai_model_credentials (
       id, provider_id, credential_ref, source, api_key_masked,
+      api_key_cipher, api_key_iv, api_key_tag,
       base_url, model_name, remark, created_at, updated_at
     ) VALUES (
       @id, @providerId, @credentialRef, @source, @apiKeyMasked,
+      @apiKeyCipher, @apiKeyIv, @apiKeyTag,
       @baseUrl, @modelName, @remark, @createdAt, @updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       source = excluded.source,
       api_key_masked = excluded.api_key_masked,
+      api_key_cipher = excluded.api_key_cipher,
+      api_key_iv = excluded.api_key_iv,
+      api_key_tag = excluded.api_key_tag,
       base_url = excluded.base_url,
       model_name = excluded.model_name,
       remark = excluded.remark,
@@ -922,8 +1097,11 @@ router.put('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSI
     id,
     providerId: req.params.id,
     credentialRef,
-    source: body.source || 'local_sqlite_masked',
+    source: body.source || (encrypted.cipher ? 'local_sqlite_encrypted' : 'local_sqlite_masked'),
     apiKeyMasked,
+    apiKeyCipher: encrypted.cipher,
+    apiKeyIv: encrypted.iv,
+    apiKeyTag: encrypted.tag,
     baseUrl,
     modelName,
     remark: body.remark || '',
@@ -955,6 +1133,8 @@ router.put('/ai/models/:id/credentials', requireAuth, requirePermission(PERMISSI
 
   return success(res, {
     credential: mapCredential(credentialRow, modelRow),
+    encryptionConfigured: isEncryptionConfigured(),
+    warning: encryptionWarning || undefined,
   });
 });
 
@@ -1011,10 +1191,13 @@ router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI
     budgetSettings: getBudgetSettings(costRow),
     estimatedCost: 0,
   });
+  const keyMeta = realProvider && guardrail.allowed ? resolveProviderKeyMeta(existing) : null;
   const modelConfig = {
     ...mapModel(existing),
-    baseUrl: body.baseUrl || existing.official_base_url,
+    baseUrl: body.baseUrl || keyMeta?.baseUrl || existing.official_base_url,
     modelName,
+    apiKey: keyMeta?.apiKey || '',
+    providerKey: keyMeta?.providerKey || '',
     requestTimeoutMs: guardrail.policy.requestTimeoutMs,
   };
 
@@ -1078,10 +1261,16 @@ router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI
   const duration = `${Date.now() - startedAt}ms`;
   const tokens = Number(result.usage?.totalTokens || 0);
   const cost = Number(result.cost || 0);
-  const status = result.skipped ? '真实调用未开启' : 'Fake通过';
-  const logStatus = result.skipped ? '已拦截' : '成功';
-  const errorType = result.skipped ? 'real_provider_disabled' : '';
-  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : '';
+  const status = result.skipped
+    ? '真实调用未开启'
+    : result.error
+      ? '真实调用失败'
+      : result.realProviderEnabled
+        ? '真实连接成功'
+        : 'Fake通过';
+  const logStatus = result.skipped ? '已拦截' : result.error ? '失败' : '成功';
+  const errorType = result.skipped ? 'real_provider_disabled' : result.error ? 'provider_call_failed' : '';
+  const errorMessage = result.skipped ? '当前阶段未开启真实模型调用。' : result.error ? result.message : '';
 
   db.prepare('UPDATE ai_model_providers SET last_test_status = ?, last_test_at = ?, updated_at = ? WHERE id = ?').run(
     status,
@@ -1122,8 +1311,8 @@ router.post('/ai/models/:id/test', requireAuth, requirePermission(PERMISSIONS.AI
     cost,
     logId,
     providerRequestId: result.providerRequestId,
-    realProviderEnabled: false,
-    mock: true,
+    realProviderEnabled: Boolean(result.realProviderEnabled),
+    mock: !result.realProviderEnabled,
     guardrail: serializeGuardrail(guardrail),
     message: result.message,
   });

@@ -1,21 +1,87 @@
-import { CopyOutlined, DeleteOutlined, EyeOutlined, PlusOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Empty, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  FolderOpenOutlined,
+  PlusOutlined,
+  PlayCircleOutlined,
+} from '@ant-design/icons';
+import { Alert, Button, Card, Empty, Input, Modal, Pagination, Select, Space, Spin, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import StatusTag from '../../components/StatusTag';
-import { getAvatarCategories, getAvatarStatuses, getAvatars, getVoiceOptions } from '../../services/avatarService';
+import {
+  deleteAvatar,
+  getAvatarCategories,
+  getAvatarStatuses,
+  getAvatars,
+  getVoiceOptions,
+} from '../../services/avatarService';
+import { resolveFileUrl } from '../../services/fileService';
 
 const avatarCategories = getAvatarCategories();
 const avatarStatuses = getAvatarStatuses();
 const voiceOptions = getVoiceOptions();
 
-function AvatarPreview({ avatar }) {
+function isImageAsset(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
   return (
-    <div className={`avatar-thumb avatar-thumb-${avatar.avatarImage}`}>
-      <span>{avatar.name.slice(0, 2)}</span>
+    text.startsWith('http://') ||
+    text.startsWith('https://') ||
+    text.startsWith('/') ||
+    text.startsWith('data:image/') ||
+    /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(text)
+  );
+}
+
+function getAvatarImageSrc(avatar) {
+  const photoUrl = avatar.imageSettings?.photo?.fileUrl;
+  const directImage = photoUrl || avatar.avatarImage;
+  return isImageAsset(directImage) ? resolveFileUrl(directImage) : '';
+}
+
+function getAvatarClassName(avatar) {
+  const token = String(avatar.avatarImage || avatar.imageSettings?.template || 'test')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '');
+
+  return token ? `avatar-thumb avatar-thumb-${token}` : 'avatar-thumb avatar-thumb-test';
+}
+
+function AvatarPreview({ avatar }) {
+  const imageSrc = getAvatarImageSrc(avatar);
+
+  if (imageSrc) {
+    return (
+      <div className="avatar-grid-photo">
+        <img src={imageSrc} alt={`${avatar.name} 的头像`} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={getAvatarClassName(avatar)}>
+      <span>{avatar.name?.slice(0, 2) || '数字'}</span>
     </div>
   );
+}
+
+function getRuntimeStatus(record) {
+  const runtime = record.imageSettings?.liveRuntime || {};
+  if (runtime.status === 'ready') return { label: '形象已预处理', color: 'green' };
+  if (runtime.status === 'preprocessing') return { label: '形象预处理中', color: 'blue' };
+  if (runtime.status === 'failed') return { label: '形象失败', color: 'red' };
+  return { label: '待登记素材', color: 'default' };
+}
+
+function getVoiceLabel(record) {
+  const voiceSettings = record.voiceSettings || {};
+  const displayName = record.voiceName || voiceSettings.voiceName || '未命名音色';
+  const engine = voiceSettings.voiceEngine || voiceSettings.engine || '未配置模型';
+  const cloneMode = voiceSettings.cloneMode || '未配置';
+  return `${displayName} · ${engine} / ${cloneMode}`;
 }
 
 export default function AvatarList() {
@@ -28,7 +94,19 @@ export default function AvatarList() {
   const [category, setCategory] = useState();
   const [voice, setVoice] = useState();
   const [testingAvatar, setTestingAvatar] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 6, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 8, total: 0 });
+  const voiceFilterOptions = useMemo(() => {
+    const names = new Set(voiceOptions);
+
+    avatars.forEach((avatar) => {
+      const voiceName = avatar.voiceName || avatar.voiceSettings?.voiceName;
+      if (voiceName) {
+        names.add(voiceName);
+      }
+    });
+
+    return Array.from(names).map((item) => ({ label: item, value: item }));
+  }, [avatars]);
 
   const fetchAvatars = useCallback(async () => {
     setLoading(true);
@@ -71,112 +149,38 @@ export default function AvatarList() {
 
   const handleDelete = (avatar) => {
     Modal.confirm({
-      title: '删除数字人（Mock）',
-      content: `确认删除「${avatar.name}」吗？本阶段不会真实删除数据。`,
+      title: '删除数字人',
+      content: `确认删除「${avatar.name}」吗？会删除本地数字人记录，并解除直播间里的绑定；不会删除你上传的源视频和音频文件。`,
       okText: '确认删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
-      onOk: () => message.success('已触发 Mock 删除提示，未修改数据'),
+      async onOk() {
+        try {
+          const result = await deleteAvatar(avatar.id);
+          message.success(
+            `已删除「${avatar.name}」${
+              result.clearedLiveRooms ? `，并解除 ${result.clearedLiveRooms} 个直播间绑定` : ''
+            }`,
+          );
+
+          if (avatars.length === 1 && pagination.current > 1) {
+            setPagination((current) => ({ ...current, current: current.current - 1 }));
+          } else {
+            await fetchAvatars();
+          }
+        } catch (deleteError) {
+          message.error(deleteError.message || '删除数字人失败');
+          throw deleteError;
+        }
+      },
     });
   };
-
-  const columns = [
-    {
-      title: '形象预览',
-      dataIndex: 'avatarImage',
-      width: 100,
-      render: (_, record) => <AvatarPreview avatar={record} />,
-    },
-    {
-      title: '数字人名称',
-      dataIndex: 'name',
-      width: 180,
-      render: (name, record) => (
-        <div>
-          <Typography.Text strong>{name}</Typography.Text>
-          <div className="table-subtext">{record.languageStyle}</div>
-        </div>
-      ),
-    },
-    {
-      title: '人设定位',
-      dataIndex: 'persona',
-      width: 260,
-      ellipsis: true,
-    },
-    {
-      title: '适合品类',
-      dataIndex: 'suitableCategories',
-      width: 220,
-      render: (items) => (
-        <Space size={4} wrap>
-          {(items || []).map((item) => (
-            <Tag color="blue" key={item}>
-              {item}
-            </Tag>
-          ))}
-        </Space>
-      ),
-    },
-    {
-      title: '绑定音色',
-      dataIndex: 'voiceName',
-      width: 130,
-    },
-    {
-      title: '当前状态',
-      dataIndex: 'status',
-      width: 110,
-      render: (value) => <StatusTag status={value} />,
-    },
-    {
-      title: '已绑定直播间',
-      dataIndex: 'boundLiveRooms',
-      width: 120,
-      render: (value) => `${value} 个`,
-      sorter: (a, b) => a.boundLiveRooms - b.boundLiveRooms,
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 160,
-    },
-    {
-      title: '操作',
-      fixed: 'right',
-      width: 260,
-      render: (_, record) => (
-        <Space size={4} wrap>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/avatar/${record.id}/edit`)}>
-            查看
-          </Button>
-          <Button type="link" size="small" onClick={() => navigate(`/avatar/${record.id}/edit`)}>
-            编辑
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={() => message.success(`已复制「${record.name}」的 Mock 配置`)}
-          >
-            复制
-          </Button>
-          <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => setTestingAvatar(record)}>
-            测试
-          </Button>
-          <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => handleDelete(record)}>
-            删除
-          </Button>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <>
       <PageHeader
         title="数字人列表"
-        description="管理数字人资产、形象状态、绑定音色和适合品类，当前通过本地 API 读取 SQLite 数据。"
+        description="一个卡片代表一个可选主播形象。进入编辑页维护头像外观、声音、素材与本机 LiveTalking 预处理状态。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/avatar/create')}>
             新建数字人
@@ -214,45 +218,98 @@ export default function AvatarList() {
             placeholder="绑定音色筛选"
             value={voice}
             onChange={(value) => resetToFirstPage(() => setVoice(value))}
-            options={voiceOptions.map((item) => ({ label: item, value: item }))}
+            options={voiceFilterOptions}
             style={{ width: 170 }}
           />
         </div>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={avatars}
-          loading={loading}
-          locale={{ emptyText: <Empty description={error ? '本地 API 暂无可展示数据' : '暂无数字人数据'} /> }}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showTotal: (total) => `共 ${total} 个数字人`,
-          }}
-          onChange={(nextPagination) =>
-            setPagination((current) => ({
-              ...current,
-              current: nextPagination.current,
-              pageSize: nextPagination.pageSize,
-            }))
-          }
-          scroll={{ x: 1480 }}
-        />
+
+        <Spin spinning={loading}>
+          {avatars.length ? (
+            <div className="avatar-card-grid">
+              {avatars.map((avatar) => {
+                const runtimeStatus = getRuntimeStatus(avatar);
+                return (
+                  <article className="avatar-grid-card" key={avatar.id}>
+                    <div className="avatar-grid-head">
+                      <AvatarPreview avatar={avatar} />
+                      <div className="avatar-grid-title">
+                        <Typography.Title level={5}>{avatar.name}</Typography.Title>
+                        <Typography.Text type="secondary">{avatar.languageStyle || '未设置语言风格'}</Typography.Text>
+                      </div>
+                    </div>
+
+                    <Typography.Paragraph className="avatar-grid-persona" ellipsis={{ rows: 2 }}>
+                      {avatar.persona || '暂未填写人设定位'}
+                    </Typography.Paragraph>
+
+                    <div className="avatar-grid-tags">
+                      {(avatar.suitableCategories || []).slice(0, 3).map((item) => (
+                        <Tag color="blue" key={item}>
+                          {item}
+                        </Tag>
+                      ))}
+                      {(avatar.suitableCategories || []).length > 3 ? <Tag>+{avatar.suitableCategories.length - 3}</Tag> : null}
+                    </div>
+
+                    <div className="avatar-grid-meta">
+                      <span>声音</span>
+                      <strong>{getVoiceLabel(avatar)}</strong>
+                    </div>
+                    <div className="avatar-grid-status">
+                      <Tag color={runtimeStatus.color}>{runtimeStatus.label}</Tag>
+                      <StatusTag status={avatar.status} />
+                    </div>
+
+                    <div className="avatar-grid-actions">
+                      <Button size="small" type="primary" icon={<EditOutlined />} onClick={() => navigate(`/avatar/${avatar.id}/edit`)}>
+                        编辑
+                      </Button>
+                      <Button size="small" icon={<FolderOpenOutlined />} onClick={() => navigate(`/avatar/${avatar.id}/edit?tab=training`)}>
+                        素材
+                      </Button>
+                      <Button size="small" icon={<PlayCircleOutlined />} onClick={() => setTestingAvatar(avatar)}>
+                        测试
+                      </Button>
+                      <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(avatar)}>
+                        删除
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <Empty description={error ? '本地 API 暂无可展示数据' : '暂无数字人数据'} />
+          )}
+        </Spin>
+
+        <div className="avatar-grid-pagination">
+          <Pagination
+            current={pagination.current}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            showSizeChanger
+            showTotal={(total) => `共 ${total} 个数字人`}
+            onChange={(current, pageSize) => setPagination((value) => ({ ...value, current, pageSize }))}
+          />
+        </div>
       </Card>
       <Modal
-        title="数字人测试（Mock）"
+        title="数字人测试"
         open={Boolean(testingAvatar)}
         onCancel={() => setTestingAvatar(null)}
-        okText="开始 Mock 测试"
+        okText="进入编辑页测试"
         cancelText="关闭"
         onOk={() => {
-          message.success('已触发 Mock 测试，不调用真实数字人服务');
+          const avatar = testingAvatar;
           setTestingAvatar(null);
+          if (avatar) {
+            navigate(`/avatar/${avatar.id}/edit?tab=preview`);
+          }
         }}
       >
         <p>测试对象：{testingAvatar?.name}</p>
-        <p>测试内容：使用绑定音色和默认动作生成一段本地预览提示。</p>
+        <p>测试预览已归到数字人编辑页；真实开播效果建议在直播中控台连接本机 LiveTalking 后测试。</p>
       </Modal>
     </>
   );

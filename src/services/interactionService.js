@@ -50,8 +50,7 @@ export async function generateQuestionReply(questionId, data = {}) {
 }
 
 export async function addQuestionToSpeechQueue(questionId, data = {}) {
-  const result = await apiRequest.post(`/api/interaction/questions/${questionId}/add-to-queue`, data);
-  return result.question;
+  return apiRequest.post(`/api/interaction/questions/${questionId}/add-to-queue`, data);
 }
 
 export async function ignoreQuestion(questionId) {

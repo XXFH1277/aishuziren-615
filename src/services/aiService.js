@@ -65,6 +65,10 @@ export async function generateProductCopy(data = {}) {
   });
 }
 
+export async function generateCommentReply(data = {}) {
+  return apiRequest.post('/api/ai/comment-reply', data);
+}
+
 export async function updateModelDefaults(data = {}) {
   return apiRequest.patch('/api/ai/models/defaults', data);
 }

@@ -54,6 +54,14 @@ export async function insertSpeechItem(id, data = {}) {
   return apiRequest.post(`/api/delay-control/queue/${id}/insert`, data);
 }
 
+export async function dispatchSpeechItem(id, data = {}) {
+  return apiRequest.post(`/api/delay-control/queue/${id}/dispatch`, data);
+}
+
+export async function dispatchNextSpeechItem(data = {}) {
+  return apiRequest.post('/api/delay-control/queue/dispatch-next', data);
+}
+
 export async function deleteSpeechItem(id, data = {}) {
   return apiRequest.delete(`/api/delay-control/queue/${id}`, data);
 }

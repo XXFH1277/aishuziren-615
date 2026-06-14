@@ -101,6 +101,7 @@ function sanitizeUser(row) {
     role: row.role,
     status: row.status,
     lastLoginAt: row.last_login_at,
+    mustChangePassword: Boolean(Number(row.must_change_password || 0)),
   };
 }
 
