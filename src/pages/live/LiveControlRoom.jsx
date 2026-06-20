@@ -19,6 +19,7 @@ import {
   Divider,
   Empty,
   Input,
+  InputNumber,
   List,
   Modal,
   Select,
@@ -61,11 +62,18 @@ import {
 import {
   directSpeakControlRoomManualSpeech,
   enqueueControlRoomManualSpeech,
+  fillControlRoomScriptLoop,
   getControlRoomBroadcast,
   getControlRoomComments,
   getControlRoomQuestions,
+  getControlRoomScriptLoop,
   getLiveControlRoomState,
+  pauseControlRoomScriptLoop,
+  resumeControlRoomScriptLoop,
   sendControlRoomManualSpeech,
+  startControlRoomScriptLoop,
+  stopControlRoomScriptLoop,
+  tickControlRoomScriptLoop,
   updateControlRoomSpeechQueueItem,
 } from '../../services/liveControlRoomService';
 import { closeLiveSession, connectLiveSession, getLiveSessionEngines, openLiveSession, speakLiveSession } from '../../services/liveSessionService';
@@ -273,9 +281,21 @@ export default function LiveControlRoom() {
   const [obsLocalConfig, setObsLocalConfig] = useState(null);
   const [obsPreviewReloadKey, setObsPreviewReloadKey] = useState(0);
   const [obsPreviewVideoError, setObsPreviewVideoError] = useState('');
+  const [scriptLoop, setScriptLoop] = useState(null);
+  const [scriptLoopStats, setScriptLoopStats] = useState(null);
+  const [scriptLoopProducts, setScriptLoopProducts] = useState([]);
+  const [scriptLoopBusy, setScriptLoopBusy] = useState('');
+  const [scriptLoopTicking, setScriptLoopTicking] = useState(false);
+  const [scriptLoopDraft, setScriptLoopDraft] = useState({
+    mode: 'template',
+    minQueueSize: 3,
+    batchSize: 5,
+    autoDispatch: false,
+  });
   const dhPeerRef = useRef(null);
   const dhVideoRef = useRef(null);
   const dhAudioRef = useRef(null);
+  const scriptLoopTickingRef = useRef(false);
 
   async function loadObsOutputRuntime(options = {}) {
     try {
@@ -362,6 +382,51 @@ export default function LiveControlRoom() {
     }
   }
 
+  function applyScriptLoopResult(result = {}) {
+    if (result.loop) {
+      setScriptLoop(result.loop);
+      setScriptLoopDraft((current) => ({
+        ...current,
+        mode: result.loop.mode || current.mode,
+        minQueueSize: result.loop.minQueueSize || current.minQueueSize,
+        batchSize: result.loop.batchSize || current.batchSize,
+        autoDispatch: Boolean(result.loop.autoDispatch),
+      }));
+    }
+
+    if (result.queueStats) {
+      setScriptLoopStats(result.queueStats);
+    } else if (result.fillResult?.statsAfter) {
+      setScriptLoopStats(result.fillResult.statsAfter);
+    }
+
+    if (Array.isArray(result.products)) {
+      setScriptLoopProducts(result.products);
+    }
+
+    return result.loop || null;
+  }
+
+  async function loadScriptLoop(taskId, options = {}) {
+    if (!taskId) {
+      setScriptLoop(null);
+      setScriptLoopStats(null);
+      setScriptLoopProducts([]);
+      return null;
+    }
+
+    try {
+      const result = await getControlRoomScriptLoop({ taskId });
+      applyScriptLoopResult(result);
+      return result;
+    } catch (requestError) {
+      if (!options.silent) {
+        message.warning(requestError.message || '循环讲解状态读取失败');
+      }
+      return null;
+    }
+  }
+
   async function loadControlRoom() {
     try {
       setLoading(true);
@@ -388,6 +453,9 @@ export default function LiveControlRoom() {
         queueStatus: currentResult?.queueStatus || broadcastResult.queueStatus,
       });
       setQueue(queueResult.list || []);
+      if (taskId) {
+        await loadScriptLoop(taskId, { silent: true });
+      }
     } catch (requestError) {
       setError(requestError.message || '本地 API 服务未连接，请先运行 npm run server:dev');
     } finally {
@@ -1173,6 +1241,97 @@ export default function LiveControlRoom() {
       setDispatchingId('');
     }
   };
+
+  const buildScriptLoopPayload = () => ({
+    taskId: currentTask.id,
+    mode: scriptLoopDraft.mode,
+    minQueueSize: scriptLoopDraft.minQueueSize,
+    batchSize: scriptLoopDraft.batchSize,
+    autoDispatch: scriptLoopDraft.autoDispatch,
+  });
+
+  const handleScriptLoopAction = async (actionName) => {
+    if (!currentTask.id) {
+      message.warning('当前直播任务缺少任务 ID，无法启动循环讲解');
+      return;
+    }
+
+    const actionMap = {
+      start: startControlRoomScriptLoop,
+      pause: pauseControlRoomScriptLoop,
+      resume: resumeControlRoomScriptLoop,
+      stop: stopControlRoomScriptLoop,
+      fill: fillControlRoomScriptLoop,
+    };
+    const request = actionMap[actionName];
+
+    if (!request) return;
+
+    try {
+      setScriptLoopBusy(actionName);
+      const result = await request(buildScriptLoopPayload());
+      applyScriptLoopResult(result);
+
+      if (result.fillResult?.inserted?.length) {
+        await loadBroadcastQueue(currentTask.id, { silent: true });
+      }
+
+      message.success(result.message || '循环讲解状态已更新');
+    } catch (requestError) {
+      message.error(requestError.message || '循环讲解操作失败');
+    } finally {
+      setScriptLoopBusy('');
+    }
+  };
+
+  const handleScriptLoopTick = async (options = {}) => {
+    if (!currentTask.id || scriptLoopTickingRef.current) {
+      return;
+    }
+
+    try {
+      scriptLoopTickingRef.current = true;
+      setScriptLoopTicking(true);
+      const result = await tickControlRoomScriptLoop(buildScriptLoopPayload());
+      applyScriptLoopResult(result);
+
+      if (result.fillResult?.inserted?.length) {
+        await loadBroadcastQueue(currentTask.id, { silent: true });
+      }
+
+      if (result.shouldDispatch && !dispatchingId && !dispatchBlockedReason) {
+        await handleDispatchNextSpeech();
+      }
+    } catch (requestError) {
+      if (!options.silent) {
+        message.warning(requestError.message || '循环讲解 tick 失败');
+      }
+    } finally {
+      scriptLoopTickingRef.current = false;
+      setScriptLoopTicking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (scriptLoop?.status !== 'running') {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      handleScriptLoopTick({ silent: true });
+    }, 6000);
+
+    return () => window.clearInterval(timer);
+  }, [
+    scriptLoop?.status,
+    scriptLoopDraft.mode,
+    scriptLoopDraft.minQueueSize,
+    scriptLoopDraft.batchSize,
+    scriptLoopDraft.autoDispatch,
+    currentTask.id,
+    dispatchingId,
+    dispatchBlockedReason,
+  ]);
 
   const handleDhOpen = async () => {
     try {
@@ -2049,6 +2208,87 @@ export default function LiveControlRoom() {
                       </List.Item>
                     )}
                   />
+                </Card>
+
+                <Card
+                  title="循环讲解"
+                  className="panel-card control-room-panel"
+                  extra={
+                    <Space wrap size={6}>
+                      <Tag color={scriptLoop?.status === 'running' ? 'green' : scriptLoop?.status === 'paused' ? 'orange' : 'default'}>
+                        {scriptLoop?.status === 'running' ? '运行中' : scriptLoop?.status === 'paused' ? '已暂停' : '未启动'}
+                      </Tag>
+                      {scriptLoopTicking ? <Tag color="blue">tick</Tag> : null}
+                    </Space>
+                  }
+                >
+                  <div className="control-room-form-grid">
+                    <Select
+                      value={scriptLoopDraft.mode}
+                      onChange={(value) => setScriptLoopDraft((current) => ({ ...current, mode: value }))}
+                      options={[
+                        { label: '商品模板', value: 'template' },
+                        { label: 'AI 辅助(预留)', value: 'ai_assisted' },
+                      ]}
+                    />
+                    <InputNumber
+                      min={1}
+                      max={30}
+                      value={scriptLoopDraft.minQueueSize}
+                      addonBefore="保底"
+                      addonAfter="条"
+                      onChange={(value) => setScriptLoopDraft((current) => ({ ...current, minQueueSize: value || 3 }))}
+                    />
+                    <InputNumber
+                      min={1}
+                      max={20}
+                      value={scriptLoopDraft.batchSize}
+                      addonBefore="补稿"
+                      addonAfter="条"
+                      onChange={(value) => setScriptLoopDraft((current) => ({ ...current, batchSize: value || 5 }))}
+                    />
+                  </div>
+                  <Space wrap className="control-room-inline-controls">
+                    <span>自动下发</span>
+                    <Switch
+                      checked={scriptLoopDraft.autoDispatch}
+                      onChange={(checked) => setScriptLoopDraft((current) => ({ ...current, autoDispatch: checked }))}
+                    />
+                    <Button size="small" loading={scriptLoopTicking} onClick={() => handleScriptLoopTick()}>
+                      检查一次
+                    </Button>
+                  </Space>
+                  <Descriptions column={1} size="small" className="control-room-compact-desc">
+                    <Descriptions.Item label="可下发">{scriptLoopStats?.dispatchable ?? dispatchableSpeechCount}</Descriptions.Item>
+                    <Descriptions.Item label="循环稿">{scriptLoopStats?.scriptLoopDispatchable ?? 0}</Descriptions.Item>
+                    <Descriptions.Item label="正在下发">{scriptLoopStats?.dispatching ?? (dispatchingSpeech ? 1 : 0)}</Descriptions.Item>
+                    <Descriptions.Item label="商品资料">{scriptLoopProducts.length || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="最近补稿">{scriptLoop?.lastFillAt ? new Date(scriptLoop.lastFillAt).toLocaleTimeString('zh-CN', { hour12: false }) : '-'}</Descriptions.Item>
+                  </Descriptions>
+                  <Space wrap>
+                    {scriptLoop?.status === 'running' ? (
+                      <Button loading={scriptLoopBusy === 'pause'} onClick={() => handleScriptLoopAction('pause')}>
+                        暂停
+                      </Button>
+                    ) : (
+                      <Button
+                        type="primary"
+                        loading={scriptLoopBusy === 'start' || scriptLoopBusy === 'resume'}
+                        onClick={() => handleScriptLoopAction(scriptLoop?.status === 'paused' ? 'resume' : 'start')}
+                      >
+                        {scriptLoop?.status === 'paused' ? '继续' : '启动循环'}
+                      </Button>
+                    )}
+                    <Button loading={scriptLoopBusy === 'fill'} onClick={() => handleScriptLoopAction('fill')}>
+                      手动补稿
+                    </Button>
+                    <Button danger loading={scriptLoopBusy === 'stop'} onClick={() => handleScriptLoopAction('stop')}>
+                      停止
+                    </Button>
+                  </Space>
+                  {scriptLoopDraft.autoDispatch && dispatchBlockedReason ? (
+                    <Alert className="control-room-alert" type="warning" showIcon message={dispatchBlockedReason} />
+                  ) : null}
                 </Card>
 
                 <Card

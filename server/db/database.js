@@ -67,6 +67,7 @@ export function runSchema() {
   ensureExecutorColumns();
   ensureObsLocalConfigColumns();
   ensureSpeechQueueColumns();
+  ensureScriptLoopStateColumns();
   ensureTalkingVideoJobColumns();
 }
 
@@ -176,6 +177,43 @@ function ensureSpeechQueueColumns() {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_speech_queue_broadcast_status ON speech_queue(broadcast_status);
     CREATE INDEX IF NOT EXISTS idx_speech_queue_executor_command_id ON speech_queue(executor_command_id);
+  `);
+}
+
+function ensureScriptLoopStateColumns() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS live_script_loop_state (
+      id TEXT PRIMARY KEY,
+      live_task_id TEXT UNIQUE,
+      live_room_id TEXT,
+      status TEXT DEFAULT 'stopped',
+      mode TEXT DEFAULT 'template',
+      min_queue_size INTEGER DEFAULT 3,
+      batch_size INTEGER DEFAULT 5,
+      cursor_index INTEGER DEFAULT 0,
+      auto_dispatch INTEGER DEFAULT 0,
+      settings_json TEXT,
+      last_fill_at TEXT,
+      last_tick_at TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+  `);
+  ensureColumn('live_script_loop_state', 'live_room_id', 'live_room_id TEXT');
+  ensureColumn('live_script_loop_state', 'status', "status TEXT DEFAULT 'stopped'");
+  ensureColumn('live_script_loop_state', 'mode', "mode TEXT DEFAULT 'template'");
+  ensureColumn('live_script_loop_state', 'min_queue_size', 'min_queue_size INTEGER DEFAULT 3');
+  ensureColumn('live_script_loop_state', 'batch_size', 'batch_size INTEGER DEFAULT 5');
+  ensureColumn('live_script_loop_state', 'cursor_index', 'cursor_index INTEGER DEFAULT 0');
+  ensureColumn('live_script_loop_state', 'auto_dispatch', 'auto_dispatch INTEGER DEFAULT 0');
+  ensureColumn('live_script_loop_state', 'settings_json', 'settings_json TEXT');
+  ensureColumn('live_script_loop_state', 'last_fill_at', 'last_fill_at TEXT');
+  ensureColumn('live_script_loop_state', 'last_tick_at', 'last_tick_at TEXT');
+  ensureColumn('live_script_loop_state', 'created_at', 'created_at TEXT');
+  ensureColumn('live_script_loop_state', 'updated_at', 'updated_at TEXT');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_live_script_loop_state_task ON live_script_loop_state(live_task_id);
+    CREATE INDEX IF NOT EXISTS idx_live_script_loop_state_status ON live_script_loop_state(status);
   `);
 }
 

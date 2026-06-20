@@ -304,6 +304,26 @@ CREATE INDEX IF NOT EXISTS idx_speech_queue_review_status ON speech_queue(review
 CREATE INDEX IF NOT EXISTS idx_speech_queue_risk_level ON speech_queue(risk_level);
 CREATE INDEX IF NOT EXISTS idx_speech_queue_question_id ON speech_queue(question_id);
 
+CREATE TABLE IF NOT EXISTS live_script_loop_state (
+  id TEXT PRIMARY KEY,
+  live_task_id TEXT UNIQUE,
+  live_room_id TEXT,
+  status TEXT DEFAULT 'stopped',
+  mode TEXT DEFAULT 'template',
+  min_queue_size INTEGER DEFAULT 3,
+  batch_size INTEGER DEFAULT 5,
+  cursor_index INTEGER DEFAULT 0,
+  auto_dispatch INTEGER DEFAULT 0,
+  settings_json TEXT,
+  last_fill_at TEXT,
+  last_tick_at TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_script_loop_state_task ON live_script_loop_state(live_task_id);
+CREATE INDEX IF NOT EXISTS idx_live_script_loop_state_status ON live_script_loop_state(status);
+
 CREATE TABLE IF NOT EXISTS subtitle_settings (
   id TEXT PRIMARY KEY,
   live_task_id TEXT,

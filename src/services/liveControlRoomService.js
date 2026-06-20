@@ -40,3 +40,31 @@ export async function updateControlRoomSpeechQueueItem(id, data = {}) {
   const result = await apiRequest.patch(`/api/live/control-room/speech-queue/${id}`, data);
   return result.speechItem;
 }
+
+export function getControlRoomScriptLoop(params = {}) {
+  return apiRequest.get('/api/live/control-room/script-loop', params);
+}
+
+export function startControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/start', data);
+}
+
+export function pauseControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/pause', data);
+}
+
+export function resumeControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/resume', data);
+}
+
+export function stopControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/stop', data);
+}
+
+export function fillControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/fill', data);
+}
+
+export function tickControlRoomScriptLoop(data = {}) {
+  return apiRequest.post('/api/live/control-room/script-loop/tick', data);
+}

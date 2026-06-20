@@ -13,6 +13,18 @@ import { PERMISSIONS } from '../utils/permissions.js';
 import { fail, success } from '../utils/response.js';
 
 const router = express.Router();
+const STATUS_APPROVED = '\u5df2\u901a\u8fc7';
+const STATUS_REVIEWED = '\u5df2\u5ba1\u6838';
+const STATUS_SOON = '\u5373\u5c06\u64ad\u51fa';
+const STATUS_PENDING_DISPATCH = '\u5f85\u4e0b\u53d1';
+const STATUS_DISPATCHING = '\u4e0b\u53d1\u4e2d';
+const STATUS_FAILED = '\u5931\u8d25';
+const SOURCE_SCRIPT_LOOP = 'script_loop';
+const LOOP_STATUS_RUNNING = 'running';
+const LOOP_STATUS_PAUSED = 'paused';
+const LOOP_STATUS_STOPPED = 'stopped';
+const LOOP_MODE_TEMPLATE = 'template';
+const LOOP_MODE_AI = 'ai_assisted';
 const onlineExecutorStatuses = ['在线', '直播中', '更新中'];
 
 function firstTask(taskId) {
@@ -238,6 +250,44 @@ function mapManualTakeover(row) {
   };
 }
 
+function mapScriptLoopState(row) {
+  if (!row) {
+    return {
+      id: '',
+      liveTaskId: '',
+      liveRoomId: '',
+      status: LOOP_STATUS_STOPPED,
+      mode: LOOP_MODE_TEMPLATE,
+      minQueueSize: 3,
+      batchSize: 5,
+      cursorIndex: 0,
+      autoDispatch: false,
+      settings: {},
+      lastFillAt: '',
+      lastTickAt: '',
+      createdAt: '',
+      updatedAt: '',
+    };
+  }
+
+  return {
+    id: row.id,
+    liveTaskId: row.live_task_id,
+    liveRoomId: row.live_room_id,
+    status: row.status || LOOP_STATUS_STOPPED,
+    mode: row.mode || LOOP_MODE_TEMPLATE,
+    minQueueSize: Number(row.min_queue_size || 3),
+    batchSize: Number(row.batch_size || 5),
+    cursorIndex: Number(row.cursor_index || 0),
+    autoDispatch: Boolean(row.auto_dispatch),
+    settings: fromJson(row.settings_json, {}),
+    lastFillAt: row.last_fill_at || '',
+    lastTickAt: row.last_tick_at || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
 function resolveContext(req, res) {
   const taskId = req.query.taskId || req.body?.taskId;
   const task = firstTask(taskId);
@@ -253,6 +303,406 @@ function resolveContext(req, res) {
 
 function countRows(sql, params = {}) {
   return db.prepare(sql).get(params).count;
+}
+
+function clampInteger(value, fallback, min, max) {
+  const number = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(number, min), max);
+}
+
+function normalizeLoopMode(value) {
+  const mode = String(value || '').trim();
+  return mode === LOOP_MODE_AI ? LOOP_MODE_AI : LOOP_MODE_TEMPLATE;
+}
+
+function textFromEntry(entry) {
+  if (entry === undefined || entry === null) return '';
+  if (typeof entry === 'string') return entry.trim();
+  if (typeof entry === 'number') return String(entry);
+  if (typeof entry !== 'object') return '';
+
+  const direct =
+    entry.text ||
+    entry.script ||
+    entry.content ||
+    entry.answer ||
+    entry.reply ||
+    entry.title ||
+    entry.name ||
+    '';
+
+  if (direct) {
+    return String(direct).trim();
+  }
+
+  const question = entry.question || entry.q || '';
+  const answer = entry.answer || entry.a || '';
+  return [question, answer].filter(Boolean).join('，').trim();
+}
+
+function listFromSerialized(value) {
+  const parsed = fromJson(value, null);
+  const source = parsed ?? value;
+
+  if (Array.isArray(source)) {
+    return source.map(textFromEntry).filter(Boolean);
+  }
+
+  if (source && typeof source === 'object') {
+    return Object.values(source).flatMap((item) => listFromSerialized(item)).filter(Boolean);
+  }
+
+  return String(source || '')
+    .split(/\r?\n|[;；]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeSpeechText(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+}
+
+function uniqueProductRows(rows = []) {
+  const map = new Map();
+
+  rows.forEach((row) => {
+    if (row?.id && !map.has(row.id)) {
+      map.set(row.id, row);
+    }
+  });
+
+  return [...map.values()];
+}
+
+function getTaskProducts(task) {
+  const rows = [];
+
+  if (task.product_group_id) {
+    rows.push(
+      ...db
+        .prepare(
+          `SELECT p.*, COALESCE(pgi.sort_order, 9999) AS loop_sort_order
+           FROM products p
+           LEFT JOIN product_group_items pgi
+             ON pgi.product_id = p.id AND pgi.product_group_id = @groupId
+           WHERE pgi.product_group_id = @groupId OR p.group_id = @groupId
+           ORDER BY loop_sort_order ASC, p.id ASC`,
+        )
+        .all({ groupId: task.product_group_id }),
+    );
+  }
+
+  if (!rows.length && task.product_group_name) {
+    rows.push(
+      ...db
+        .prepare(
+          `SELECT *
+           FROM products
+           WHERE group_name = @groupName
+           ORDER BY updated_at DESC, id ASC
+           LIMIT 20`,
+        )
+        .all({ groupName: task.product_group_name }),
+    );
+  }
+
+  if (!rows.length) {
+    rows.push(...db.prepare('SELECT * FROM products ORDER BY updated_at DESC, id ASC LIMIT 20').all());
+  }
+
+  return uniqueProductRows(rows).map((row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category || '',
+    brand: row.brand || '',
+    price: Number(row.price || 0),
+    stock: Number(row.stock || 0),
+    status: row.status || '',
+    description: row.description || '',
+    groupId: row.group_id || '',
+    groupName: row.group_name || '',
+    sellingPoints: listFromSerialized(row.selling_points),
+    faq: listFromSerialized(row.faq),
+    scripts: listFromSerialized(row.scripts),
+  }));
+}
+
+function buildProductScriptSegments(product, task) {
+  const productName = product.name || task.product_group_name || '当前商品';
+  const segments = product.scripts.map((script) => normalizeSpeechText(script)).filter(Boolean);
+
+  if (segments.length) {
+    return segments.map((text) => ({
+      productId: product.id,
+      productName,
+      text,
+    }));
+  }
+
+  const points = product.sellingPoints.slice(0, 4);
+  const faq = product.faq.slice(0, 2);
+  const generated = [
+    `现在给大家介绍的是${productName}。这款更适合正在看直播间、想快速了解重点的朋友，我们先把核心卖点讲清楚。`,
+    points.length
+      ? `${productName}的重点是${points.join('、')}。如果你在意实用性和性价比，可以先把这几个点对上自己的需求。`
+      : `${productName}主打的是稳定体验和日常实用，适合先看规格、再按自己的使用场景来选择。`,
+    product.price
+      ? `${productName}当前参考价是${product.price}元，直播间最终价格、优惠和库存以页面显示为准，合适的话可以先领券再下单。`
+      : `${productName}的活动价格以直播间页面为准，建议先看优惠券、规格和库存，再决定要不要拍。`,
+    product.description
+      ? `${productName}补充说明：${product.description}`
+      : `如果你对${productName}还有规格、发货或者售后问题，可以直接发在评论区，我会按当前商品继续说明。`,
+    ...faq.map((item) => `常见问题：${item}`),
+  ];
+
+  return generated
+    .map(normalizeSpeechText)
+    .filter(Boolean)
+    .map((text) => ({
+      productId: product.id,
+      productName,
+      text,
+    }));
+}
+
+function buildScriptLoopPool(context, state) {
+  const products = getTaskProducts(context.task);
+  const segments = products.flatMap((product) => buildProductScriptSegments(product, context.task));
+
+  if (!segments.length) {
+    const fallbackName = context.task.product_group_name || context.room?.name || '当前直播间';
+    segments.push(
+      {
+        productId: '',
+        productName: fallbackName,
+        text: `欢迎来到${fallbackName}。我会先介绍当前直播间的重点信息，如果有问题可以直接发在评论区。`,
+      },
+      {
+        productId: '',
+        productName: fallbackName,
+        text: `接下来我们会按商品卖点、适合人群、价格优惠和常见问题来讲，人工需要插话时可以随时接管。`,
+      },
+    );
+  }
+
+  return {
+    products,
+    segments,
+    mode: state?.mode || LOOP_MODE_TEMPLATE,
+  };
+}
+
+function getOrCreateScriptLoopState(context) {
+  const timestamp = now();
+  const id = `LOOP-${context.task.id}`;
+
+  db.prepare(
+    `INSERT OR IGNORE INTO live_script_loop_state (
+      id, live_task_id, live_room_id, status, mode, min_queue_size, batch_size,
+      cursor_index, auto_dispatch, settings_json, last_fill_at, last_tick_at,
+      created_at, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @status, @mode, @minQueueSize, @batchSize,
+      @cursorIndex, @autoDispatch, @settings, @lastFillAt, @lastTickAt,
+      @createdAt, @updatedAt
+    )`,
+  ).run({
+    id,
+    liveTaskId: context.task.id,
+    liveRoomId: context.task.live_room_id || context.room?.id || '',
+    status: LOOP_STATUS_STOPPED,
+    mode: LOOP_MODE_TEMPLATE,
+    minQueueSize: 3,
+    batchSize: 5,
+    cursorIndex: 0,
+    autoDispatch: 0,
+    settings: toJson({ source: 'local_template' }),
+    lastFillAt: '',
+    lastTickAt: '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+
+  return db.prepare('SELECT * FROM live_script_loop_state WHERE live_task_id = ?').get(context.task.id);
+}
+
+function updateScriptLoopState(context, patch = {}) {
+  const existing = getOrCreateScriptLoopState(context);
+  const timestamp = now();
+  const settings = {
+    ...fromJson(existing.settings_json, {}),
+    ...(patch.settings || {}),
+  };
+
+  db.prepare(
+    `UPDATE live_script_loop_state
+     SET live_room_id = @liveRoomId,
+         status = @status,
+         mode = @mode,
+         min_queue_size = @minQueueSize,
+         batch_size = @batchSize,
+         cursor_index = @cursorIndex,
+         auto_dispatch = @autoDispatch,
+         settings_json = @settings,
+         last_fill_at = @lastFillAt,
+         last_tick_at = @lastTickAt,
+         updated_at = @updatedAt
+     WHERE live_task_id = @liveTaskId`,
+  ).run({
+    liveTaskId: context.task.id,
+    liveRoomId: context.task.live_room_id || context.room?.id || existing.live_room_id || '',
+    status: patch.status ?? existing.status ?? LOOP_STATUS_STOPPED,
+    mode: normalizeLoopMode(patch.mode ?? existing.mode),
+    minQueueSize: clampInteger(patch.minQueueSize ?? existing.min_queue_size, 3, 1, 30),
+    batchSize: clampInteger(patch.batchSize ?? existing.batch_size, 5, 1, 20),
+    cursorIndex: clampInteger(patch.cursorIndex ?? existing.cursor_index, 0, 0, 1000000),
+    autoDispatch: patch.autoDispatch === undefined ? Number(existing.auto_dispatch || 0) : patch.autoDispatch ? 1 : 0,
+    settings: toJson(settings),
+    lastFillAt: patch.lastFillAt ?? existing.last_fill_at ?? '',
+    lastTickAt: patch.lastTickAt ?? existing.last_tick_at ?? '',
+    updatedAt: timestamp,
+  });
+
+  return db.prepare('SELECT * FROM live_script_loop_state WHERE live_task_id = ?').get(context.task.id);
+}
+
+function getScriptLoopQueueStats(liveTaskId) {
+  const params = {
+    liveTaskId,
+    source: SOURCE_SCRIPT_LOOP,
+    approved: STATUS_APPROVED,
+    reviewed: STATUS_REVIEWED,
+    soon: STATUS_SOON,
+    pendingBroadcast: STATUS_PENDING_DISPATCH,
+    failed: STATUS_FAILED,
+    dispatching: STATUS_DISPATCHING,
+  };
+  const dispatchableWhere = `
+    live_task_id = @liveTaskId
+    AND review_status IN (@approved, @reviewed, @soon)
+    AND (
+      broadcast_status IS NULL OR broadcast_status = ''
+      OR broadcast_status = @pendingBroadcast OR broadcast_status = @failed
+    )
+  `;
+
+  return {
+    dispatchable: countRows(`SELECT COUNT(*) AS count FROM speech_queue WHERE ${dispatchableWhere}`, params),
+    scriptLoopDispatchable: countRows(`SELECT COUNT(*) AS count FROM speech_queue WHERE source = @source AND ${dispatchableWhere}`, params),
+    dispatching: countRows(
+      `SELECT COUNT(*) AS count FROM speech_queue WHERE live_task_id = @liveTaskId AND broadcast_status = @dispatching`,
+      params,
+    ),
+    totalScriptLoop: countRows(
+      `SELECT COUNT(*) AS count FROM speech_queue WHERE live_task_id = @liveTaskId AND source = @source`,
+      params,
+    ),
+  };
+}
+
+function createScriptLoopSpeechItem(context, segment, sequence) {
+  const timestamp = now();
+  const speechId = nextId('speech_queue', 'SQ');
+  const scheduledTime = `循环-${Date.now()}-${String(sequence).padStart(4, '0')}`;
+
+  db.prepare(
+    `INSERT INTO speech_queue (
+      id, live_task_id, live_room_id, question_id, comment_id, product_id, product_name,
+      text, source, action, tone, risk_level, review_status, broadcast_status,
+      executor_command_id, broadcast_result_json, broadcast_error_message,
+      broadcast_started_at, broadcast_finished_at, scheduled_time,
+      approved_by, approved_at, created_at, updated_at
+    ) VALUES (
+      @id, @liveTaskId, @liveRoomId, @questionId, @commentId, @productId, @productName,
+      @text, @source, @action, @tone, @riskLevel, @reviewStatus, @broadcastStatus,
+      @executorCommandId, @broadcastResult, @broadcastErrorMessage,
+      @broadcastStartedAt, @broadcastFinishedAt, @scheduledTime,
+      @approvedBy, @approvedAt, @createdAt, @updatedAt
+    )`,
+  ).run({
+    id: speechId,
+    liveTaskId: context.task.id,
+    liveRoomId: context.task.live_room_id || context.room?.id || '',
+    questionId: '',
+    commentId: '',
+    productId: segment.productId || '',
+    productName: segment.productName || context.task.product_group_name || '',
+    text: normalizeSpeechText(segment.text),
+    source: SOURCE_SCRIPT_LOOP,
+    action: '\u4ecb\u7ecd\u5546\u54c1',
+    tone: '\u81ea\u7136',
+    riskLevel: '\u4f4e',
+    reviewStatus: STATUS_APPROVED,
+    broadcastStatus: STATUS_PENDING_DISPATCH,
+    executorCommandId: '',
+    broadcastResult: '',
+    broadcastErrorMessage: '',
+    broadcastStartedAt: '',
+    broadcastFinishedAt: '',
+    scheduledTime,
+    approvedBy: 'script-loop',
+    approvedAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+
+  return db.prepare('SELECT * FROM speech_queue WHERE id = ?').get(speechId);
+}
+
+function fillScriptLoopQueue(context, stateRow, options = {}) {
+  const state = mapScriptLoopState(stateRow || getOrCreateScriptLoopState(context));
+  const statsBefore = getScriptLoopQueueStats(context.task.id);
+  const minQueueSize = clampInteger(options.minQueueSize ?? state.minQueueSize, state.minQueueSize || 3, 1, 30);
+  const batchSize = clampInteger(options.batchSize ?? state.batchSize, state.batchSize || 5, 1, 20);
+  const totalNeeded = Math.max(0, minQueueSize - statsBefore.dispatchable);
+  const seedNeeded = statsBefore.scriptLoopDispatchable > 0 ? 0 : 1;
+  const needed = options.force ? batchSize : Math.min(batchSize, Math.max(totalNeeded, seedNeeded));
+
+  if (!needed) {
+    return {
+      inserted: [],
+      products: [],
+      statsBefore,
+      statsAfter: statsBefore,
+      skippedReason: 'queue_sufficient',
+    };
+  }
+
+  const pool = buildScriptLoopPool(context, state);
+  const inserted = [];
+  let cursorIndex = state.cursorIndex;
+
+  for (let index = 0; index < needed; index += 1) {
+    const segment = pool.segments[cursorIndex % pool.segments.length];
+    inserted.push(mapSpeech(createScriptLoopSpeechItem(context, segment, cursorIndex)));
+    cursorIndex += 1;
+  }
+
+  const timestamp = now();
+  const updatedState = updateScriptLoopState(context, {
+    cursorIndex,
+    lastFillAt: timestamp,
+    lastTickAt: timestamp,
+    settings: {
+      source: state.mode === LOOP_MODE_AI ? 'ai_assisted_template_fallback' : 'local_template',
+      lastProductCount: pool.products.length,
+      lastSegmentCount: pool.segments.length,
+      lastInsertedCount: inserted.length,
+    },
+  });
+
+  return {
+    inserted,
+    products: pool.products,
+    statsBefore,
+    statsAfter: getScriptLoopQueueStats(context.task.id),
+    loop: mapScriptLoopState(updatedState),
+  };
 }
 
 function runManualSpeechCompliance(text, context, scenario) {
@@ -529,6 +979,166 @@ router.get('/live/control-room/broadcast', (req, res) => {
     subtitles,
     delaySettings: mapDelaySettings(settingsRow),
     mock: true,
+  });
+});
+
+router.get('/live/control-room/script-loop', (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const state = getOrCreateScriptLoopState(context);
+  const products = getTaskProducts(context.task);
+
+  return success(res, {
+    loop: mapScriptLoopState(state),
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    products: products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      stock: product.stock,
+      scriptCount: product.scripts.length,
+      sellingPointCount: product.sellingPoints.length,
+      faqCount: product.faq.length,
+    })),
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/start', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const body = req.body || {};
+  const state = updateScriptLoopState(context, {
+    status: LOOP_STATUS_RUNNING,
+    mode: body.mode,
+    minQueueSize: body.minQueueSize,
+    batchSize: body.batchSize,
+    autoDispatch: body.autoDispatch,
+    lastTickAt: now(),
+  });
+  const fillResult = fillScriptLoopQueue(context, state, { force: false });
+  const loop = fillResult.loop || mapScriptLoopState(db.prepare('SELECT * FROM live_script_loop_state WHERE live_task_id = ?').get(context.task.id));
+
+  return success(res, {
+    loop,
+    fillResult,
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    message: '循环讲解已启动，系统会保持待播队列不断稿。',
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/pause', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const state = updateScriptLoopState(context, {
+    status: LOOP_STATUS_PAUSED,
+    lastTickAt: now(),
+  });
+
+  return success(res, {
+    loop: mapScriptLoopState(state),
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    message: '循环讲解已暂停，人工接管和待播队列仍可继续使用。',
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/resume', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const state = updateScriptLoopState(context, {
+    status: LOOP_STATUS_RUNNING,
+    autoDispatch: req.body?.autoDispatch,
+    lastTickAt: now(),
+  });
+  const fillResult = fillScriptLoopQueue(context, state, { force: false });
+
+  return success(res, {
+    loop: fillResult.loop || mapScriptLoopState(state),
+    fillResult,
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    message: '循环讲解已继续。',
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/stop', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const state = updateScriptLoopState(context, {
+    status: LOOP_STATUS_STOPPED,
+    lastTickAt: now(),
+  });
+
+  return success(res, {
+    loop: mapScriptLoopState(state),
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    message: '循环讲解已停止，已生成的待播稿不会被删除。',
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/fill', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const state = updateScriptLoopState(context, {
+    mode: req.body?.mode,
+    minQueueSize: req.body?.minQueueSize,
+    batchSize: req.body?.batchSize,
+    autoDispatch: req.body?.autoDispatch,
+    lastTickAt: now(),
+  });
+  const fillResult = fillScriptLoopQueue(context, state, { force: true });
+
+  return success(res, {
+    loop: fillResult.loop || mapScriptLoopState(state),
+    fillResult,
+    queueStats: getScriptLoopQueueStats(context.task.id),
+    message: `已补充 ${fillResult.inserted.length} 条循环讲解稿。`,
+    mock: false,
+  });
+});
+
+router.post('/live/control-room/script-loop/tick', requirePermission(PERMISSIONS.SPEECH_WRITE), (req, res) => {
+  const context = resolveContext(req, res);
+  if (!context) return null;
+
+  const existing = getOrCreateScriptLoopState(context);
+  let state = updateScriptLoopState(context, {
+    mode: req.body?.mode,
+    minQueueSize: req.body?.minQueueSize,
+    batchSize: req.body?.batchSize,
+    autoDispatch: req.body?.autoDispatch,
+    lastTickAt: now(),
+  });
+  let fillResult = {
+    inserted: [],
+    statsBefore: getScriptLoopQueueStats(context.task.id),
+    statsAfter: getScriptLoopQueueStats(context.task.id),
+    skippedReason: 'not_running',
+  };
+
+  if ((state.status || existing.status) === LOOP_STATUS_RUNNING) {
+    fillResult = fillScriptLoopQueue(context, state, { force: false });
+    state = db.prepare('SELECT * FROM live_script_loop_state WHERE live_task_id = ?').get(context.task.id);
+  }
+
+  const loop = mapScriptLoopState(state);
+  const queueStats = getScriptLoopQueueStats(context.task.id);
+
+  return success(res, {
+    loop,
+    fillResult,
+    queueStats,
+    shouldDispatch: loop.status === LOOP_STATUS_RUNNING && loop.autoDispatch && queueStats.dispatching === 0 && queueStats.dispatchable > 0,
+    mock: false,
   });
 });
 
