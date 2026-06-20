@@ -10,6 +10,10 @@ const dataDir = path.join(serverRoot, 'data');
 const schemaPath = path.join(__dirname, 'schema.sql');
 const oldLiveTalkingObsUrl = 'http://127.0.0.1:8010/index.html';
 const defaultObsOutputUrl = process.env.OBS_BROWSER_SOURCE_URL || 'http://127.0.0.1:5173/obs/output';
+const defaultObsPreviewStreamUrl =
+  process.env.OBS_PREVIEW_STREAM_URL ||
+  'http://127.0.0.1:8080/players/srs_player.html?autostart=true&schema=http&host=127.0.0.1&port=8080&app=live&stream=dh';
+const defaultObsPreviewIngestUrl = process.env.OBS_PREVIEW_INGEST_URL || 'rtmp://127.0.0.1/live/dh';
 const allowedIdTables = new Set([
   'products',
   'product_groups',
@@ -120,6 +124,10 @@ function ensureObsLocalConfigColumns() {
       browser_source_url TEXT,
       browser_source_width INTEGER DEFAULT 1080,
       browser_source_height INTEGER DEFAULT 1920,
+      preview_stream_enabled INTEGER DEFAULT 1,
+      preview_stream_type TEXT DEFAULT 'iframe',
+      preview_stream_url TEXT,
+      preview_ingest_url TEXT,
       last_status_json TEXT,
       updated_at TEXT
     );
@@ -131,6 +139,10 @@ function ensureObsLocalConfigColumns() {
   ensureColumn('obs_local_config', 'browser_source_url', 'browser_source_url TEXT');
   ensureColumn('obs_local_config', 'browser_source_width', 'browser_source_width INTEGER DEFAULT 1080');
   ensureColumn('obs_local_config', 'browser_source_height', 'browser_source_height INTEGER DEFAULT 1920');
+  ensureColumn('obs_local_config', 'preview_stream_enabled', 'preview_stream_enabled INTEGER DEFAULT 1');
+  ensureColumn('obs_local_config', 'preview_stream_type', "preview_stream_type TEXT DEFAULT 'iframe'");
+  ensureColumn('obs_local_config', 'preview_stream_url', 'preview_stream_url TEXT');
+  ensureColumn('obs_local_config', 'preview_ingest_url', 'preview_ingest_url TEXT');
   ensureColumn('obs_local_config', 'output_runtime_session_id', 'output_runtime_session_id TEXT');
   ensureColumn('obs_local_config', 'output_runtime_live_session_id', 'output_runtime_live_session_id TEXT');
   ensureColumn('obs_local_config', 'output_runtime_avatar_id', 'output_runtime_avatar_id TEXT');
@@ -142,6 +154,16 @@ function ensureObsLocalConfigColumns() {
      SET browser_source_url = ?
      WHERE browser_source_url = ? OR browser_source_url IS NULL OR browser_source_url = ''`,
   ).run(defaultObsOutputUrl, oldLiveTalkingObsUrl);
+  db.prepare(
+    `UPDATE obs_local_config
+     SET preview_stream_url = ?
+     WHERE preview_stream_url IS NULL OR preview_stream_url = ''`,
+  ).run(defaultObsPreviewStreamUrl);
+  db.prepare(
+    `UPDATE obs_local_config
+     SET preview_ingest_url = ?
+     WHERE preview_ingest_url IS NULL OR preview_ingest_url = ''`,
+  ).run(defaultObsPreviewIngestUrl);
 }
 
 function ensureSpeechQueueColumns() {

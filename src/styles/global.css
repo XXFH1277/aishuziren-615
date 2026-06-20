@@ -1248,6 +1248,21 @@ body {
   object-fit: contain;
 }
 
+.control-room-obs-iframe,
+.control-room-obs-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #020617;
+  border: 0;
+  object-fit: contain;
+}
+
+.control-room-obs-monitor.is-stream .control-room-obs-badge span {
+  color: #dcfce7;
+  background: rgb(21 128 61 / 78%);
+}
+
 .control-room-obs-placeholder {
   position: absolute;
   inset: 0;

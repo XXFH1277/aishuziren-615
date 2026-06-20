@@ -9,6 +9,11 @@ import { fail, success } from '../utils/response.js';
 
 const router = express.Router();
 const CONFIG_ID = 'LOCAL';
+const DEFAULT_PREVIEW_STREAM_TYPE = process.env.OBS_PREVIEW_STREAM_TYPE || 'iframe';
+const DEFAULT_PREVIEW_STREAM_URL =
+  process.env.OBS_PREVIEW_STREAM_URL ||
+  'http://127.0.0.1:8080/players/srs_player.html?autostart=true&schema=http&host=127.0.0.1&port=8080&app=live&stream=dh';
+const DEFAULT_PREVIEW_INGEST_URL = process.env.OBS_PREVIEW_INGEST_URL || 'rtmp://127.0.0.1/live/dh';
 const OPEN_STATUSES = new Set(['ready', 'live']);
 
 function trimText(value = '') {
@@ -83,6 +88,15 @@ function readOutputRuntime() {
     avatarId: row?.output_runtime_avatar_id || '',
     status: row?.output_runtime_status || 'idle',
     updatedAt: row?.output_runtime_updated_at || '',
+    previewStream: {
+      enabled:
+        row?.preview_stream_enabled !== undefined && row?.preview_stream_enabled !== null
+          ? Boolean(Number(row.preview_stream_enabled))
+          : true,
+      type: row?.preview_stream_type || DEFAULT_PREVIEW_STREAM_TYPE,
+      url: row?.preview_stream_url || DEFAULT_PREVIEW_STREAM_URL,
+      ingestUrl: row?.preview_ingest_url || DEFAULT_PREVIEW_INGEST_URL,
+    },
   };
 }
 

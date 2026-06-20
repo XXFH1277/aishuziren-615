@@ -19,6 +19,11 @@ import { fail, success } from '../utils/response.js';
 const router = express.Router();
 const CONFIG_ID = 'LOCAL';
 const LOCAL_EXECUTOR_ID = 'LOCAL_OBS';
+const DEFAULT_PREVIEW_STREAM_TYPE = process.env.OBS_PREVIEW_STREAM_TYPE || 'iframe';
+const DEFAULT_PREVIEW_STREAM_URL =
+  process.env.OBS_PREVIEW_STREAM_URL ||
+  'http://127.0.0.1:8080/players/srs_player.html?autostart=true&schema=http&host=127.0.0.1&port=8080&app=live&stream=dh';
+const DEFAULT_PREVIEW_INGEST_URL = process.env.OBS_PREVIEW_INGEST_URL || 'rtmp://127.0.0.1/live/dh';
 const LOCAL_EXECUTOR_NAME = '本机 OBS WebSocket';
 let volatileObsPassword = '';
 
@@ -38,6 +43,10 @@ function defaultConfig() {
     browserSourceUrl: DEFAULT_BROWSER_SOURCE_URL,
     browserSourceWidth: DEFAULT_SOURCE_WIDTH,
     browserSourceHeight: DEFAULT_SOURCE_HEIGHT,
+    previewStreamEnabled: true,
+    previewStreamType: DEFAULT_PREVIEW_STREAM_TYPE,
+    previewStreamUrl: DEFAULT_PREVIEW_STREAM_URL,
+    previewIngestUrl: DEFAULT_PREVIEW_INGEST_URL,
     outputRuntime: {
       sessionId: '',
       liveSessionId: '',
@@ -76,6 +85,13 @@ function mapConfig(row) {
     browserSourceUrl: row.browser_source_url || base.browserSourceUrl,
     browserSourceWidth: Number(row.browser_source_width || base.browserSourceWidth),
     browserSourceHeight: Number(row.browser_source_height || base.browserSourceHeight),
+    previewStreamEnabled:
+      row.preview_stream_enabled !== undefined && row.preview_stream_enabled !== null
+        ? Boolean(Number(row.preview_stream_enabled))
+        : base.previewStreamEnabled,
+    previewStreamType: row.preview_stream_type || base.previewStreamType,
+    previewStreamUrl: row.preview_stream_url || base.previewStreamUrl,
+    previewIngestUrl: row.preview_ingest_url || base.previewIngestUrl,
     outputRuntime: {
       sessionId: row.output_runtime_session_id || '',
       liveSessionId: row.output_runtime_live_session_id || '',
@@ -248,11 +264,15 @@ function persistLastStatus(snapshot = {}) {
     `INSERT INTO obs_local_config (
       id, obs_url, password_cipher, password_iv, password_tag, password_masked,
       obs_timeout_ms, scene_name, browser_source_name, browser_source_url,
-      browser_source_width, browser_source_height, last_status_json, updated_at
+      browser_source_width, browser_source_height, preview_stream_enabled,
+      preview_stream_type, preview_stream_url, preview_ingest_url,
+      last_status_json, updated_at
     ) VALUES (
       @id, @obsUrl, @passwordCipher, @passwordIv, @passwordTag, @passwordMasked,
       @obsTimeoutMs, @sceneName, @browserSourceName, @browserSourceUrl,
-      @browserSourceWidth, @browserSourceHeight, @lastStatus, @updatedAt
+      @browserSourceWidth, @browserSourceHeight, @previewStreamEnabled,
+      @previewStreamType, @previewStreamUrl, @previewIngestUrl,
+      @lastStatus, @updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       last_status_json = excluded.last_status_json,
@@ -270,6 +290,10 @@ function persistLastStatus(snapshot = {}) {
     browserSourceUrl: mapped.browserSourceUrl,
     browserSourceWidth: mapped.browserSourceWidth,
     browserSourceHeight: mapped.browserSourceHeight,
+    previewStreamEnabled: mapped.previewStreamEnabled ? 1 : 0,
+    previewStreamType: mapped.previewStreamType || DEFAULT_PREVIEW_STREAM_TYPE,
+    previewStreamUrl: mapped.previewStreamUrl || DEFAULT_PREVIEW_STREAM_URL,
+    previewIngestUrl: mapped.previewIngestUrl || DEFAULT_PREVIEW_INGEST_URL,
     lastStatus: toJson(snapshot),
     updatedAt: timestamp,
   });
@@ -308,11 +332,15 @@ function saveConfig(body = {}) {
     `INSERT INTO obs_local_config (
       id, obs_url, password_cipher, password_iv, password_tag, password_masked,
       obs_timeout_ms, scene_name, browser_source_name, browser_source_url,
-      browser_source_width, browser_source_height, last_status_json, updated_at
+      browser_source_width, browser_source_height, preview_stream_enabled,
+      preview_stream_type, preview_stream_url, preview_ingest_url,
+      last_status_json, updated_at
     ) VALUES (
       @id, @obsUrl, @passwordCipher, @passwordIv, @passwordTag, @passwordMasked,
       @obsTimeoutMs, @sceneName, @browserSourceName, @browserSourceUrl,
-      @browserSourceWidth, @browserSourceHeight, @lastStatus, @updatedAt
+      @browserSourceWidth, @browserSourceHeight, @previewStreamEnabled,
+      @previewStreamType, @previewStreamUrl, @previewIngestUrl,
+      @lastStatus, @updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       obs_url = excluded.obs_url,
@@ -326,6 +354,10 @@ function saveConfig(body = {}) {
       browser_source_url = excluded.browser_source_url,
       browser_source_width = excluded.browser_source_width,
       browser_source_height = excluded.browser_source_height,
+      preview_stream_enabled = excluded.preview_stream_enabled,
+      preview_stream_type = excluded.preview_stream_type,
+      preview_stream_url = excluded.preview_stream_url,
+      preview_ingest_url = excluded.preview_ingest_url,
       updated_at = excluded.updated_at`,
   ).run({
     id: CONFIG_ID,
@@ -340,6 +372,10 @@ function saveConfig(body = {}) {
     browserSourceUrl: trimText(body.browserSourceUrl) || DEFAULT_BROWSER_SOURCE_URL,
     browserSourceWidth: Number(body.browserSourceWidth || DEFAULT_SOURCE_WIDTH),
     browserSourceHeight: Number(body.browserSourceHeight || DEFAULT_SOURCE_HEIGHT),
+    previewStreamEnabled: body.previewStreamEnabled === false ? 0 : 1,
+    previewStreamType: trimText(body.previewStreamType) || DEFAULT_PREVIEW_STREAM_TYPE,
+    previewStreamUrl: trimText(body.previewStreamUrl) || DEFAULT_PREVIEW_STREAM_URL,
+    previewIngestUrl: trimText(body.previewIngestUrl) || DEFAULT_PREVIEW_INGEST_URL,
     lastStatus: row?.last_status_json || null,
     updatedAt: timestamp,
   });

@@ -77,7 +77,7 @@ import {
   updateAvatar,
 } from '../../services/avatarService';
 import { generateCommentReply } from '../../services/aiService';
-import { getExecutorCommand, getLocalObsSourceScreenshot, getObsOutputRuntime } from '../../services/executorService';
+import { getExecutorCommand, getLocalObsConfig, getLocalObsSourceScreenshot, getObsOutputRuntime } from '../../services/executorService';
 import { uploadAvatarSourceVideo } from '../../services/fileService';
 
 const commentFilters = [
@@ -270,6 +270,9 @@ export default function LiveControlRoom() {
   const [obsScreenshotLoading, setObsScreenshotLoading] = useState(false);
   const [obsScreenshotError, setObsScreenshotError] = useState('');
   const [obsPasswordInput, setObsPasswordInput] = useState('');
+  const [obsLocalConfig, setObsLocalConfig] = useState(null);
+  const [obsPreviewReloadKey, setObsPreviewReloadKey] = useState(0);
+  const [obsPreviewVideoError, setObsPreviewVideoError] = useState('');
   const dhPeerRef = useRef(null);
   const dhVideoRef = useRef(null);
   const dhAudioRef = useRef(null);
@@ -282,6 +285,19 @@ export default function LiveControlRoom() {
     } catch (requestError) {
       if (!options.silent) {
         message.warning(requestError.message || 'OBS 输出状态读取失败');
+      }
+      return null;
+    }
+  }
+
+  async function loadObsLocalConfig(options = {}) {
+    try {
+      const data = await getLocalObsConfig();
+      setObsLocalConfig(data.config || null);
+      return data.config || null;
+    } catch (requestError) {
+      if (!options.silent) {
+        message.warning(requestError.message || 'OBS 本地流配置读取失败');
       }
       return null;
     }
@@ -627,14 +643,13 @@ export default function LiveControlRoom() {
   useEffect(() => {
     loadControlRoom();
     loadDigitalHumanAvatars();
+    loadObsLocalConfig({ silent: true });
     loadObsOutputRuntime({ silent: true });
-    loadObsSourceScreenshot({ silent: true });
   }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       loadObsOutputRuntime({ silent: true });
-      loadObsSourceScreenshot({ silent: true });
     }, 3000);
 
     return () => window.clearInterval(timer);
@@ -1404,6 +1419,24 @@ export default function LiveControlRoom() {
     ? new Date(obsScreenshot.capturedAt).toLocaleTimeString('zh-CN', { hour12: false })
     : '';
   const obsScreenshotNeedsPassword = /password|auth|authentication|鉴权|密码/i.test(obsScreenshotError || '');
+  const runtimePreviewStream = obsOutputRuntime?.previewStream || {};
+  const obsPreviewStream = {
+    enabled:
+      obsLocalConfig?.previewStreamEnabled !== false &&
+      runtimePreviewStream.enabled !== false &&
+      Boolean(obsLocalConfig?.previewStreamUrl || runtimePreviewStream.url),
+    type: obsLocalConfig?.previewStreamType || runtimePreviewStream.type || 'iframe',
+    url: obsLocalConfig?.previewStreamUrl || runtimePreviewStream.url || '',
+    ingestUrl: obsLocalConfig?.previewIngestUrl || runtimePreviewStream.ingestUrl || '',
+  };
+  const obsMonitorUsesStream = obsPreviewStream.enabled && Boolean(obsPreviewStream.url);
+  const obsMonitorStatusText = obsMonitorUsesStream
+    ? '本地流实时预览'
+    : obsScreenshot?.imageData
+      ? 'OBS 截图兜底'
+      : obsOutputStatusText;
+  const obsMonitorBadgeText = obsMonitorUsesStream ? 'STREAM' : obsScreenshot?.imageData ? 'SNAPSHOT' : obsOutputConnected ? 'OBS LIVE' : 'WAITING';
+  const obsMonitorModeText = obsMonitorUsesStream ? (obsPreviewStream.type === 'video' ? 'video 播放' : '网页播放器') : 'OBS WebSocket 截图';
   const canSpeakToDigitalHuman = dhProvider !== 'livetalking' || obsOutputConnected || dhRtcStatus === 'connected';
   const dhProviderOptions = dhEngineConfig?.providers || [
     { label: '本机 LiveTalking', value: 'livetalking' },
@@ -1642,37 +1675,82 @@ export default function LiveControlRoom() {
                 </Card>
 
                 <Card
-                  title="OBS 输出监看/状态"
+                  title="OBS 输出实时预览/状态"
                   className="panel-card control-room-panel"
                   extra={
                     <Space size={6} wrap>
-                      <Tag color={obsOutputStatusColor}>{obsOutputStatusText}</Tag>
+                      <Tag color={obsMonitorUsesStream ? 'green' : obsOutputStatusColor}>{obsMonitorStatusText}</Tag>
+                      {obsMonitorUsesStream ? (
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setObsPreviewVideoError('');
+                            setObsPreviewReloadKey((key) => key + 1);
+                            loadObsOutputRuntime({ silent: true });
+                          }}
+                        >
+                          刷新实时流
+                        </Button>
+                      ) : null}
                       <Button size="small" loading={obsScreenshotLoading} onClick={() => loadObsSourceScreenshot()}>
-                        刷新画面
+                        截图兜底
                       </Button>
                     </Space>
                   }
                 >
-                  <div className={`control-room-obs-monitor ${obsOutputConnected ? 'is-live' : 'is-waiting'}`}>
+                  <div className={`control-room-obs-monitor ${obsMonitorUsesStream ? 'is-stream' : obsOutputConnected ? 'is-live' : 'is-waiting'}`}>
                     <div className="control-room-obs-screen">
-                      {obsScreenshot?.imageData ? (
+                      {obsMonitorUsesStream ? (
+                        obsPreviewStream.type === 'video' ? (
+                          <video
+                            key={`${obsPreviewStream.url}-${obsPreviewReloadKey}`}
+                            className="control-room-obs-video"
+                            src={obsPreviewStream.url}
+                            controls
+                            autoPlay
+                            muted
+                            playsInline
+                            onError={() => setObsPreviewVideoError('本地流播放失败，请确认本机流媒体服务已启动，并且 OBS 正在推流。')}
+                          />
+                        ) : (
+                          <iframe
+                            key={`${obsPreviewStream.url}-${obsPreviewReloadKey}`}
+                            className="control-room-obs-iframe"
+                            src={obsPreviewStream.url}
+                            title="OBS 本地流实时预览"
+                            allow="autoplay; fullscreen; picture-in-picture"
+                          />
+                        )
+                      ) : obsScreenshot?.imageData ? (
                         <img src={obsScreenshot.imageData} alt="OBS 当前输出画面" />
                       ) : (
                         <div className="control-room-obs-placeholder">
-                          <span>{obsOutputConnected ? 'OBS LIVE' : 'WAITING'}</span>
+                          <span>{obsMonitorBadgeText}</span>
                           <strong>{currentRoom.name || '当前直播间'}</strong>
-                          <p>{obsScreenshotError || currentSpeech.text || '等待 OBS 返回当前画面'}</p>
+                          <p>{obsScreenshotError || currentSpeech.text || '等待本地流或 OBS 截图'}</p>
                         </div>
                       )}
                       <div className="control-room-obs-badge">
-                        <span>{obsOutputConnected ? 'OBS LIVE' : 'WAITING'}</span>
-                        {obsScreenshotCapturedText ? <small>{obsScreenshotCapturedText}</small> : null}
+                        <span>{obsMonitorBadgeText}</span>
+                        {obsScreenshotCapturedText && !obsMonitorUsesStream ? <small>{obsScreenshotCapturedText}</small> : null}
                       </div>
                     </div>
                     <div className="control-room-obs-meta">
                       <div>
                         <span>输出页</span>
                         <strong>http://127.0.0.1:5173/obs/output</strong>
+                      </div>
+                      <div>
+                        <span>监看方式</span>
+                        <strong>{obsMonitorModeText}</strong>
+                      </div>
+                      <div>
+                        <span>本地推流</span>
+                        <strong>{obsPreviewStream.ingestUrl || '未配置'}</strong>
+                      </div>
+                      <div>
+                        <span>播放地址</span>
+                        <strong>{obsPreviewStream.url || '未配置'}</strong>
                       </div>
                       <div>
                         <span>LiveTalking 会话</span>
@@ -1687,11 +1765,23 @@ export default function LiveControlRoom() {
                         <strong>{studioOutput.resolution || '-'} / {studioOutput.fps || 0} FPS</strong>
                       </div>
                       <div>
-                        <span>监看来源</span>
-                        <strong>{obsScreenshot?.sourceName || '等待 OBS 截图'}</strong>
+                        <span>截图来源</span>
+                        <strong>{obsScreenshot?.sourceName || '未抓取'}</strong>
                       </div>
                     </div>
                   </div>
+                  {obsMonitorUsesStream ? (
+                    <Alert
+                      className="control-room-alert"
+                      type="info"
+                      showIcon
+                      message="中控台正在播放 OBS 本地输出流"
+                      description="OBS 仍然是唯一正式画面源；这里不是第二条 LiveTalking 会话，而是播放 OBS 推到本机流媒体服务后的画面。"
+                    />
+                  ) : null}
+                  {obsPreviewVideoError ? (
+                    <Alert className="control-room-alert" type="warning" showIcon message="本地流播放失败" description={obsPreviewVideoError} />
+                  ) : null}
                   {obsScreenshotError ? (
                     <Alert
                       className="control-room-alert"

@@ -1,5 +1,5 @@
 import { ApiOutlined, EyeOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Empty, Form, Input, InputNumber, List, Modal, Progress, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, InputNumber, List, Modal, Progress, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DataCard from '../../components/DataCard';
 import PageHeader from '../../components/PageHeader';
@@ -19,6 +19,13 @@ import {
 
 const defaultObsChecklist = getObsChecklist();
 const defaultObsOutputUrl = 'http://127.0.0.1:5173/obs/output';
+const defaultPreviewStreamUrl =
+  'http://127.0.0.1:8080/players/srs_player.html?autostart=true&schema=http&host=127.0.0.1&port=8080&app=live&stream=dh';
+const defaultPreviewIngestUrl = 'rtmp://127.0.0.1/live/dh';
+const previewStreamTypeOptions = [
+  { label: '网页播放器 / SRS Player', value: 'iframe' },
+  { label: '原生 video 地址', value: 'video' },
+];
 const emptyObs = {
   executorId: '',
   executorName: '暂无执行端',
@@ -86,6 +93,10 @@ export default function ObsStatus() {
         browserSourceUrl: config.browserSourceUrl || defaultObsOutputUrl,
         browserSourceWidth: config.browserSourceWidth || 1080,
         browserSourceHeight: config.browserSourceHeight || 1920,
+        previewStreamEnabled: config.previewStreamEnabled !== false,
+        previewStreamType: config.previewStreamType || 'iframe',
+        previewStreamUrl: config.previewStreamUrl || defaultPreviewStreamUrl,
+        previewIngestUrl: config.previewIngestUrl || defaultPreviewIngestUrl,
       });
     } catch (requestError) {
       message.warning(requestError.message || '本机 OBS 配置加载失败');
@@ -319,6 +330,31 @@ export default function ObsStatus() {
             </Form.Item>
             <Form.Item name="browserSourceHeight" label="源高度">
               <InputNumber min={320} max={3840} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              name="previewStreamEnabled"
+              label="中控台实时预览"
+              valuePropName="checked"
+              extra="开启后，中控台会优先播放 OBS 推到本机流媒体服务后的画面。"
+            >
+              <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+            </Form.Item>
+            <Form.Item name="previewStreamType" label="预览播放方式">
+              <Select options={previewStreamTypeOptions} />
+            </Form.Item>
+            <Form.Item
+              name="previewIngestUrl"
+              label="OBS 本地推流地址"
+              extra="在 OBS 直播设置中把服务器/串流密钥指向这里对应的本机服务，例如 SRS 的 rtmp://127.0.0.1/live/dh。"
+            >
+              <Input placeholder={defaultPreviewIngestUrl} />
+            </Form.Item>
+            <Form.Item
+              name="previewStreamUrl"
+              label="中控台播放地址"
+              extra="中控台会播放这个地址。默认是本机 SRS 播放器；如果换成 HLS/WebRTC，也可以填对应 URL。"
+            >
+              <Input placeholder={defaultPreviewStreamUrl} />
             </Form.Item>
           </div>
         </Form>
