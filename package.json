@@ -13,7 +13,9 @@
     "server:smoke": "node server/tests/smoke-test.js",
     "demo:repair": "node scripts/local-demo.mjs repair",
     "demo:health": "node scripts/local-demo.mjs health",
-    "demo:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-demo.ps1"
+    "demo:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-demo.ps1",
+    "stream:srs:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-srs.ps1",
+    "stream:srs:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local-srs.ps1"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
